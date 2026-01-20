@@ -1,0 +1,788 @@
+<UserControl x:Class="HelloID.Vault.Management.Views.Persons.PersonDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="1000">
+
+    <UserControl.Resources>
+        <!-- Style for read-only TextBox that removes all focus borders -->
+        <Style x:Key="SelectableTextBoxStyle" TargetType="TextBox">
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="VerticalContentAlignment" Value="Top"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                     Focusable="False"
+                                     HorizontalScrollBarVisibility="Hidden"
+                                     VerticalScrollBarVisibility="Hidden"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header with Person Name and Actions -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Person Name and ID -->
+            <TextBox Style="{StaticResource SelectableTextBoxStyle}"
+                    Grid.Row="0" Grid.Column="0"
+                    Text="{Binding FormattedDisplayName, Mode=OneWay}"
+                    FontSize="24"
+                    FontWeight="SemiBold"
+                    Margin="0,0,0,4"/>
+
+            <!-- UUID -->
+            <TextBox Style="{StaticResource SelectableTextBoxStyle}"
+                    Grid.Row="1" Grid.Column="0"
+                    Text="{Binding Person.PersonId, StringFormat='UUID: {0}', Mode=OneWay}"
+                    FontSize="12"
+                    Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+
+            <!-- Action Buttons -->
+            <StackPanel Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+                       Orientation="Horizontal"
+                       VerticalAlignment="Center">
+                <!-- Person buttons - visible only on Information tab (index 0) -->
+                <StackPanel Orientation="Horizontal"
+                           Visibility="{Binding ActiveTabIndex, Converter={StaticResource IntToVisibilityConverter}, ConverterParameter=0}">
+                    <Button Content="Add Person"
+                           Width="110"
+                           Height="32"
+                           Margin="0,0,8,0"
+                           Command="{Binding AddPersonCommand}"/>
+                    <Button Content="Edit Person"
+                           Width="110"
+                           Height="32"
+                           Margin="0,0,8,0"
+                           Command="{Binding EditPersonCommand}"/>
+                    <Button Content="Delete Person"
+                           Width="120"
+                           Height="32"
+                           Command="{Binding DeletePersonCommand}"/>
+                </StackPanel>
+
+                <!-- Contract buttons - visible only on Contracts tab (index 1) -->
+                <StackPanel Orientation="Horizontal"
+                           Visibility="{Binding ActiveTabIndex, Converter={StaticResource IntToVisibilityConverter}, ConverterParameter=1}">
+                    <Button Content="Add Contract"
+                           Width="120"
+                           Height="32"
+                           Margin="0,0,8,0"
+                           Command="{Binding AddContractCommand}"/>
+                </StackPanel>
+
+                <!-- Contact buttons - visible only on Contacts tab (index 2) -->
+                <StackPanel Orientation="Horizontal"
+                           Visibility="{Binding ActiveTabIndex, Converter={StaticResource IntToVisibilityConverter}, ConverterParameter=2}">
+                    <Button Content="Add Contact"
+                           Width="120"
+                           Height="32"
+                           Margin="0,0,8,0"
+                           Command="{Binding AddContactCommand}"
+                           IsEnabled="{Binding CanAddContact}"/>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- Tab Control -->
+        <TabControl Grid.Row="2" Margin="0,16,0,0"
+                  SelectedIndex="{Binding ActiveTabIndex, Mode=TwoWay}">
+
+            <!-- Information Tab -->
+            <TabItem Header="Information">
+                <TabItem.InputBindings>
+                    <KeyBinding Key="D1" Modifiers="Control"/>
+                </TabItem.InputBindings>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <!-- General and Details Section -->
+                        <Grid Margin="0,0,0,24">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="400"/>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- General Section Header -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                      Text="General"
+                                      FontSize="16"
+                                      FontWeight="SemiBold"
+                                      Margin="0,0,0,12"/>
+
+                            <!-- General - Left column labels -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Source" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Display name" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="External Id" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Location" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Manager" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Manager Id" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Username" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+
+                            <!-- General - Left column values -->
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="1" Grid.Column="1" Text="{Binding Person.SourceDisplayName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="2" Grid.Column="1" Text="{Binding Person.DisplayName, Mode=OneWay}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="3" Grid.Column="1" Text="{Binding Person.ExternalId, Mode=OneWay}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="4" Grid.Column="1" Text="{Binding Person.PrimaryContractLocationName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="5" Grid.Column="1" Text="{Binding Person.PrimaryManagerName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="6" Grid.Column="1" Text="{Binding Person.PrimaryManagerPersonId, TargetNullValue='—'}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="7" Grid.Column="1" Text="{Binding Person.UserName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <!-- Details Section Header -->
+                            <TextBlock Grid.Row="0" Grid.Column="2" Grid.ColumnSpan="2"
+                                      Text="Details"
+                                      FontSize="16"
+                                      FontWeight="SemiBold"
+                                      Margin="0,0,0,12"/>
+
+                            <!-- Details - Right column labels and values -->
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Gender" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="1" Grid.Column="3" Text="{Binding Person.Gender, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Honorific prefix" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="2" Grid.Column="3" Text="{Binding Person.HonorificPrefix, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="2" Text="Honorific suffix" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="3" Grid.Column="3" Text="{Binding Person.HonorificSuffix, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="2" Text="Birthdate" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="4" Grid.Column="3" Text="{Binding Person.BirthDate, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="5" Grid.Column="2" Text="Birth locality" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="5" Grid.Column="3" Text="{Binding Person.BirthLocality, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="6" Grid.Column="2" Text="Marital status" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="6" Grid.Column="3" Text="{Binding Person.MaritalStatus, TargetNullValue='—'}" Margin="0,0,0,4"/>
+                        </Grid>
+
+                        <!-- Name and Contact Information Section -->
+                        <Grid Margin="0,0,0,24">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="400"/>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Name Section Header -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                      Text="Name"
+                                      FontSize="16"
+                                      FontWeight="SemiBold"
+                                      Margin="0,0,0,12"/>
+
+                            <!-- Name - Left column labels and values -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Initials" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="1" Grid.Column="1" Text="{Binding Person.Initials, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Given name" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="2" Grid.Column="1" Text="{Binding Person.GivenName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Nickname" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="3" Grid.Column="1" Text="{Binding Person.NickName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Family name" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="4" Grid.Column="1" Text="{Binding Person.FamilyName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Family name prefix" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="5" Grid.Column="1" Text="{Binding Person.FamilyNamePrefix, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Family name partner" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="6" Grid.Column="1" Text="{Binding Person.FamilyNamePartner, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Family name partner prefix" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="7" Grid.Column="1" Text="{Binding Person.FamilyNamePartnerPrefix, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Convention" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="8" Grid.Column="1" Text="{Binding Person.Convention, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <!-- Contact Information Section Header -->
+                            <TextBlock Grid.Row="0" Grid.Column="2" Grid.ColumnSpan="2"
+                                      Text="Contact information"
+                                      FontSize="16"
+                                      FontWeight="SemiBold"
+                                      Margin="0,0,0,12"/>
+
+                            <!-- Contact Information - Right column labels and values -->
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Street" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="1" Grid.Column="3" Text="{Binding Person.PrimaryContactAddressStreet, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Street extension" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="2" Grid.Column="3" Text="{Binding Person.PrimaryContactAddressStreetExt, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="2" Text="House number" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="3" Grid.Column="3" Text="{Binding Person.PrimaryContactAddressHouseNumber, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="2" Text="House number extension" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="4" Grid.Column="3" Text="{Binding Person.PrimaryContactAddressHouseNumberExt, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="5" Grid.Column="2" Text="Postal code" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="5" Grid.Column="3" Text="{Binding Person.PrimaryContactAddressPostal, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="6" Grid.Column="2" Text="City" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="6" Grid.Column="3" Text="{Binding Person.PrimaryContactAddressLocality, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="7" Grid.Column="2" Text="Country" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="7" Grid.Column="3" Text="{Binding Person.PrimaryContactAddressCountry, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="8" Grid.Column="2" Text="Phone mobile" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="8" Grid.Column="3" Text="{Binding Person.PrimaryContactPhoneMobile, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="9" Grid.Column="2" Text="Phone fixed" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="9" Grid.Column="3" Text="{Binding Person.PrimaryContactPhoneFixed, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                            <TextBlock Grid.Row="10" Grid.Column="2" Text="E-mail" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="10" Grid.Column="3" Text="{Binding Person.PrimaryContactEmail, TargetNullValue='—'}" Margin="0,0,0,4"/>
+                        </Grid>
+
+                        <!-- Primary Contract and Custom Section - Outer Container -->
+                        <Grid Margin="0,0,0,24">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>  <!-- Primary Contract -->
+                                <ColumnDefinition Width="Auto"/>  <!-- Custom (independent) -->
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Grid 1: Primary Contract -->
+                            <Grid Grid.Column="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="200"/>
+                                    <ColumnDefinition Width="400"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Primary Contract Section Header -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                          Text="Primary contract"
+                                          FontSize="16"
+                                          FontWeight="SemiBold"
+                                          Margin="0,0,0,12"/>
+
+                                <!-- Status Badge, Primary Badge, and Date Range -->
+                                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,12">
+                                    <Border Background="{Binding Person.PersonStatus, Converter={StaticResource PersonStatusToBrushConverter}}"
+                                           CornerRadius="4"
+                                           Padding="8,4"
+                                           Margin="0,0,12,0">
+                                        <TextBlock Text="{Binding Person.PersonStatus}"
+                                                  Foreground="White"
+                                                  FontWeight="SemiBold"/>
+                                    </Border>
+
+                                    <!-- Primary Badge (always shown for primary contract section) -->
+                                    <Border Background="#2D2D30"
+                                           CornerRadius="4"
+                                           Padding="8,4"
+                                           Margin="0,0,12,0">
+                                        <TextBlock Text="Primary"
+                                                  Foreground="White"
+                                                  FontWeight="SemiBold"/>
+                                    </Border>
+
+                                    <TextBlock Text="{Binding Person.PrimaryContractDateRange, TargetNullValue='No contract'}"
+                                              VerticalAlignment="Center"
+                                              FontStyle="Italic"/>
+                                </StackPanel>
+
+                                <!-- Primary Contract - Labels and values -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Manager" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="2" Grid.Column="1" Text="{Binding Person.PrimaryContractManagerName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Department" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="3" Grid.Column="1" Text="{Binding Person.PrimaryContractDepartmentName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Title" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="4" Grid.Column="1" Text="{Binding Person.PrimaryContractTitleName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Employer" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="5" Grid.Column="1" Text="{Binding Person.PrimaryContractEmployerName, TargetNullValue='—'}" Margin="0,0,0,4"/>
+                            </Grid>
+
+                            <!-- Grid 2: Custom Fields (Independent) -->
+                            <Grid Grid.Column="1"
+                                  Margin="24,0,0,0"
+                                  Visibility="{Binding HasCustomFields, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Custom Fields Section Header -->
+                                <TextBlock Grid.Row="0"
+                                          Text="Custom"
+                                          FontSize="16"
+                                          FontWeight="SemiBold"
+                                          Margin="0,0,0,12"/>
+
+                                <!-- Custom Fields ItemsControl -->
+                                <ItemsControl Grid.Row="1"
+                                             ItemsSource="{Binding CustomFields}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="200"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock Grid.Column="0"
+                                                          Text="{Binding DisplayName}"
+                                                          FontStyle="Italic"
+                                                          Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                                <TextBox Style="{StaticResource SelectableTextBoxStyle}"
+                                                        Grid.Column="1"
+                                                        Text="{Binding Value, TargetNullValue='—'}"
+                                                        MinWidth="300"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Contracts Tab -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Contracts" VerticalAlignment="Center"/>
+                        <TextBlock Text="Ctrl+2"
+                                  FontSize="11"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                  VerticalAlignment="Center"
+                                  Margin="8,0,8,0"/>
+                        <Border Background="{DynamicResource SystemControlHighlightAccentBrush}"
+                               CornerRadius="10"
+                               Padding="6,2"
+                               VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ContractsCount}"
+                                      FontSize="11"
+                                      Foreground="White"/>
+                        </Border>
+                    </StackPanel>
+                </TabItem.Header>
+                <TabItem.InputBindings>
+                    <KeyBinding Key="D2" Modifiers="Control"/>
+                </TabItem.InputBindings>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Contracts}" Margin="16">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,32">
+                                    <!-- Contract Header with Status Badge, Date Range, and Action Buttons -->
+                                    <Grid Margin="0,0,0,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Left: Status Badges and Date Range -->
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <!-- Status Badge -->
+                                            <Border Background="{Binding ContractStatus, Converter={StaticResource PersonStatusToBrushConverter}}"
+                                                   CornerRadius="4"
+                                                   Padding="8,4"
+                                                   Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding ContractStatus}"
+                                                          Foreground="White"
+                                                          FontWeight="SemiBold"/>
+                                            </Border>
+
+                                            <!-- Primary Badge (if applicable) -->
+                                            <Border Background="#2D2D30"
+                                                   CornerRadius="4"
+                                                   Padding="8,4"
+                                                   Margin="0,0,12,0"
+                                                   Visibility="{Binding IsPrimary, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="Primary"
+                                                          Foreground="White"
+                                                          FontWeight="SemiBold"/>
+                                            </Border>
+
+                                            <!-- Date Range -->
+                                            <TextBlock Text="{Binding ContractDateRange, StringFormat='from {0}', TargetNullValue='No dates'}"
+                                                      VerticalAlignment="Center"
+                                                      FontStyle="Italic"/>
+                                        </StackPanel>
+
+                                        <!-- Right: Action Buttons -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Content="Edit Contract"
+                                                   Width="120"
+                                                   Height="32"
+                                                   Margin="0,0,8,0"
+                                                   Command="{Binding DataContext.EditContractCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   CommandParameter="{Binding}"/>
+                                            <Button Content="Delete Contract"
+                                                   Width="120"
+                                                   Height="32"
+                                                   Margin="0,0,8,0"
+                                                   Command="{Binding DataContext.DeleteContractCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Contract Details - Outer Grid Container -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>  <!-- General + Employment -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- Custom (independent) -->
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Grid 1: General + Employment -->
+                                        <Grid Grid.Column="0" VerticalAlignment="Top">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="200"/>
+                                                <ColumnDefinition Width="300"/>
+                                                <ColumnDefinition Width="200"/>
+                                                <ColumnDefinition Width="300"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- General Section Header -->
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                                      Text="General"
+                                                      FontSize="16"
+                                                      FontWeight="SemiBold"
+                                                      Margin="0,0,0,12"/>
+
+                                            <!-- General - Left column -->
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Source" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="1" Grid.Column="1" Text="{Binding SourceDisplayName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Type" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="2" Grid.Column="1" Text="{Binding TypeDescription, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Fte" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="3" Grid.Column="1" Text="{Binding Fte, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Hours per week" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="4" Grid.Column="1" Text="{Binding HoursPerWeek, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Percentage" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="5" Grid.Column="1" Text="{Binding Percentage, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Sequence" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="6" Grid.Column="1" Text="{Binding Sequence, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Organization" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="7" Grid.Column="1" Text="{Binding OrganizationName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="8" Grid.Column="0" Text="Employer" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="8" Grid.Column="1" Text="{Binding EmployerName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <!-- Employment Section Header -->
+                                            <TextBlock Grid.Row="0" Grid.Column="2" Grid.ColumnSpan="2"
+                                                      Text="Employment"
+                                                      FontSize="16"
+                                                      FontWeight="SemiBold"
+                                                      Margin="0,0,0,12"/>
+
+                                            <!-- Employment - Right column -->
+                                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Title" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="2" Grid.Column="3" Text="{Binding TitleName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="3" Grid.Column="2" Text="Manager" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="3" Grid.Column="3" Text="{Binding ManagerPersonName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="4" Grid.Column="2" Text="Department" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="4" Grid.Column="3" Text="{Binding DepartmentName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="5" Grid.Column="2" Text="Division" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="5" Grid.Column="3" Text="{Binding DivisionName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="6" Grid.Column="2" Text="Team" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="6" Grid.Column="3" Text="{Binding TeamName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="7" Grid.Column="2" Text="Location" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="7" Grid.Column="3" Text="{Binding LocationName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="8" Grid.Column="2" Text="Cost bearer" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="8" Grid.Column="3" Text="{Binding CostBearerName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+
+                                            <TextBlock Grid.Row="9" Grid.Column="2" Text="Cost center" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="9" Grid.Column="3" Text="{Binding CostCenterName, TargetNullValue='—', Mode=OneWay}" Margin="0,0,0,4"/>
+                                        </Grid>
+
+                                        <!-- Grid 2: Custom Fields (Independent) -->
+                                        <Grid Grid.Column="1" VerticalAlignment="Top"
+                                              Visibility="{Binding CustomFields.Count, Converter={StaticResource CountToVisibilityConverter}}">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- Custom Section Header -->
+                                            <TextBlock Grid.Row="0"
+                                                      Text="Custom"
+                                                      FontSize="16"
+                                                      FontWeight="SemiBold"
+                                                      Margin="0,0,0,12"/>
+
+                                            <!-- Custom Fields ItemsControl -->
+                                            <ItemsControl Grid.Row="1"
+                                                         ItemsSource="{Binding CustomFields}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,4">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="200"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <TextBlock Grid.Column="0"
+                                                                      Text="{Binding DisplayName}"
+                                                                      FontStyle="Italic"
+                                                                      Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                                            <TextBox Style="{StaticResource SelectableTextBoxStyle}"
+                                                                    Grid.Column="1"
+                                                                    Text="{Binding Value, TargetNullValue='—', Mode=OneWay}"
+                                                                    MinWidth="300"/>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Grid>
+                                    </Grid>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Contacts Tab -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Contacts" VerticalAlignment="Center"/>
+                        <TextBlock Text="Ctrl+3"
+                                  FontSize="11"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                  VerticalAlignment="Center"
+                                  Margin="8,0,8,0"/>
+                        <Border Background="{DynamicResource SystemControlHighlightAccentBrush}"
+                               CornerRadius="10"
+                               Padding="6,2"
+                               VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ContactsCount}"
+                                      FontSize="11"
+                                      Foreground="White"/>
+                        </Border>
+                    </StackPanel>
+                </TabItem.Header>
+                <TabItem.InputBindings>
+                    <KeyBinding Key="D3" Modifiers="Control"/>
+                </TabItem.InputBindings>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="16">
+                        <!-- Empty State Message -->
+                        <TextBlock Text="No contacts yet. Click Add Contact to create one."
+                                  FontSize="14"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Top"
+                                  Margin="0,32,0,0"
+                                  Visibility="{Binding ContactsCount, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Inverse}"/>
+
+                        <!-- Contacts List -->
+                        <ItemsControl ItemsSource="{Binding Contacts}"
+                                     Visibility="{Binding ContactsCount, Converter={StaticResource CountToVisibilityConverter}}">
+                            <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,32">
+                                    <!-- Contact Type Header with Action Buttons -->
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <TextBlock Grid.Column="0"
+                                                  Text="{Binding Type, StringFormat='{}{0} Contact'}"
+                                                  FontSize="16"
+                                                  FontWeight="SemiBold"
+                                                  VerticalAlignment="Center"/>
+                                        
+                                        <!-- Contact Action Buttons -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Content="Edit Contact"
+                                                   Width="120"
+                                                   Height="32"
+                                                   Margin="0,0,8,0"
+                                                   Command="{Binding DataContext.EditContactCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   CommandParameter="{Binding}"/>
+                                            <Button Content="Delete Contact"
+                                                   Width="120"
+                                                   Height="32"
+                                                   Margin="0,0,8,0"
+                                                   Command="{Binding DataContext.DeleteContactCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    
+                                    <!-- Contact Details Grid -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="400"/>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Email and Phone Section Header -->
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                                  Text="Contact Information"
+                                                  FontSize="14"
+                                                  FontWeight="SemiBold"
+                                                  Margin="0,0,0,8"/>
+
+                                        <!-- Email -->
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="E-mail" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="1" Grid.Column="1" Text="{Binding Email, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                        <!-- Phone Mobile -->
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Phone mobile" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="2" Grid.Column="1" Text="{Binding PhoneMobile, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                        <!-- Phone Fixed -->
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Phone fixed" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="3" Grid.Column="1" Text="{Binding PhoneFixed, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                        <!-- Address Section Header -->
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Grid.ColumnSpan="2"
+                                                  Text="Address"
+                                                  FontSize="14"
+                                                  FontWeight="SemiBold"
+                                                  Margin="0,0,0,8"/>
+
+                                        <!-- Street -->
+                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="Street" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="1" Grid.Column="3" Text="{Binding AddressStreet, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                        <!-- Street Extension -->
+                                        <TextBlock Grid.Row="2" Grid.Column="2" Text="Street extension" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="2" Grid.Column="3" Text="{Binding AddressStreetExt, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                        <!-- House Number -->
+                                        <TextBlock Grid.Row="3" Grid.Column="2" Text="House number" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="3" Grid.Column="3" Text="{Binding AddressHouseNumber, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                        <!-- House Number Extension -->
+                                        <TextBlock Grid.Row="4" Grid.Column="2" Text="House number ext" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="4" Grid.Column="3" Text="{Binding AddressHouseNumberExt, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                        <!-- Postal Code -->
+                                        <TextBlock Grid.Row="5" Grid.Column="2" Text="Postal code" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="5" Grid.Column="3" Text="{Binding AddressPostal, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                        <!-- City -->
+                                        <TextBlock Grid.Row="6" Grid.Column="2" Text="City" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="6" Grid.Column="3" Text="{Binding AddressLocality, TargetNullValue='—'}" Margin="0,0,0,4"/>
+
+                                        <!-- Country -->
+                                        <TextBlock Grid.Row="7" Grid.Column="2" Text="Country" FontStyle="Italic" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" Margin="0,0,0,4"/>
+                                        <TextBox Style="{StaticResource SelectableTextBoxStyle}" Grid.Row="7" Grid.Column="3" Text="{Binding AddressCountry, TargetNullValue='—'}" Margin="0,0,0,4"/>
+                                    </Grid>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- Loading Overlay -->
+        <Border Grid.Row="0" Grid.RowSpan="3"
+               Background="#CC000000"
+               Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <ui:ProgressRing IsActive="{Binding IsLoading}"
+                            Width="60"
+                            Height="60"/>
+        </Border>
+    </Grid>
+</UserControl>

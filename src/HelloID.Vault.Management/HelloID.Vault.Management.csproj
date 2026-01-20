@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-Windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>Icons\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="DotNetKit.Wpf.AutoCompleteComboBox" Version="2.0.1" />
+    <PackageReference Include="ModernWpfUI" Version="0.9.6" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.135" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HelloID.Vault.Core\HelloID.Vault.Core.csproj" />
+    <ProjectReference Include="..\HelloID.Vault.Data\HelloID.Vault.Data.csproj" />
+    <ProjectReference Include="..\HelloID.Vault.Services\HelloID.Vault.Services.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\db\**\*" Link="db\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="Always" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Icons\app.ico" />
+  </ItemGroup>
+
+  <!-- <Target Name="CopyToWindows" AfterTargets="Build">
+    <Exec Command="bash ../../scripts/copy-root-to-windows.sh" Condition=" '$(OS)' == 'Unix' " ContinueOnError="true" />
+  </Target> -->
+</Project>

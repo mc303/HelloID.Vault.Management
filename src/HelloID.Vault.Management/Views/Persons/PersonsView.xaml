@@ -1,0 +1,288 @@
+<UserControl x:Class="HelloID.Vault.Management.Views.Persons.PersonsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="1200">
+
+    <UserControl.Resources>
+        <!-- Status badge style using PersonStatusToBrushConverter -->
+        <Style x:Key="StatusBadgeStyle" TargetType="Border">
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Background" Value="{Binding StatusBadge, Converter={StaticResource PersonStatusToBrushConverter}}"/>
+        </Style>
+
+        <!-- Person Status Filter Button Styles - BasedOn shared FilterButtonBaseStyle -->
+        <Style x:Key="PersonAllButtonStyle" TargetType="Button" BasedOn="{StaticResource FilterButtonBaseStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ShowAll}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAccentBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlBackgroundAccentBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundAltHighBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="PersonPastButtonStyle" TargetType="Button" BasedOn="{StaticResource FilterButtonBaseStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ShowPast}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAccentBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlBackgroundAccentBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundAltHighBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="PersonActiveButtonStyle" TargetType="Button" BasedOn="{StaticResource FilterButtonBaseStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ShowActive}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAccentBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlBackgroundAccentBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundAltHighBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="PersonFutureButtonStyle" TargetType="Button" BasedOn="{StaticResource FilterButtonBaseStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ShowFuture}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAccentBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlBackgroundAccentBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundAltHighBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Search and Filter Panel -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                Padding="16"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Status Filter Buttons -->
+                <StackPanel Grid.Column="0"
+                           Orientation="Horizontal"
+                           VerticalAlignment="Center">
+                    <Button Content="All"
+                            Command="{Binding ShowAllPersonsCommand}"
+                            Style="{StaticResource PersonAllButtonStyle}"/>
+                    <Button Content="Past"
+                            Command="{Binding ShowPastPersonsCommand}"
+                            Style="{StaticResource PersonPastButtonStyle}"/>
+                    <Button Content="Active"
+                            Command="{Binding ShowActivePersonsCommand}"
+                            Style="{StaticResource PersonActiveButtonStyle}"/>
+                    <Button Content="Future"
+                            Command="{Binding ShowFuturePersonsCommand}"
+                            Style="{StaticResource PersonFutureButtonStyle}"/>
+                </StackPanel>
+
+                <!-- Search Box (Stretched) -->
+                <ui:AutoSuggestBox Grid.Column="1"
+                                   PlaceholderText="Search by name, external ID, or UUID..."
+                                   Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                   QueryIcon="Find"
+                                   Margin="24,0,24,0"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Stretch"
+                                   TextChanged="AutoSuggestBox_TextChanged">
+                    <ui:AutoSuggestBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding SearchCommand}"/>
+                    </ui:AutoSuggestBox.InputBindings>
+                </ui:AutoSuggestBox>
+
+                <!-- Action Buttons -->
+                <StackPanel Grid.Column="2"
+                           Orientation="Horizontal"
+                           VerticalAlignment="Center">
+                    <ui:AppBarButton Icon="Find"
+                                    Label="Search"
+                                    Command="{Binding SearchCommand}"/>
+                    <ui:AppBarButton Icon="Refresh"
+                                    Label="Refresh"
+                                    Command="{Binding RefreshCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content: List and Detail Panels -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="350" MinWidth="250"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*" MinWidth="400"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Persons List Panel -->
+            <Border Grid.Column="0"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                    BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- List Header -->
+                    <Border Grid.Row="0"
+                            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                            Padding="16,12"
+                            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                            BorderThickness="0,0,0,1">
+                        <TextBlock Text="{Binding TotalCount, StringFormat='{}{0} persons'}"
+                                  FontWeight="SemiBold"
+                                  FontSize="14"/>
+                    </Border>
+
+                    <!-- List Content -->
+                    <ListBox Grid.Row="1"
+                            x:Name="PersonsListBox"
+                            ItemsSource="{Binding Persons}"
+                            SelectedItem="{Binding SelectedPerson}"
+                            BorderThickness="0"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            VirtualizingPanel.IsVirtualizing="True"
+                            VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Display Name -->
+                                    <TextBlock Grid.Row="0"
+                                              Text="{Binding DisplayName}"
+                                              FontWeight="SemiBold"
+                                              FontSize="14"
+                                              TextTrimming="CharacterEllipsis"/>
+
+                                    <!-- External ID -->
+                                    <TextBlock Grid.Row="1"
+                                              Text="{Binding ExternalId}"
+                                              FontSize="12"
+                                              Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                              TextTrimming="CharacterEllipsis"
+                                              Margin="0,2,0,0"/>
+
+                                    <!-- Status and Contract Count Badges -->
+                                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4,0,0">
+                                        <!-- Status Badge -->
+                                        <Border Style="{StaticResource StatusBadgeStyle}"
+                                               HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding StatusBadge}"
+                                                      FontSize="11"
+                                                      Foreground="White"
+                                                      FontWeight="Medium"/>
+                                        </Border>
+
+                                        <!-- Contract Count Badge -->
+                                        <Border Padding="6,2"
+                                               CornerRadius="3"
+                                               Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                                               HorizontalAlignment="Left"
+                                               Margin="4,0,0,0">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ContractCount}" Value="0">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock FontSize="11"
+                                                      Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                                      FontWeight="Medium">
+                                                <Run Text="{Binding ContractCount, Mode=OneWay}"/>
+                                                <Run Text=" contracts" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}">
+                                                    <Run.Style>
+                                                        <Style TargetType="Run">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ContractCount}" Value="1">
+                                                                    <Setter Property="Text" Value=""/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Run.Style>
+                                                </Run>
+                                            </TextBlock>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Loading Overlay -->
+                    <Border Grid.Row="1"
+                           Background="#CC000000"
+                           Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ui:ProgressRing IsActive="{Binding IsBusy}"
+                                        Width="60"
+                                        Height="60"/>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1"
+                         Width="5"
+                         HorizontalAlignment="Stretch"
+                         Background="Transparent"/>
+
+            <!-- Person Detail Panel -->
+            <Border Grid.Column="2"
+                    Padding="24">
+                <ContentControl Content="{Binding DetailViewModel}">
+                    <ContentControl.Resources>
+                        <!-- Empty State -->
+                        <DataTemplate x:Key="EmptyStateTemplate">
+                            <StackPanel VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       Opacity="0.5">
+                                <TextBlock Text="👤"
+                                          FontSize="64"
+                                          HorizontalAlignment="Center"
+                                          Margin="0,0,0,16"/>
+                                <TextBlock Text="Select a person to view details"
+                                          FontSize="16"
+                                          HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ContentControl.Resources>
+                    <ContentControl.Style>
+                        <Style TargetType="ContentControl">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DetailViewModel}" Value="{x:Null}">
+                                    <Setter Property="ContentTemplate" Value="{StaticResource EmptyStateTemplate}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ContentControl.Style>
+                </ContentControl>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

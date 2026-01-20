@@ -1,0 +1,237 @@
+<Window x:Class="HelloID.Vault.Management.Views.Persons.PersonEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        mc:Ignorable="d"
+        ui:WindowHelper.UseModernWindowStyle="True"
+         Title="{Binding WindowTitle}"
+         Height="700" Width="540"
+         WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <TextBlock Grid.Row="0"
+                       Text="{Binding WindowTitle}"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,12"/>
+
+            <!-- Form Fields - 2 Columns -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Column -->
+                <StackPanel Grid.Column="0">
+                    <!-- General Section -->
+                    <TextBlock Text="General"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Display name *" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="External ID" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ExternalId, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Username" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Source *" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <ComboBox Grid.Row="3" Grid.Column="1"
+                                  ItemsSource="{Binding SourceSystems}"
+                                  SelectedItem="{Binding SelectedSourceSystem}"
+                                  DisplayMemberPath="DisplayName"
+                                  FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Gender" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <ComboBox Grid.Row="4" Grid.Column="1" SelectedValue="{Binding Gender, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" FontSize="12" Margin="0,0,0,6">
+                            <ComboBoxItem Content=""/>
+                            <ComboBoxItem Content="M"/>
+                            <ComboBoxItem Content="F"/>
+                            <ComboBoxItem Content="X"/>
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Manager Person ID" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding PrimaryManagerPersonId, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+                    </Grid>
+
+                    <!-- Personal Details Section -->
+                    <TextBlock Text="Personal Details"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Honorific prefix" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding HonorificPrefix, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Honorific suffix" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding HonorificSuffix, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Birth date" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <DatePicker Grid.Row="2" Grid.Column="1" SelectedDate="{Binding BirthDate, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Birth locality" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding BirthLocality, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Marital status" FontSize="12" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding MaritalStatus, UpdateSourceTrigger=PropertyChanged}" FontSize="12"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Right Column -->
+                <StackPanel Grid.Column="2">
+                    <!-- Name Section -->
+                    <TextBlock Text="Name"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Initials" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Initials, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Given name" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding GivenName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Nickname" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding NickName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Family name" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding FamilyName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Family prefix" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding FamilyNamePrefix, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Partner name" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding FamilyNamePartner, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Partner prefix" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding FamilyNamePartnerPrefix, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Convention" FontSize="12" VerticalAlignment="Center"/>
+                        <!-- <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding Convention, UpdateSourceTrigger=PropertyChanged}" FontSize="12"/>  -->
+                        <ComboBox Grid.Row="7" Grid.Column="1" SelectedValue="{Binding Convention, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" FontSize="12" Margin="0,0,0,6">
+                            <ComboBoxItem Content="B"/>
+                            <ComboBoxItem Content="BP"/>
+                            <ComboBoxItem Content="P"/>
+                            <ComboBoxItem Content="PB"/>
+                        </ComboBox>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+
+            <!-- Custom Fields Section - Full Width -->
+            <StackPanel Grid.Row="2" Margin="0,0,0,0"
+                       Visibility="{Binding HasCustomFields, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+                <!-- Separator Line -->
+                <Separator Margin="0,8,0,8"/>
+
+                <!-- Section Header -->
+                <TextBlock Text="Custom Fields"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,8"/>
+
+                <!-- Custom Fields List -->
+                <ItemsControl ItemsSource="{Binding CustomFields}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontSize="12" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" FontSize="12"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Buttons -->
+            <Grid Grid.Row="3" Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="1"
+                        Content="Save"
+                        Command="{Binding SaveCommand}"
+                        Style="{StaticResource AccentButtonStyle}"
+                        FontSize="12"
+                        Width="80"
+                        Margin="0,0,8,0"/>
+
+                <Button Grid.Column="2"
+                        Content="Cancel"
+                        Command="{Binding CancelCommand}"
+                        FontSize="12"
+                        Width="80"
+                        IsCancel="True"/>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</Window>

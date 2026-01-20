@@ -1,0 +1,227 @@
+<UserControl x:Class="HelloID.Vault.Management.Views.ReferenceData.PrimaryManagerAdminView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             xmlns:converters="clr-namespace:HelloID.Vault.Management.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="900">
+
+    <Grid Margin="40">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,32">
+            <TextBlock Text="Primary Manager Administration"
+                      FontSize="32"
+                      FontWeight="SemiBold"/>
+            <TextBlock Text="Manage and refresh primary managers for all persons"
+                      FontSize="14"
+                      Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                      Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <!-- Statistics -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="24"
+                Margin="0,0,0,24">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                          Text="Current Statistics"
+                          FontSize="16"
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,16"/>
+
+                <!-- Total Persons -->
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,16,0">
+                    <TextBlock Text="{Binding TotalPersons, StringFormat={}{0:N0}}"
+                              FontSize="36"
+                              FontWeight="Bold"
+                              Foreground="{DynamicResource SystemControlHighlightAccentBrush}"/>
+                    <TextBlock Text="Total Persons"
+                              FontSize="13"
+                              Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                </StackPanel>
+
+                <!-- With Manager -->
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,16,0">
+                    <TextBlock Text="{Binding PersonsWithManager, StringFormat={}{0:N0}}"
+                              FontSize="36"
+                              FontWeight="Bold"
+                              Foreground="#10CF85"/>
+                    <TextBlock Text="With Primary Manager"
+                              FontSize="13"
+                              Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                </StackPanel>
+
+                <!-- Without Manager -->
+                <StackPanel Grid.Row="1" Grid.Column="2">
+                    <TextBlock Text="{Binding PersonsWithoutManager, StringFormat={}{0:N0}}"
+                              FontSize="36"
+                              FontWeight="Bold"
+                              Foreground="#F44336"/>
+                    <TextBlock Text="Without Primary Manager"
+                              FontSize="13"
+                              Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Source Breakdown -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="24"
+                Margin="0,0,0,24">
+            <StackPanel>
+                <TextBlock Text="Primary Manager Source Distribution"
+                          FontSize="16"
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,16"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Contract-Based -->
+                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                        <TextBlock Text="{Binding ContractBasedCount, StringFormat={}{0:N0}}"
+                                  FontSize="24"
+                                  FontWeight="SemiBold"
+                                  Foreground="#6dc0f9"/>
+                        <TextBlock Text="Contract-Based"
+                                  FontSize="12"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                  Margin="0,4,0,0"/>
+                        <TextBlock Text="Uses primary contract's manager"
+                                  FontSize="11"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                  FontStyle="Italic"
+                                  Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <!-- Department-Based -->
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                        <TextBlock Text="{Binding DepartmentBasedCount, StringFormat={}{0:N0}}"
+                                  FontSize="24"
+                                  FontWeight="SemiBold"
+                                  Foreground="#f8d053"/>
+                        <TextBlock Text="Department-Based"
+                                  FontSize="12"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                  Margin="0,4,0,0"/>
+                        <TextBlock Text="Uses department manager"
+                                  FontSize="11"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                  FontStyle="Italic"
+                                  Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <!-- From JSON -->
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Binding FromJsonCount, StringFormat={}{0:N0}}"
+                                  FontSize="24"
+                                  FontWeight="SemiBold"
+                                  Foreground="#FFA500"/>
+                        <TextBlock Text="From JSON"
+                                  FontSize="12"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                  Margin="0,4,0,0"/>
+                        <TextBlock Text="Imported value (manual)"
+                                  FontSize="11"
+                                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                  FontStyle="Italic"
+                                  Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Refresh Controls -->
+        <Border Grid.Row="3"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="24"
+                Margin="0,0,0,24">
+            <StackPanel>
+                <TextBlock Text="Refresh All Primary Managers"
+                          FontSize="16"
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,16"/>
+
+                <TextBlock Text="Select the logic to use for calculating primary managers:"
+                          FontSize="13"
+                          Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                          Margin="0,0,0,12"/>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                    <RadioButton Content="Contract-Based"
+                               IsChecked="{Binding SelectedLogic, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=ContractBased}"
+                               GroupName="PrimaryManagerLogic"
+                               Margin="0,0,24,0"/>
+                    <RadioButton Content="Department-Based"
+                               IsChecked="{Binding SelectedLogic, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=DepartmentBased}"
+                               GroupName="PrimaryManagerLogic"/>
+                </StackPanel>
+
+                <TextBlock Text="Warning: This will overwrite all existing primary manager values!"
+                          FontSize="12"
+                          Foreground="#F44336"
+                          Margin="0,0,0,12"
+                          FontWeight="Medium"/>
+
+                <Button Content="Refresh All Primary Managers"
+                       Command="{Binding RefreshAllCommand}"
+                       IsEnabled="{Binding IsRefreshing, Converter={StaticResource InverseBooleanConverter}}"
+                       Style="{StaticResource AccentButtonStyle}"
+                       Width="200"
+                       HorizontalAlignment="Left"/>
+
+                <!-- Status Message -->
+                <TextBlock Text="{Binding StatusMessage}"
+                          FontSize="13"
+                          Margin="0,16,0,0"
+                          TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="#10CF85"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRefreshing}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

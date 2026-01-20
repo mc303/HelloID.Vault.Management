@@ -1,0 +1,297 @@
+<UserControl x:Class="HelloID.Vault.Management.Views.ReferenceData.PrimaryContractConfigView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="1000">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header Panel -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                Padding="20,16"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Title Section -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Primary Contract Configuration"
+                              FontSize="22"
+                              FontWeight="SemiBold"/>
+                    <TextBlock Text="Configure priority rules for determining the primary contract"
+                              FontSize="13"
+                              Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                              Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Action Buttons -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ComboBox ItemsSource="{Binding AvailableFields}"
+                              SelectedValue="{Binding SelectedFieldToAdd}"
+                              Width="180"
+                              Margin="0,0,8,0"
+                              ui:ControlHelper.PlaceholderText="Add field..."/>
+
+                    <Button Command="{Binding AddFieldCommand}"
+                            Content="Add"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Width="80"
+                            FontSize="12"
+                            Margin="0,0,8,0"/>
+
+                    <Button Command="{Binding ResetToDefaultCommand}"
+                            Content="Reset"
+                            Width="80"
+                            FontSize="12"
+                            Margin="0,0,8,0"/>
+
+                    <Button Command="{Binding NavigateBackCommand}"
+                            Content="Cancel"
+                            Width="80"
+                            FontSize="12"
+                            Margin="0,0,8,0"/>
+
+                    <Button Command="{Binding SaveCommand}"
+                            Content="Save"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Width="80"
+                            FontSize="12"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1">
+            <!-- Error/Success Messages -->
+            <StackPanel Margin="20,12,20,0" Visibility="{Binding ErrorMessage, Converter={StaticResource NullToCollapsedConverter}}">
+                <Border Background="#FFF4E5"
+                        BorderBrush="#FFB74D"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="12,10">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:FontIcon Glyph="&#xE7BA;" Foreground="#E65100" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding ErrorMessage}"
+                                   FontSize="13"
+                                   Foreground="#E65100"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Margin="20,12,20,0" Visibility="{Binding SuccessMessage, Converter={StaticResource NullToCollapsedConverter}}">
+                <Border Background="#E8F5E9"
+                        BorderBrush="#81C784"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="12,10">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:FontIcon Glyph="&#xE8FB;" Foreground="#388E3C" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding SuccessMessage}"
+                                   FontSize="13"
+                                   Foreground="#388E3C"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Criteria List -->
+            <ScrollViewer Margin="20,60,20,20"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled"
+                         Visibility="{Binding IsLoading, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                <StackPanel MaxWidth="1000" HorizontalAlignment="Left">
+                    <ItemsControl ItemsSource="{Binding ConfigItems}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <!-- Each Criteria Item -->
+                                <Border Background="{DynamicResource SystemControlBackgroundAltLowBrush}"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="12,8"
+                                        Margin="0,0,0,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Field Name -->
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding FieldName}"
+                                               FontSize="13"
+                                               FontWeight="Bold"
+                                               VerticalAlignment="Center"/>
+
+                                    <!-- Sort Order Toggle -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
+                                            <ui:ToggleSwitch IsOn="{Binding SortOrder, Converter={StaticResource SortOrderToBoolConverter}, Mode=TwoWay}"
+                                                         OffContent="Ascending"
+                                                         OnContent="Descending"
+                                                         Margin="0"/>
+                                    </StackPanel>
+
+                                    <!-- Active Toggle -->
+                                    <CheckBox Grid.Column="2"
+                                              IsChecked="{Binding IsActive}"
+                                              Content="Active"
+                                              Margin="12,0"
+                                              VerticalAlignment="Center"
+                                              FontSize="12"/>
+
+                                    <!-- Move/Delete Buttons -->
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                                        <Button Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="Up"
+                                                Width="52"
+                                                Height="32"
+                                                FontSize="12"
+                                                Margin="0,0,6,0"
+                                                ToolTip="Move Up"/>
+
+                                        <Button Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="Down"
+                                                Width="52"
+                                                Height="32"
+                                                FontSize="12"
+                                                Margin="0,0,6,0"
+                                                ToolTip="Move Down"/>
+
+                                        <Button Command="{Binding DataContext.DeleteFieldCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Width="32"
+                                                Height="32"
+                                                Padding="0"
+                                                FontSize="14"
+                                                ToolTip="Remove">
+                                            <ui:FontIcon Glyph="&#xE711;"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Loading Overlay -->
+            <Border Background="#CC000000"
+                   Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <ui:ProgressRing IsActive="{Binding IsLoading}"
+                                    Width="60"
+                                    Height="60"
+                                    Margin="0,0,0,16"/>
+                    <TextBlock Text="Loading configuration..."
+                               FontSize="14"
+                               Foreground="White"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Saving Overlay -->
+            <Border Background="#CC000000"
+                   Visibility="{Binding IsSaving, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <ui:ProgressRing IsActive="{Binding IsSaving}"
+                                    Width="60"
+                                    Height="60"
+                                    Margin="0,0,0,16"/>
+                    <TextBlock Text="Saving configuration..."
+                               FontSize="14"
+                               Foreground="White"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Info & Preview Section -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="20,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="400"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Rules Info -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Priority Rules"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+                    <TextBlock FontSize="13"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                               LineHeight="20">
+                        <Run Text="1. Criteria are evaluated in order (Priority 1 = highest)"/>
+                        <LineBreak/>
+                        <Run Text="2. Only active criteria are used for primary contract selection"/>
+                        <LineBreak/>
+                        <Run Text="3. Sort order: ASC (ascending) or DESC (descending)"/>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Preview Section -->
+                <Border Grid.Column="1"
+                        Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:FontIcon Glyph="&#xE8F7;" Margin="0,0,8,0"/>
+                                <TextBlock Text="Preview"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"/>
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="1"
+                                       Text="Test configuration on real data"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <Button Grid.Row="0" Grid.Column="1"
+                                Command="{Binding RunPreviewCommand}"
+                                Content="Run Preview"
+                                Width="100"
+                                FontSize="12"
+                                Height="32"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

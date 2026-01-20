@@ -1,0 +1,100 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  CONFIGURATION: 'Release'
+
+jobs:
+  build:
+    name: Build Release Artifacts
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore HelloID.Vault.Management.sln
+
+      - name: Build solution
+        run: dotnet build HelloID.Vault.Management.sln --configuration ${{ env.CONFIGURATION }} --no-restore
+
+      - name: Publish self-contained EXE (x64)
+        run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+
+      - name: Publish self-contained EXE (x86)
+        run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x86 --self-contained true --output publish/win-x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+
+      - name: Create ZIP archive (x64)
+        run: Compress-Archive -Path publish/win-x64/* -DestinationPath HelloID.Vault.Management-win-x64.zip
+
+      - name: Create ZIP archive (x86)
+        run: Compress-Archive -Path publish/win-x86/* -DestinationPath HelloID.Vault.Management-win-x86.zip
+
+      - name: Upload artifacts (x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HelloID.Vault.Management-win-x64
+          path: HelloID.Vault.Management-win-x64.zip
+
+      - name: Upload artifacts (x86)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HelloID.Vault.Management-win-x86
+          path: HelloID.Vault.Management-win-x86.zip
+
+      - name: Get version from tag
+        id: get_version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          $version = "${{ github.ref }}" -replace "refs/tags/", ""
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            HelloID.Vault.Management-win-x64.zip
+            HelloID.Vault.Management-win-x86.zip
+          draft: false
+          prerelease: false
+          name: HelloID.Vault.Management ${{ steps.get_version.outputs.version }}
+          body: |
+            ## Release ${{ steps.get_version.outputs.version }}
+            
+            ### Installation Options
+            
+            **Windows x64 (Recommended):**
+            Download `HelloID.Vault.Management-win-x64.zip` for 64-bit Windows systems.
+            
+            **Windows x86:**
+            Download `HelloID.Vault.Management-win-x86.zip` for 32-bit Windows systems.
+            
+            ### Installation Instructions
+            
+            1. Download the appropriate ZIP file for your system
+            2. Extract the ZIP file to a folder of your choice
+            3. Run `HelloID.Vault.Management.exe` to start the application
+            
+            ### Requirements
+            
+            - Windows 10 or later
+            - .NET 8.0 Runtime (included in self-contained package)
+            
+            ### Changelog
+            
+            See the [commit history](https://github.com/${{ github.repository }}/commits/${{ steps.get_version.outputs.version }}) for changes in this release.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

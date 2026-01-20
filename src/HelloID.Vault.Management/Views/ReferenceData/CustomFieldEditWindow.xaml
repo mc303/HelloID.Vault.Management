@@ -1,0 +1,189 @@
+<Window x:Class="HelloID.Vault.Management.Views.ReferenceData.CustomFieldEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        Title="{Binding WindowTitle}"
+        Height="600"
+        Width="550"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ui:WindowHelper.UseModernWindowStyle="True">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title -->
+            <TextBlock Grid.Row="0"
+                       Text="{Binding WindowTitle}"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,12"/>
+
+            <!-- Error Message -->
+            <Border Grid.Row="1"
+                    Background="#FFF4E5"
+                    BorderBrush="#FFB74D"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="8"
+                    Margin="0,0,0,8"
+                    Visibility="{Binding ErrorMessage, Converter={StaticResource NullToCollapsedConverter}}">
+                <TextBlock Text="{Binding ErrorMessage}"
+                           FontSize="12"
+                           Foreground="#E65100"
+                           TextWrapping="Wrap"/>
+            </Border>
+
+            <!-- Form - 2 Columns -->
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Column -->
+                <StackPanel Grid.Column="0">
+                    <!-- Basic Info Section -->
+                    <TextBlock Text="Basic Info"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Table Name *" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <ComboBox Grid.Row="0" Grid.Column="1" SelectedValue="{Binding TableName}" SelectedValuePath="Content" FontSize="12" Margin="0,0,0,6">
+                            <ComboBoxItem Content="persons"/>
+                            <ComboBoxItem Content="contracts"/>
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Field Key *" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="1" Grid.Column="1"
+                                 Text="{Binding FieldKey, UpdateSourceTrigger=PropertyChanged}"
+                                 IsReadOnly="{Binding IsFieldKeyReadOnly}"
+                                 FontSize="12"
+                                 Margin="0,0,0,6"
+                                 ui:ControlHelper.PlaceholderText="e.g., employee_number"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Display Name *" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="2" Grid.Column="1"
+                                 Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
+                                 FontSize="12"
+                                 Margin="0,0,0,6"
+                                 ui:ControlHelper.PlaceholderText="e.g., Employee Number"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Right Column -->
+                <StackPanel Grid.Column="2">
+                    <!-- Configuration Section -->
+                    <TextBlock Text="Configuration"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Sort Order" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <ui:NumberBox Grid.Row="0" Grid.Column="1"
+                                      Value="{Binding SortOrder, Mode=TwoWay}"
+                                      SpinButtonPlacementMode="Compact"
+                                      FontSize="12"
+                                      Margin="0,0,0,6"/>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+
+            <!-- Full Width Bottom Section -->
+            <StackPanel Grid.Row="3">
+                <!-- Separator -->
+                <Separator Margin="0,8,0,8"/>
+
+                <!-- Additional Fields -->
+                <TextBlock Text="Additional Options"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,8"/>
+
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="110"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Help Text" FontSize="12" VerticalAlignment="Top" Margin="0,4,0,6"/>
+                    <TextBox Grid.Row="0" Grid.Column="1"
+                             Text="{Binding HelpText, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="12"
+                             TextWrapping="Wrap"
+                             AcceptsReturn="True"
+                             Height="60"
+                             Margin="0,0,0,6"
+                             ui:ControlHelper.PlaceholderText="Optional help text displayed to users"/>
+                </Grid>
+
+                <!-- Buttons -->
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="1"
+                            Content="Save"
+                            Command="{Binding SaveCommand}"
+                            Style="{StaticResource AccentButtonStyle}"
+                            FontSize="12"
+                            Width="80"
+                            Margin="0,0,8,0"/>
+
+                    <Button Grid.Column="2"
+                            Content="Cancel"
+                            Command="{Binding CancelCommand}"
+                            FontSize="12"
+                            Width="80"
+                            IsCancel="True"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- Saving Overlay -->
+            <Grid Grid.RowSpan="4"
+                  Background="#CC000000"
+                  Visibility="{Binding IsSaving, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <ui:ProgressRing IsActive="{Binding IsSaving}"
+                                    Width="60"
+                                    Height="60"
+                                    Margin="0,0,0,16"/>
+                    <TextBlock Text="{Binding SavingMessage}"
+                               FontSize="14"
+                               Foreground="White"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="300"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</Window>

@@ -1,0 +1,156 @@
+<Window x:Class="HelloID.Vault.Management.Views.ReferenceData.DepartmentEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        Title="{Binding WindowTitle}"
+        Height="330"
+        Width="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ui:WindowHelper.UseModernWindowStyle="True">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title -->
+        <TextBlock Grid.Row="0"
+                   Text="{Binding WindowTitle}"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,12"/>
+
+        <!-- Error Message -->
+        <Border Grid.Row="1"
+                Background="#FFF4E5"
+                BorderBrush="#FFB74D"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="8"
+                Margin="0,0,0,8"
+                Visibility="{Binding ErrorMessage, Converter={StaticResource NullToCollapsedConverter}}">
+            <TextBlock Text="{Binding ErrorMessage}"
+                       FontSize="12"
+                       Foreground="#E65100"
+                       TextWrapping="Wrap"/>
+        </Border>
+
+        <!-- Form Fields -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- External ID -->
+            <TextBlock Grid.Row="0" Grid.Column="0"
+                       Text="External ID *"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="0,0,0,6"/>
+            <TextBox Grid.Row="0" Grid.Column="1"
+                     Text="{Binding ExternalId, UpdateSourceTrigger=PropertyChanged}"
+                     IsReadOnly="{Binding IsExternalIdReadOnly}"
+                     FontSize="12"
+                     Margin="0,0,0,6"
+                     ui:ControlHelper.PlaceholderText="Enter external ID"/>
+
+            <!-- Display Name -->
+            <TextBlock Grid.Row="1" Grid.Column="0"
+                       Text="Display Name *"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="0,0,0,6"/>
+            <TextBox Grid.Row="1" Grid.Column="1"
+                     Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="12"
+                     Margin="0,0,0,6"
+                     ui:ControlHelper.PlaceholderText="Enter display name"/>
+
+            <!-- Code -->
+            <TextBlock Grid.Row="2" Grid.Column="0"
+                       Text="Code"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="0,0,0,6"/>
+            <TextBox Grid.Row="2" Grid.Column="1"
+                     Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="12"
+                     Margin="0,0,0,6"
+                     ui:ControlHelper.PlaceholderText="Enter code (optional)"/>
+
+            <!-- Parent External ID -->
+            <TextBlock Grid.Row="3" Grid.Column="0"
+                       Text="Parent External ID"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="0,0,0,6"/>
+            <TextBox Grid.Row="3" Grid.Column="1"
+                     Text="{Binding ParentExternalId, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="12"
+                     Margin="0,0,0,6"
+                     ui:ControlHelper.PlaceholderText="Enter parent external ID (optional)"/>
+
+            <!-- Manager Person ID -->
+            <TextBlock Grid.Row="4" Grid.Column="0"
+                       Text="Manager Person ID"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="0,0,0,6"/>
+            <TextBox Grid.Row="4" Grid.Column="1"
+                     Text="{Binding ManagerPersonId, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="12"
+                     Margin="0,0,0,6"
+                     ui:ControlHelper.PlaceholderText="Enter manager person ID (optional)"/>
+
+            <!-- Source -->
+            <TextBlock Grid.Row="5" Grid.Column="0"
+                       Text="Source *"
+                       FontSize="12"
+                       VerticalAlignment="Center"/>
+            <ComboBox Grid.Row="5" Grid.Column="1"
+                      ItemsSource="{Binding SourceSystems}"
+                      SelectedItem="{Binding SelectedSourceSystem}"
+                      SelectedValuePath="SystemId"
+                      DisplayMemberPath="DisplayName"
+                      SelectedValue="{Binding Source}"
+                      FontSize="12"/>
+        </Grid>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="3" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="1"
+                    Content="Save"
+                    Command="{Binding SaveCommand}"
+                    Style="{StaticResource AccentButtonStyle}"
+                    FontSize="12"
+                    Width="80"
+                    Margin="0,0,8,0"/>
+
+            <Button Grid.Column="2"
+                    Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    FontSize="12"
+                    Width="80"
+                    IsCancel="True"/>
+        </Grid>
+    </Grid>
+</Window>

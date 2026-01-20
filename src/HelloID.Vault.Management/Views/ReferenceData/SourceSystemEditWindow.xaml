@@ -1,0 +1,128 @@
+<Window x:Class="HelloID.Vault.Management.Views.ReferenceData.SourceSystemEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        Title="{Binding WindowTitle}"
+        Height="280"
+        Width="450"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ui:WindowHelper.UseModernWindowStyle="True">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title -->
+        <TextBlock Grid.Row="0"
+                   Text="{Binding WindowTitle}"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,16"/>
+
+        <!-- Error Message -->
+        <Border Grid.Row="1"
+                Background="#FFF4E5"
+                BorderBrush="#FFB74D"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="8"
+                Margin="0,0,0,12"
+                Visibility="{Binding ErrorMessage, Converter={StaticResource NullToCollapsedConverter}}">
+            <TextBlock Text="{Binding ErrorMessage}"
+                       FontSize="12"
+                       Foreground="#E65100"
+                       TextWrapping="Wrap"/>
+        </Border>
+
+        <!-- Form Fields -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- System ID (read-only, auto-generated) -->
+            <TextBlock Grid.Row="0" Grid.Column="0"
+                       Text="System ID"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="0,0,0,12"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+            <TextBox Grid.Row="0" Grid.Column="1"
+                     Text="{Binding SystemId, UpdateSourceTrigger=PropertyChanged}"
+                     IsReadOnly="True"
+                     FontSize="12"
+                     Margin="0,0,0,12"
+                     Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+
+            <!-- Display Name (required) -->
+            <TextBlock Grid.Row="1" Grid.Column="0"
+                       Text="Display Name *"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="0,0,0,12"/>
+            <TextBox Grid.Row="1" Grid.Column="1"
+                     Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
+                     FontSize="12"
+                     Margin="0,0,0,12"
+                     ui:ControlHelper.PlaceholderText="Enter display name (e.g., 'AFAS Profit - Frion')"/>
+
+            <!-- Identification Key (read-only, same as System ID) -->
+            <TextBlock Grid.Row="2" Grid.Column="0"
+                       Text="Identification Key"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+            <TextBox Grid.Row="2" Grid.Column="1"
+                     Text="{Binding IdentificationKey, UpdateSourceTrigger=PropertyChanged}"
+                     IsReadOnly="True"
+                     FontSize="12"
+                     Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                     ui:ControlHelper.PlaceholderText="Auto-generated (same as System ID)"/>
+        </Grid>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="3" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="1"
+                    Content="Save"
+                    Command="{Binding SaveCommand}"
+                    Style="{StaticResource AccentButtonStyle}"
+                    FontSize="12"
+                    Width="80"
+                    Margin="0,0,8,0"
+                    IsDefault="True"/>
+
+            <Button Grid.Column="2"
+                    Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    FontSize="12"
+                    Width="80"
+                    IsCancel="True"/>
+        </Grid>
+
+        <!-- Loading Overlay -->
+        <Grid Grid.RowSpan="4"
+              Background="#80FFFFFF"
+              Visibility="{Binding IsSaving, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <ui:ProgressRing IsActive="{Binding IsSaving}" Width="50" Height="50"/>
+        </Grid>
+    </Grid>
+</Window>

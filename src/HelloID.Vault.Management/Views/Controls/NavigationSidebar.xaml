@@ -1,0 +1,145 @@
+<UserControl x:Class="HelloID.Vault.Management.Views.Controls.NavigationSidebar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             mc:Ignorable="d"
+             d:DesignHeight="900" d:DesignWidth="250">
+
+    <ui:NavigationView x:Name="NavView"
+                       IsBackButtonVisible="Collapsed"
+                       IsPaneToggleButtonVisible="False"
+                       IsSettingsVisible="False"
+                       IsTitleBarAutoPaddingEnabled="False"
+                       OpenPaneLength="250"
+                       CompactPaneLength="48"
+                       PaneDisplayMode="Left"
+                       SelectionFollowsFocus="Disabled"
+                       SelectionChanged="NavView_SelectionChanged">
+
+        <ui:NavigationView.MenuItems>
+            <!-- Persons -->
+            <ui:NavigationViewItem Content="Persons" Tag="Persons">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE716;"/> <!-- People icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Contracts -->
+            <ui:NavigationViewItem Content="Contracts" Tag="Contracts">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE8A5;"/> <!-- Document icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Departments -->
+            <ui:NavigationViewItem Content="Departments" Tag="Departments">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE8F4;"/> <!-- Building icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Locations -->
+            <ui:NavigationViewItem Content="Locations" Tag="Locations">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE707;"/> <!-- MapPin icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Cost Centers -->
+            <ui:NavigationViewItem Content="Cost Centers" Tag="CostCenters">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE8A1;"/> <!-- Money icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Cost Bearers -->
+            <ui:NavigationViewItem Content="Cost Bearers" Tag="CostBearers">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE8C7;"/> <!-- ContactInfo icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Employers -->
+            <ui:NavigationViewItem Content="Employers" Tag="Employers">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE825;"/> <!-- Work icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Teams -->
+            <ui:NavigationViewItem Content="Teams" Tag="Teams">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE902;"/> <!-- Group icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Divisions -->
+            <ui:NavigationViewItem Content="Divisions" Tag="Divisions">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE8F5;"/> <!-- GridView icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Titles -->
+            <ui:NavigationViewItem Content="Titles" Tag="Titles">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE8EC;"/> <!-- Tag icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Organizations -->
+            <ui:NavigationViewItem Content="Organizations" Tag="Organizations">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xEC07;"/>
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Contacts -->
+            <ui:NavigationViewItem Content="Contacts" Tag="Contacts">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE8CF;"/> <!-- Phone icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Source Systems -->
+            <ui:NavigationViewItem Content="Source Systems" Tag="SourceSystems">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE8B7;"/> <!-- Database icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Settings -->
+            <ui:NavigationViewItem Content="Settings" Tag="Settings">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE713;"/> <!-- Settings icon -->
+                </ui:NavigationViewItem.Icon>
+                <ui:NavigationViewItem.MenuItems>
+                    <ui:NavigationViewItem Content="Custom Fields" Tag="CustomFields">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:FontIcon Glyph="&#xECA5;"/>
+                        </ui:NavigationViewItem.Icon>
+                    </ui:NavigationViewItem>
+                    <ui:NavigationViewItem Content="Primary Contract Rules" Tag="PrimaryContractConfig">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:FontIcon Glyph="&#xE8A5;"/> <!-- Document icon -->
+                        </ui:NavigationViewItem.Icon>
+                    </ui:NavigationViewItem>
+                    <ui:NavigationViewItem Content="Primary Manager Admin" Tag="PrimaryManagerAdmin">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:FontIcon Glyph="&#xE77B;"/> <!-- Admin/User icon -->
+                        </ui:NavigationViewItem.Icon>
+                    </ui:NavigationViewItem>
+                </ui:NavigationViewItem.MenuItems>
+            </ui:NavigationViewItem>
+
+            <!-- Import Data -->
+            <ui:NavigationViewItem Content="Import Data" Tag="ImportData">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE896;"/> <!-- Download icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+        </ui:NavigationView.MenuItems>
+    </ui:NavigationView>
+</UserControl>

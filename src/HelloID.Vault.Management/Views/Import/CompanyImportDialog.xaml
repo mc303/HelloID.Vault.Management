@@ -1,0 +1,84 @@
+<Window x:Class="HelloID.Vault.Management.Views.Import.CompanyImportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        ui:WindowHelper.UseModernWindowStyle="True"
+        Title="Database Has Data"
+        Width="550"
+        Height="330"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Icon and Title -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
+            <TextBlock Text="🏢" FontSize="32" Margin="0,0,15,0"/>
+            <TextBlock Text="The database already contains data"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Message -->
+        <StackPanel Grid.Row="1" Margin="0,0,0,20">
+            <TextBlock TextWrapping="Wrap" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,15">
+                Company Data Only Import
+            </TextBlock>
+
+            <TextBlock TextWrapping="Wrap" FontSize="13" Margin="0,0,0,8">
+                <Run Text="This will only import company reference data:"/>
+            </TextBlock>
+
+            <TextBlock TextWrapping="Wrap" FontSize="12" Margin="20,0,0,15" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}">
+                <Run Text="• Departments • Locations • Cost Centers • Cost Bearers"/>
+            </TextBlock>
+
+            <TextBlock TextWrapping="Wrap" FontSize="12" Margin="20,0,0,15" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}">
+                <Run Text="• Employers • Teams • Divisions • Titles • Organizations"/>
+            </TextBlock>
+
+            <TextBlock TextWrapping="Wrap" FontSize="13" Margin="0,0,0,8">
+                <Run FontWeight="SemiBold">• Backup and Overwrite:</Run>
+                <Run>Create a timestamped backup before importing new data</Run>
+            </TextBlock>
+
+            <TextBlock TextWrapping="Wrap" FontSize="13" Margin="0,0,0,8">
+                <Run FontWeight="SemiBold">• Overwrite Without Backup:</Run>
+                <Run>Delete existing data without creating a backup</Run>
+            </TextBlock>
+
+            <TextBlock TextWrapping="Wrap" FontSize="13">
+                <Run FontWeight="SemiBold">• Cancel:</Run>
+                <Run>Abort the import operation</Run>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Backup and Overwrite"
+                    Width="160"
+                    Height="32"
+                    Margin="0,0,10,0"
+                    IsDefault="True"
+                    Click="BackupAndOverwrite_Click"
+                    Style="{StaticResource AccentButtonStyle}"/>
+
+            <Button Content="Overwrite Without Backup"
+                    Width="180"
+                    Height="32"
+                    Margin="0,0,10,0"
+                    Click="OverwriteWithoutBackup_Click"/>
+
+            <Button Content="Cancel"
+                    Width="80"
+                    Height="32"
+                    IsCancel="True"
+                    Click="Cancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

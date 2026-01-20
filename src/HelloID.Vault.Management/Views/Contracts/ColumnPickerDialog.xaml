@@ -1,0 +1,107 @@
+<Window x:Class="HelloID.Vault.Management.Views.Contracts.ColumnPickerDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        mc:Ignorable="d"
+        ui:WindowHelper.UseModernWindowStyle="True"
+        Title="Column Visibility"
+        Height="600" Width="400"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0"
+                   Text="Select Columns to Display"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,16"/>
+
+        <!-- Column List with Scroll -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="1"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <CheckBox Content="ID" IsChecked="{Binding ColumnVisibility.ShowContractId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="ExternalID" IsChecked="{Binding ColumnVisibility.ShowExternalId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Person ID" IsChecked="{Binding ColumnVisibility.ShowPersonId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Person Name" IsChecked="{Binding ColumnVisibility.ShowPersonName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Start Date" IsChecked="{Binding ColumnVisibility.ShowStartDate, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="End Date" IsChecked="{Binding ColumnVisibility.ShowEndDate, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Type Code" IsChecked="{Binding ColumnVisibility.ShowTypeCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Type Description" IsChecked="{Binding ColumnVisibility.ShowTypeDescription, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="FTE" IsChecked="{Binding ColumnVisibility.ShowFte, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Hours/Week" IsChecked="{Binding ColumnVisibility.ShowHoursPerWeek, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Percentage" IsChecked="{Binding ColumnVisibility.ShowPercentage, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Sequence" IsChecked="{Binding ColumnVisibility.ShowSequence, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Status" IsChecked="{Binding ColumnVisibility.ShowContractStatus, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Source" IsChecked="{Binding ColumnVisibility.ShowSource, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Manager ExternalID" IsChecked="{Binding ColumnVisibility.ShowManagerPersonId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Manager Name" IsChecked="{Binding ColumnVisibility.ShowManagerPersonName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Location Code" IsChecked="{Binding ColumnVisibility.ShowLocationId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Location Name" IsChecked="{Binding ColumnVisibility.ShowLocationName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Cost Center Code" IsChecked="{Binding ColumnVisibility.ShowCostCenterId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Cost Center Name" IsChecked="{Binding ColumnVisibility.ShowCostCenterName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Cost Bearer Code" IsChecked="{Binding ColumnVisibility.ShowCostBearerId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Cost Bearer Name" IsChecked="{Binding ColumnVisibility.ShowCostBearerName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Employer Code" IsChecked="{Binding ColumnVisibility.ShowEmployerId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Employer Name" IsChecked="{Binding ColumnVisibility.ShowEmployerName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Team Code" IsChecked="{Binding ColumnVisibility.ShowTeamId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Team Name" IsChecked="{Binding ColumnVisibility.ShowTeamName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Department ExternalID" IsChecked="{Binding ColumnVisibility.ShowDepartmentId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Department Name" IsChecked="{Binding ColumnVisibility.ShowDepartmentName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Department Code" IsChecked="{Binding ColumnVisibility.ShowDepartmentCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Dept Manager" IsChecked="{Binding ColumnVisibility.ShowDepartmentManagerName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Parent Dept" IsChecked="{Binding ColumnVisibility.ShowDepartmentParentDepartmentName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Division Code" IsChecked="{Binding ColumnVisibility.ShowDivisionId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Division Name" IsChecked="{Binding ColumnVisibility.ShowDivisionName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Title Code" IsChecked="{Binding ColumnVisibility.ShowTitleId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Title Name" IsChecked="{Binding ColumnVisibility.ShowTitleName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Organization Code" IsChecked="{Binding ColumnVisibility.ShowOrganizationId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Organization Name" IsChecked="{Binding ColumnVisibility.ShowOrganizationName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Quick Select Buttons -->
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Left"
+                    Margin="0,16,0,0">
+            <Button Content="Select All"
+                    Command="{Binding ShowAllColumnsCommand}"
+                    Width="100"
+                    Margin="0,0,8,0"
+                    Style="{StaticResource AccentButtonStyle}"/>
+            <Button Content="Hide Empty Columns"
+                    Command="{Binding HideEmptyColumnsCommand}"
+                    Width="140"
+                    Margin="0,0,8,0"/>
+            <Button Content="Reset Column Order"
+                    Click="OnResetColumnOrderClick"
+                    Width="140"/>
+        </StackPanel>
+
+        <!-- Close Button -->
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <Button Content="Close"
+                    Click="OnOkClick"
+                    Width="100"
+                    Style="{StaticResource AccentButtonStyle}"/>
+        </StackPanel>
+    </Grid>
+</Window>

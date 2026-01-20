@@ -1,0 +1,68 @@
+<Application x:Class="HelloID.Vault.Management.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             xmlns:vmPersons="clr-namespace:HelloID.Vault.Management.ViewModels.Persons"
+             xmlns:vmContracts="clr-namespace:HelloID.Vault.Management.ViewModels.Contracts"
+             xmlns:vmImport="clr-namespace:HelloID.Vault.Management.ViewModels.Import"
+             xmlns:vmReferenceData="clr-namespace:HelloID.Vault.Management.ViewModels.ReferenceData"
+             xmlns:viewsPersons="clr-namespace:HelloID.Vault.Management.Views.Persons"
+             xmlns:viewsContracts="clr-namespace:HelloID.Vault.Management.Views.Contracts"
+             xmlns:viewsImport="clr-namespace:HelloID.Vault.Management.Views.Import"
+             xmlns:viewsReferenceData="clr-namespace:HelloID.Vault.Management.Views.ReferenceData"
+             xmlns:converters="clr-namespace:HelloID.Vault.Management.Converters">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemeResources />
+                <ui:XamlControlsResources />
+                <ResourceDictionary Source="Styles/FilterButtonStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Value Converters -->
+            <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+            <converters:NullToCollapsedConverter x:Key="NullToCollapsedConverter" />
+            <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+            <converters:PersonStatusToBrushConverter x:Key="PersonStatusToBrushConverter" />
+            <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+            <converters:StringToBooleanConverter x:Key="StringToBooleanConverter" />
+            <converters:BooleanToStringConverter x:Key="BooleanToStringConverter" />
+            <converters:IntToVisibilityConverter x:Key="IntToVisibilityConverter" />
+            <converters:SortOrderToBoolConverter x:Key="SortOrderToBoolConverter" />
+            <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
+            <!-- Preview Dialog Converters -->
+            <converters:WinnerIconColorConverter x:Key="WinnerIconColorConverter" />
+            <converters:WinnerFontWeightConverter x:Key="WinnerFontWeightConverter" />
+            <converters:PrimaryContractBackgroundConverter x:Key="PrimaryContractBackgroundConverter" />
+            <converters:PrimaryContractBorderConverter x:Key="PrimaryContractBorderConverter" />
+            <converters:PrimaryContractBorderThicknessConverter x:Key="PrimaryContractBorderThicknessConverter" />
+            <converters:ContractStatusBackgroundConverter x:Key="ContractStatusBackgroundConverter" />
+            <converters:ContractStatusForegroundConverter x:Key="ContractStatusForegroundConverter" />
+            <converters:ContractStatusBorderConverter x:Key="ContractStatusBorderConverter" />
+            <converters:NullEndDateConverter x:Key="NullEndDateConverter" />
+
+            <!-- DataTemplate mappings for ViewModels to Views -->
+            <DataTemplate DataType="{x:Type vmPersons:PersonsViewModel}">
+                <viewsPersons:PersonsView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vmPersons:PersonDetailViewModel}">
+                <viewsPersons:PersonDetailView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vmContracts:ContractsViewModel}">
+                <viewsContracts:ContractsView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vmImport:ImportViewModel}">
+                <viewsImport:ImportView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type vmReferenceData:PrimaryManagerAdminViewModel}">
+                <viewsReferenceData:PrimaryManagerAdminView />
+            </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
