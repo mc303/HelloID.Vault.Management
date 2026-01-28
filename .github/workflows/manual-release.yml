@@ -45,6 +45,11 @@ jobs:
       - name: Publish self-contained EXE (x64)
         run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 
+      - name: Copy db folder to publish directory
+        run: |
+          New-Item -Path "publish/win-x64/db" -ItemType Directory -Force | Out-Null
+          Copy-Item -Path "db/sqlite_schema.sql" -Destination "publish/win-x64/db/sqlite_schema.sql" -Force
+
       - name: Create ZIP archive (x64)
         run: Compress-Archive -Path publish/win-x64/* -DestinationPath HelloID.Vault.Management-win-x64.zip
 
@@ -63,22 +68,35 @@ jobs:
           $version = "${{ inputs.version }}"
           $version = $version -replace "^v", ""
 
-          # Get all files from publish directory
-          $files = Get-ChildItem -Path "publish/win-x64" -File
+          # Get all files from publish directory (recursive for db folder)
+          $files = Get-ChildItem -Path "publish/win-x64" -Recurse -File
           $fileXml = ""
           $guidIndex = 100
+          $publishDir = "publish/win-x64"
 
           foreach ($file in $files) {
             $fileName = $file.Name
             $filePath = $file.FullName.Replace('\', '/')
+            $relativePath = $file.FullName.Substring($publishDir.Length + 1).Replace('\', '/')
+            $subdirectory = ""
 
-            if ($fileName -eq "HelloID.Vault.Management.exe") {
+            # Check if file is in a subdirectory
+            if ($relativePath.Contains("/")) {
+              $subdirectory = $relativePath.Substring(0, $relativePath.LastIndexOf("/"))
+              $subdirectory = $subdirectory.Replace("/", "\")
+            }
+
+            if ($fileName -eq "HelloID.Vault.Management.exe" -and $relativePath -eq "HelloID.Vault.Management.exe") {
               $fileXml += "                <Component Id=`"MainExecutable`" Guid=`"*`">`n"
               $fileXml += "                  <File Source=`"$filePath`" KeyPath=`"yes`" Checksum=`"yes`"/>`n"
               $fileXml += "                </Component>`n"
+            } elseif ($subdirectory -ne "") {
+              $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`" Subdirectory=`"$subdirectory`">`n"
+              $fileXml += "                  <File Source=`"$filePath`" Name=`"$fileName`" />`n"
+              $fileXml += "                </Component>`n"
             } else {
               $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`">`n"
-              $fileXml += "                  <File Source=`"$filePath`"/>`n"
+              $fileXml += "                  <File Source=`"$filePath`" Name=`"$fileName`" />`n"
               $fileXml += "                </Component>`n"
             }
             $guidIndex++
@@ -90,8 +108,7 @@ jobs:
             <Package Name="HelloID Vault Management"
                      Manufacturer="HelloID"
                      Version="$version"
-                     UpgradeCode="6B8FA84C-3E2A-4F8E-9B5F-1E2D3C4A5B6C"
-                     Language="1033">
+                     UpgradeCode="6B8FA84C-3E2A-4F8E-9B5F-1E2D3C4A5B6C">
 
               <MediaTemplate EmbedCab="yes" />
 
@@ -145,33 +162,37 @@ jobs:
           name: HelloID.Vault.Management.msi
           path: HelloID.Vault.Management.msi
 
-      - name: Configure git user
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Create and push tag (if missing)
+      - name: Verify tag exists
         shell: bash
         run: |
           TAG="${{ inputs.version }}"
-          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
-            echo "Tag ${TAG} already exists — skipping creation."
+          echo "Checking if tag ${TAG} exists..."
+
+          # Fetch all tags from remote
+          git fetch --tags origin
+
+          # Check if tag exists locally or remotely
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "✅ Tag ${TAG} found"
           else
-            git tag -a "${TAG}" -m "Release ${TAG}"
-            git push origin "${TAG}"
+            echo "❌ Error: Tag ${TAG} does not exist!"
+            echo ""
+            echo "Please create the tag first:"
+            echo "  git tag ${TAG}"
+            echo "  git push origin ${TAG}"
+            exit 1
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ inputs.version }}
           files: |
             HelloID.Vault.Management-win-x64.zip
             HelloID.Vault.Management.msi
           draft: ${{ inputs.draft }}
           prerelease: false
-          name: HelloID Vault Management ${{ inputs.version }}
+          name: ${{ inputs.version }}
           body: |
             ## Release ${{ inputs.version }}
 

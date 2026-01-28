@@ -36,6 +36,10 @@ jobs:
       - name: Publish self-contained EXE (x64)
         run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 
+      - name: Copy db folder to publish directory
+        run: |
+          New-Item -Path "publish/win-x64/db" -ItemType Directory -Force | Out-Null
+          Copy-Item -Path "db/sqlite_schema.sql" -Destination "publish/win-x64/db/sqlite_schema.sql" -Force
 
       - name: Create ZIP archive (x64)
         run: Compress-Archive -Path publish/win-x64/* -DestinationPath HelloID.Vault.Management-win-x64.zip
@@ -62,22 +66,35 @@ jobs:
           $version = "${{ env.VERSION }}"
           if (-not $version) { $version = "1.0.0.0" }
 
-          # Get all files from publish directory
-          $files = Get-ChildItem -Path "publish/win-x64" -File
+          # Get all files from publish directory (recursive for db folder)
+          $files = Get-ChildItem -Path "publish/win-x64" -Recurse -File
           $fileXml = ""
           $guidIndex = 100
+          $publishDir = "publish/win-x64"
 
           foreach ($file in $files) {
             $fileName = $file.Name
             $filePath = $file.FullName.Replace('\', '/')
+            $relativePath = $file.FullName.Substring($publishDir.Length + 1).Replace('\', '/')
+            $subdirectory = ""
 
-            if ($fileName -eq "HelloID.Vault.Management.exe") {
+            # Check if file is in a subdirectory
+            if ($relativePath.Contains("/")) {
+              $subdirectory = $relativePath.Substring(0, $relativePath.LastIndexOf("/"))
+              $subdirectory = $subdirectory.Replace("/", "\")
+            }
+
+            if ($fileName -eq "HelloID.Vault.Management.exe" -and $relativePath -eq "HelloID.Vault.Management.exe") {
               $fileXml += "                <Component Id=`"MainExecutable`" Guid=`"*`">`n"
               $fileXml += "                  <File Source=`"$filePath`" KeyPath=`"yes`" Checksum=`"yes`"/>`n"
               $fileXml += "                </Component>`n"
+            } elseif ($subdirectory -ne "") {
+              $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`" Subdirectory=`"$subdirectory`">`n"
+              $fileXml += "                  <File Source=`"$filePath`" Name=`"$fileName`" />`n"
+              $fileXml += "                </Component>`n"
             } else {
               $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`">`n"
-              $fileXml += "                  <File Source=`"$filePath`"/>`n"
+              $fileXml += "                  <File Source=`"$filePath`" Name=`"$fileName`" />`n"
               $fileXml += "                </Component>`n"
             }
             $guidIndex++
@@ -89,8 +106,7 @@ jobs:
             <Package Name="HelloID Vault Management"
                      Manufacturer="HelloID"
                      Version="$version"
-                     UpgradeCode="6B8FA84C-3E2A-4F8E-9B5F-1E2D3C4A5B6C"
-                     Language="1033">
+                     UpgradeCode="6B8FA84C-3E2A-4F8E-9B5F-1E2D3C4A5B6C">
 
               <MediaTemplate EmbedCab="yes" />
 
@@ -160,7 +176,7 @@ jobs:
             HelloID.Vault.Management.msi
           draft: false
           prerelease: false
-          name: HelloID.Vault.Management ${{ steps.get_version.outputs.version }}
+          name: ${{ steps.get_version.outputs.version }}
           body: |
             ## Release ${{ steps.get_version.outputs.version }}
 
