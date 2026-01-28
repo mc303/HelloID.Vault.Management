@@ -41,7 +41,7 @@ public class ContactRepository : IContactRepository
             WHERE person_id = @PersonId
             ORDER BY type";
 
-        return await connection.QueryAsync<ContactDto>(sql, new { PersonId = personId });
+        return await connection.QueryAsync<ContactDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
     }
 
     public async Task<Contact?> GetByIdAsync(int contactId)
@@ -66,7 +66,7 @@ public class ContactRepository : IContactRepository
             FROM contacts
             WHERE contact_id = @ContactId";
 
-        return await connection.QuerySingleOrDefaultAsync<Contact>(sql, new { ContactId = contactId });
+        return await connection.QuerySingleOrDefaultAsync<Contact>(sql, new { ContactId = contactId }).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Contact contact)
@@ -84,7 +84,7 @@ public class ContactRepository : IContactRepository
                 @AddressPostal, @AddressLocality, @AddressCountry
             )";
 
-        return await connection.ExecuteAsync(sql, contact);
+        return await connection.ExecuteAsync(sql, contact).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Contact contact, System.Data.IDbConnection connection, System.Data.IDbTransaction transaction)
@@ -100,7 +100,7 @@ public class ContactRepository : IContactRepository
                 @AddressPostal, @AddressLocality, @AddressCountry
             )";
 
-        return await connection.ExecuteAsync(sql, contact, transaction);
+        return await connection.ExecuteAsync(sql, contact, transaction).ConfigureAwait(false);
     }
 
     public async Task<int> UpdateAsync(Contact contact)
@@ -123,7 +123,7 @@ public class ContactRepository : IContactRepository
                 address_country = @AddressCountry
             WHERE contact_id = @ContactId";
 
-        return await connection.ExecuteAsync(sql, contact);
+        return await connection.ExecuteAsync(sql, contact).ConfigureAwait(false);
     }
 
     public async Task<int> DeleteAsync(int contactId)
@@ -132,7 +132,7 @@ public class ContactRepository : IContactRepository
 
         var sql = "DELETE FROM contacts WHERE contact_id = @ContactId";
 
-        return await connection.ExecuteAsync(sql, new { ContactId = contactId });
+        return await connection.ExecuteAsync(sql, new { ContactId = contactId }).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<ContactDto>> GetPagedAsync(int page, int pageSize)
@@ -162,7 +162,7 @@ public class ContactRepository : IContactRepository
         {
             Limit = pageSize,
             Offset = (page - 1) * pageSize
-        });
+        }).ConfigureAwait(false);
     }
 
     public async Task<int> GetCountAsync()
@@ -171,7 +171,7 @@ public class ContactRepository : IContactRepository
 
         var sql = "SELECT COUNT(*) FROM contacts";
 
-        return await connection.ExecuteScalarAsync<int>(sql);
+        return await connection.ExecuteScalarAsync<int>(sql).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<ContactDto>> GetAllAsync()
@@ -198,6 +198,6 @@ public class ContactRepository : IContactRepository
             LEFT JOIN persons p ON c.person_id = p.person_id
             ORDER BY p.display_name, c.type";
 
-        return await connection.QueryAsync<ContactDto>(sql);
+        return await connection.QueryAsync<ContactDto>(sql).ConfigureAwait(false);
     }
 }

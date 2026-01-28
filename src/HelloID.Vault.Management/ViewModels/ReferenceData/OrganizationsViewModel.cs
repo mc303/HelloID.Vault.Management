@@ -16,6 +16,7 @@ public partial class OrganizationsViewModel : ObservableObject
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly ISourceSystemRepository _sourceSystemRepository;
+    private readonly IDialogService _dialogService;
     private List<Organization> _allItems = new();
 
     [ObservableProperty] private ObservableCollection<Organization> _organizations = new();
@@ -29,6 +30,7 @@ public partial class OrganizationsViewModel : ObservableObject
         _referenceDataService = referenceDataService;
         _serviceProvider = serviceProvider;
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _sourceSystemRepository = serviceProvider.GetService(typeof(ISourceSystemRepository)) as ISourceSystemRepository ?? throw new InvalidOperationException("ISourceSystemRepository not registered");
     }
 
@@ -43,7 +45,7 @@ public partial class OrganizationsViewModel : ObservableObject
     {
         if (IsBusy) return;
         try { IsBusy = true; _allItems = (await _referenceDataService.GetOrganizationsAsync()).ToList(); ApplyFilter(); }
-        catch (Exception ex) { MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception ex) { _dialogService.ShowError($"Error: {ex.Message}", "Error"); }
         finally { IsBusy = false; }
     }
 
@@ -54,6 +56,11 @@ public partial class OrganizationsViewModel : ObservableObject
     private async Task EditItemAsync()
     {
         if (SelectedOrganization == null) return;
+        if (SelectedOrganization.Source == null)
+        {
+            _dialogService.ShowError("Organization has no source system.", "Error");
+            return;
+        }
         var item = await _referenceDataService.GetOrganizationByIdAsync(SelectedOrganization.ExternalId, SelectedOrganization.Source);
         if (item == null) return;
         var vm = new ReferenceDataEditViewModel(_referenceDataService, _sourceSystemRepository, "Organizations", item.ExternalId, item.Code, item.Name, item.Source);
@@ -65,10 +72,15 @@ public partial class OrganizationsViewModel : ObservableObject
     private async Task DeleteItemAsync()
     {
         if (SelectedOrganization == null) return;
-        if (MessageBox.Show($"Delete '{SelectedOrganization.ExternalId}'?", "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+        if (SelectedOrganization.Source == null)
+        {
+            _dialogService.ShowError("Organization has no source system.", "Error");
+            return;
+        }
+        if (_dialogService.ShowConfirm($"Delete '{SelectedOrganization.ExternalId}'?", "Confirm"))
         {
             try { await _referenceDataService.DeleteOrganizationAsync(SelectedOrganization.ExternalId, SelectedOrganization.Source); await RefreshAsync(); }
-            catch (Exception ex) { MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+            catch (Exception ex) { _dialogService.ShowError($"Error: {ex.Message}", "Error"); }
         }
     }
 
@@ -138,7 +150,6 @@ public partial class OrganizationsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[OrganizationsViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.OrganizationsColumnOrder = columnNames;
     }
 
@@ -151,11 +162,9 @@ public partial class OrganizationsViewModel : ObservableObject
         var order = _userPreferencesService.OrganizationsColumnOrder;
         if (order == null)
         {
-            System.Diagnostics.Debug.WriteLine("[OrganizationsViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[OrganizationsViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
         }
         return order;
     }
@@ -166,7 +175,6 @@ public partial class OrganizationsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[OrganizationsViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.OrganizationsColumnWidths = columnWidths;
     }
 
@@ -179,11 +187,9 @@ public partial class OrganizationsViewModel : ObservableObject
         var widths = _userPreferencesService.OrganizationsColumnWidths;
         if (widths == null)
         {
-            System.Diagnostics.Debug.WriteLine("[OrganizationsViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[OrganizationsViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
         }
         return widths;
     }
@@ -194,7 +200,6 @@ public partial class OrganizationsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[OrganizationsViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.OrganizationsColumnOrder = null;
     }
 
@@ -204,7 +209,6 @@ public partial class OrganizationsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[OrganizationsViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.OrganizationsColumnWidths = null;
     }
 }

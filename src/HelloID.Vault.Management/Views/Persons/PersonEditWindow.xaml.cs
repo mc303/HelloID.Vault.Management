@@ -18,7 +18,6 @@ public partial class PersonEditWindow : Window
     /// </summary>
     public void SetViewModel(PersonEditViewModel viewModel)
     {
-        System.Diagnostics.Debug.WriteLine($"[PersonEditWindow] SetViewModel called");
         DataContext = viewModel;
         viewModel.CloseRequested += (result) =>
         {

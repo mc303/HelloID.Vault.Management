@@ -22,8 +22,6 @@ public partial class ContactsView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[ContactsView] ===== ContactsView_Loaded START =====");
-
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null)
         {
@@ -35,14 +33,10 @@ public partial class ContactsView : UserControl
                 ApplyColumnOrderAndWidths(dataGrid);
             }
         }
-
-        System.Diagnostics.Debug.WriteLine("[ContactsView] ===== ContactsView_Loaded END =====");
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[ContactsView] ===== ContactsView_Unloaded START =====");
-
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null && _viewModel != null)
         {
@@ -50,8 +44,6 @@ public partial class ContactsView : UserControl
         }
 
         _viewModel = null;
-
-        System.Diagnostics.Debug.WriteLine("[ContactsView] ===== ContactsView_Unloaded END =====");
     }
 
     private void ApplyColumnOrderAndWidths(DataGrid dataGrid)

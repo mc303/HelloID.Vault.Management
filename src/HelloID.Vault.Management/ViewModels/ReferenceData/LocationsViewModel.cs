@@ -19,6 +19,7 @@ public partial class LocationsViewModel : ObservableObject
     private readonly IServiceProvider _serviceProvider;
     private readonly ISourceSystemRepository _sourceSystemRepository;
     private readonly IUserPreferencesService _userPreferencesService;
+    private readonly IDialogService _dialogService;
     private List<Location> _allLocations = new();
 
     [ObservableProperty]
@@ -43,6 +44,7 @@ public partial class LocationsViewModel : ObservableObject
         _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _sourceSystemRepository = serviceProvider.GetService(typeof(ISourceSystemRepository)) as ISourceSystemRepository ?? throw new InvalidOperationException("ISourceSystemRepository not registered");
     }
 
@@ -65,7 +67,7 @@ public partial class LocationsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading locations: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error loading locations: {ex.Message}", "Error");
         }
         finally
         {
@@ -97,11 +99,16 @@ public partial class LocationsViewModel : ObservableObject
     private async Task EditItemAsync()
     {
         if (SelectedLocation == null) return;
+        if (SelectedLocation.Source == null)
+        {
+            _dialogService.ShowError("Location has no source system.", "Error");
+            return;
+        }
 
         var location = await _referenceDataService.GetLocationByIdAsync(SelectedLocation.ExternalId, SelectedLocation.Source);
         if (location == null)
         {
-            MessageBox.Show("Location not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError("Location not found.", "Error");
             return;
         }
 
@@ -128,14 +135,17 @@ public partial class LocationsViewModel : ObservableObject
     private async Task DeleteItemAsync()
     {
         if (SelectedLocation == null) return;
+        if (SelectedLocation.Source == null)
+        {
+            _dialogService.ShowError("Location has no source system.", "Error");
+            return;
+        }
 
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"Are you sure you want to delete location '{SelectedLocation.ExternalId}'?",
-            "Confirm Delete",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            "Confirm Delete");
 
-        if (result == MessageBoxResult.Yes)
+        if (result)
         {
             try
             {
@@ -144,7 +154,7 @@ public partial class LocationsViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error deleting location: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _dialogService.ShowError($"Error deleting location: {ex.Message}", "Error");
             }
         }
     }
@@ -241,7 +251,6 @@ public partial class LocationsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[LocationsViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.LocationsColumnOrder = columnNames;
     }
 
@@ -252,14 +261,6 @@ public partial class LocationsViewModel : ObservableObject
     public List<string>? GetSavedColumnOrder()
     {
         var order = _userPreferencesService.LocationsColumnOrder;
-        if (order == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[LocationsViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[LocationsViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
-        }
         return order;
     }
 
@@ -269,7 +270,6 @@ public partial class LocationsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[LocationsViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.LocationsColumnWidths = columnWidths;
     }
 
@@ -280,14 +280,6 @@ public partial class LocationsViewModel : ObservableObject
     public Dictionary<string, double>? GetSavedColumnWidths()
     {
         var widths = _userPreferencesService.LocationsColumnWidths;
-        if (widths == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[LocationsViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[LocationsViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
-        }
         return widths;
     }
 
@@ -297,7 +289,6 @@ public partial class LocationsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[LocationsViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.LocationsColumnOrder = null;
     }
 
@@ -307,7 +298,6 @@ public partial class LocationsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[LocationsViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.LocationsColumnWidths = null;
     }
 }

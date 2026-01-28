@@ -23,6 +23,7 @@ public partial class PersonDetailViewModel : ObservableObject
     private readonly ISourceSystemRepository _sourceSystemRepository;
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserPreferencesService _userPreferencesService;
+    private readonly IDialogService _dialogService;
     private readonly string _personId;
 
     [ObservableProperty]
@@ -92,6 +93,7 @@ public partial class PersonDetailViewModel : ObservableObject
         _customFieldRepository = customFieldRepository ?? throw new ArgumentNullException(nameof(customFieldRepository));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userPreferencesService = userPreferencesService ?? throw new ArgumentNullException(nameof(userPreferencesService));
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _personId = personId ?? throw new ArgumentNullException(nameof(personId));
 
         _contractService = _serviceProvider.GetRequiredService<IContractService>();
@@ -141,12 +143,10 @@ public partial class PersonDetailViewModel : ObservableObject
 
                 // Load contracts
                 var contracts = await _personService.GetContractsByPersonIdAsync(_personId);
-                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] LoadAsync - Received {contracts.Count()} contracts from service");
                 Contracts.Clear();
                 foreach (var contract in contracts)
                 {
                     Contracts.Add(contract);
-                    System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Loaded contract {contract.ContractId} - LocationName: '{contract.LocationName}', DepartmentName: '{contract.DepartmentName}', TitleName: '{contract.TitleName}'");
                 }
                 OnPropertyChanged(nameof(ContractsCount));
 
@@ -164,7 +164,6 @@ public partial class PersonDetailViewModel : ObservableObject
         catch (Exception ex)
         {
             ErrorMessage = $"Error loading person: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"Error loading person {_personId}: {ex}");
         }
         finally
         {
@@ -239,7 +238,6 @@ public partial class PersonDetailViewModel : ObservableObject
         catch (Exception ex)
         {
             ErrorMessage = $"Error loading person for edit: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"Error loading person for edit: {ex}");
         }
     }
 
@@ -251,24 +249,18 @@ public partial class PersonDetailViewModel : ObservableObject
     {
         if (Person == null) return;
 
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"Are you sure you want to delete '{Person.DisplayName}'?\n\nThis action cannot be undone.",
-            "Confirm Delete",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            "Confirm Delete");
 
-        if (result != MessageBoxResult.Yes)
+        if (!result)
             return;
 
         try
         {
             await _personService.DeleteAsync(_personId);
 
-            MessageBox.Show(
-                "Person deleted successfully.",
-                "Success",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            _dialogService.ShowInfo("Person deleted successfully.", "Success");
 
             // Clear the detail view
             Person = null;
@@ -280,12 +272,7 @@ public partial class PersonDetailViewModel : ObservableObject
         catch (Exception ex)
         {
             ErrorMessage = $"Error deleting person: {ex.Message}";
-            MessageBox.Show(
-                $"Failed to delete person:\n{ex.Message}",
-                "Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            System.Diagnostics.Debug.WriteLine($"Error deleting person: {ex}");
+            _dialogService.ShowError($"Failed to delete person:\n{ex.Message}", "Error");
         }
     }
 
@@ -311,7 +298,7 @@ public partial class PersonDetailViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-             MessageBox.Show($"Error opening contract window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+             _dialogService.ShowError($"Error opening contract window: {ex.Message}", "Error");
         }
     }
 
@@ -325,14 +312,11 @@ public partial class PersonDetailViewModel : ObservableObject
 
         try
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] EditContractAsync START - ContractId: {contractDto.ContractId}");
-            System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] BEFORE EDIT - LocationName: '{contractDto.LocationName}', DepartmentName: '{contractDto.DepartmentName}', TitleName: '{contractDto.TitleName}'");
-
             // Load full contract entity
             var contract = await _contractService.GetByIdAsync(contractDto.ContractId);
             if (contract == null)
             {
-                MessageBox.Show("Contract not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _dialogService.ShowError("Contract not found.", "Error");
                 return;
             }
 
@@ -343,28 +327,12 @@ public partial class PersonDetailViewModel : ObservableObject
 
             if (editWindow.ShowDialog() == true)
             {
-                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Contract edit dialog returned true - reloading data");
                 await LoadAsync();
-
-                // Find the updated contract in the reloaded collection
-                var updatedContract = Contracts.FirstOrDefault(c => c.ContractId == contractDto.ContractId);
-                if (updatedContract != null)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] AFTER RELOAD - LocationName: '{updatedContract.LocationName}', DepartmentName: '{updatedContract.DepartmentName}', TitleName: '{updatedContract.TitleName}'");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] ERROR: Contract {contractDto.ContractId} not found in reloaded collection!");
-                }
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Contract edit dialog was cancelled");
             }
         }
         catch (Exception ex)
         {
-             MessageBox.Show($"Error opening contract window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+             _dialogService.ShowError($"Error opening contract window: {ex.Message}", "Error");
         }
     }
 
@@ -440,7 +408,6 @@ public partial class PersonDetailViewModel : ObservableObject
         catch (Exception ex)
         {
             ErrorMessage = $"Error loading contact for edit: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"Error loading contact for edit: {ex}");
         }
     }
 
@@ -452,13 +419,11 @@ public partial class PersonDetailViewModel : ObservableObject
     {
         if (contact == null) return;
 
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"Are you sure you want to delete this {contact.Type} contact?\n\nThis action cannot be undone.",
-            "Confirm Delete",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            "Confirm Delete");
 
-        if (result != MessageBoxResult.Yes)
+        if (!result)
             return;
 
         try
@@ -466,11 +431,7 @@ public partial class PersonDetailViewModel : ObservableObject
             var contactRepository = _serviceProvider.GetRequiredService<IContactRepository>();
             await contactRepository.DeleteAsync(contact.ContactId);
 
-            MessageBox.Show(
-                "Contact deleted successfully.",
-                "Success",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            _dialogService.ShowInfo("Contact deleted successfully.", "Success");
 
             // Refresh contacts
             await LoadAsync();
@@ -478,12 +439,7 @@ public partial class PersonDetailViewModel : ObservableObject
         catch (Exception ex)
         {
             ErrorMessage = $"Error deleting contact: {ex.Message}";
-            MessageBox.Show(
-                $"Failed to delete contact:\n{ex.Message}",
-                "Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            System.Diagnostics.Debug.WriteLine($"Error deleting contact: {ex}");
+            _dialogService.ShowError($"Failed to delete contact:\n{ex.Message}", "Error");
         }
     }
 
@@ -495,24 +451,18 @@ public partial class PersonDetailViewModel : ObservableObject
     {
         if (contract == null) return;
 
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"Are you sure you want to delete this contract?\n\nThis action cannot be undone.",
-            "Confirm Delete",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            "Confirm Delete");
 
-        if (result != MessageBoxResult.Yes)
+        if (!result)
             return;
 
         try
         {
             await _contractService.DeleteAsync(contract.ContractId);
 
-            MessageBox.Show(
-                "Contract deleted successfully.",
-                "Success",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            _dialogService.ShowInfo("Contract deleted successfully.", "Success");
 
             // Refresh contracts
             await LoadAsync();
@@ -520,12 +470,7 @@ public partial class PersonDetailViewModel : ObservableObject
         catch (Exception ex)
         {
             ErrorMessage = $"Error deleting contract: {ex.Message}";
-            MessageBox.Show(
-                $"Failed to delete contract:\n{ex.Message}",
-                "Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            System.Diagnostics.Debug.WriteLine($"Error deleting contract: {ex}");
+            _dialogService.ShowError($"Failed to delete contract:\n{ex.Message}", "Error");
         }
     }
 }

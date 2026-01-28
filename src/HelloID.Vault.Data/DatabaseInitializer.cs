@@ -57,14 +57,14 @@ public class DatabaseInitializer
         }
 
         // Read schema SQL
-        var schemaSql = await File.ReadAllTextAsync(_schemaFilePath);
+        var schemaSql = await File.ReadAllTextAsync(_schemaFilePath).ConfigureAwait(false);
 
         // Execute schema - explicitly open connection to ensure fresh database file
         using var connection = (SqliteConnection)_connectionFactory.CreateConnection();
         connection.Open(); // Explicitly open to create the database file
         using var command = connection.CreateCommand();
         command.CommandText = schemaSql;
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
 
         System.Diagnostics.Debug.WriteLine("Database schema created successfully.");
     }
@@ -78,7 +78,7 @@ public class DatabaseInitializer
             using var command = connection.CreateCommand();
 
             command.CommandText = "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1";
-            var version = await command.ExecuteScalarAsync();
+            var version = await command.ExecuteScalarAsync().ConfigureAwait(false);
 
             System.Diagnostics.Debug.WriteLine($"Database schema version: {version}");
         }

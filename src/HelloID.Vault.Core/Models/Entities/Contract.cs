@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace HelloID.Vault.Core.Models.Entities;
 
 /// <summary>
@@ -26,6 +28,9 @@ public class Contract
     public string? DivisionExternalId { get; set; }
     public string? TitleExternalId { get; set; }
     public string? OrganizationExternalId { get; set; }
+
+    [Required(ErrorMessage = "Source is required.")]
+    [StringLength(50, ErrorMessage = "Source cannot exceed 50 characters.")]
     public string? Source { get; set; }
     public string? LocationSource { get; set; }
     public string? CostCenterSource { get; set; }

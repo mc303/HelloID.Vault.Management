@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Caching.Memory;
@@ -12,9 +13,12 @@ using HelloID.Vault.Management.Views.ReferenceData;
 using HelloID.Vault.Management.ViewModels;
 using HelloID.Vault.Management.ViewModels.Persons;
 using HelloID.Vault.Management.ViewModels.Contracts;
+using HelloID.Vault.Management.Views.Contracts;
 using HelloID.Vault.Management.ViewModels.Import;
 using HelloID.Vault.Management.ViewModels.ReferenceData;
+using HelloID.Vault.Management.Services;
 using HelloID.Vault.Services;
+using HelloID.Vault.Services.Database;
 using HelloID.Vault.Services.Interfaces;
 
 namespace HelloID.Vault.Management;
@@ -34,7 +38,85 @@ public partial class App : Application
                 ConfigureServices(services);
             })
             .Build();
+
+        // Set up global exception handlers
+        SetupExceptionHandlers();
     }
+
+    /// <summary>
+    /// Configures global exception handlers for the application.
+    /// </summary>
+    private void SetupExceptionHandlers()
+    {
+        // UI thread exceptions
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+
+        // Background thread exceptions
+        AppDomain.CurrentDomain.UnhandledException += OnCurrentDomainUnhandledException;
+
+        // Unobserved task exceptions
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
+
+    /// <summary>
+    /// Handles unhandled exceptions on the UI thread.
+    /// </summary>
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        LogException(e.Exception, "UI Thread");
+
+        e.Handled = true; // Prevent application from crashing
+
+        // Show error to user
+        MessageBox.Show(
+            $"An unexpected error occurred:\n\n{e.Exception.Message}\n\nThe application will continue running.",
+            "Error",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+    }
+
+    /// <summary>
+    /// Handles unhandled exceptions on background threads.
+    /// </summary>
+    private void OnCurrentDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception exception)
+        {
+            LogException(exception, "Background Thread");
+        }
+
+        // Note: We cannot prevent the application from terminating here
+        // Log the exception for debugging purposes
+    }
+
+    /// <summary>
+    /// Handles unobserved task exceptions.
+    /// </summary>
+    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        LogException(e.Exception, "Task");
+
+        // Mark as observed to prevent process termination
+        e.SetObserved();
+    }
+
+    /// <summary>
+    /// Logs exception details for debugging.
+    /// </summary>
+    private void LogException(Exception exception, string source)
+    {
+        var logMessage = $"[{source}] {exception.GetType().Name}: {exception.Message}\n" +
+                         $"Stack Trace: {exception.StackTrace}";
+
+        System.Diagnostics.Debug.WriteLine(logMessage);
+
+        // TODO: Write to log file or logging service
+    }
+
+    /// <summary>
+    /// Gets the service provider for resolving dependencies.
+    /// </summary>
+    public IServiceProvider Services => _host.Services;
 
     private void ConfigureServices(IServiceCollection services)
     {
@@ -77,6 +159,9 @@ public partial class App : Application
         services.AddSingleton<IContractService, ContractService>();
         services.AddSingleton<IUserPreferencesService, UserPreferencesService>();
         services.AddSingleton<IPrimaryManagerService, PrimaryManagerService>();
+        services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<IColumnLayoutManager, ColumnLayoutManager>();
+        services.AddSingleton<IDatabaseManager, DatabaseManager>();
 
         // ViewModels
         services.AddSingleton<MainWindowViewModel>();
@@ -137,6 +222,11 @@ public partial class App : Application
             // Show main window
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
             var mainWindowViewModel = _host.Services.GetRequiredService<MainWindowViewModel>();
+
+            // Initialize dialog service with dispatcher
+            var dialogService = (HelloID.Vault.Management.Services.DialogService)_host.Services.GetRequiredService<IDialogService>();
+            dialogService.SetDispatcher(mainWindow.Dispatcher);
+
             mainWindow.DataContext = mainWindowViewModel;
             mainWindow.Show();
         }

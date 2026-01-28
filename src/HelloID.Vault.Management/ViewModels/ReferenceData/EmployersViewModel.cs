@@ -16,6 +16,7 @@ public partial class EmployersViewModel : ObservableObject
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly ISourceSystemRepository _sourceSystemRepository;
+    private readonly IDialogService _dialogService;
     private List<Employer> _allItems = new();
 
     [ObservableProperty] private ObservableCollection<Employer> _employers = new();
@@ -29,6 +30,7 @@ public partial class EmployersViewModel : ObservableObject
         _referenceDataService = referenceDataService;
         _serviceProvider = serviceProvider;
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _sourceSystemRepository = serviceProvider.GetService(typeof(ISourceSystemRepository)) as ISourceSystemRepository ?? throw new InvalidOperationException("ISourceSystemRepository not registered");
     }
 
@@ -43,7 +45,7 @@ public partial class EmployersViewModel : ObservableObject
     {
         if (IsBusy) return;
         try { IsBusy = true; _allItems = (await _referenceDataService.GetEmployersAsync()).ToList(); ApplyFilter(); }
-        catch (Exception ex) { MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception ex) { _dialogService.ShowError($"Error: {ex.Message}", "Error"); }
         finally { IsBusy = false; }
     }
 
@@ -54,6 +56,11 @@ public partial class EmployersViewModel : ObservableObject
     private async Task EditItemAsync()
     {
         if (SelectedEmployer == null) return;
+        if (SelectedEmployer.Source == null)
+        {
+            _dialogService.ShowError("Employer has no source system.", "Error");
+            return;
+        }
         var item = await _referenceDataService.GetEmployerByIdAsync(SelectedEmployer.ExternalId, SelectedEmployer.Source);
         if (item == null) return;
         var vm = new ReferenceDataEditViewModel(_referenceDataService, _sourceSystemRepository, "Employers", item.ExternalId, item.Code, item.Name, item.Source);
@@ -65,10 +72,15 @@ public partial class EmployersViewModel : ObservableObject
     private async Task DeleteItemAsync()
     {
         if (SelectedEmployer == null) return;
-        if (MessageBox.Show($"Delete '{SelectedEmployer.ExternalId}'?", "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+        if (SelectedEmployer.Source == null)
+        {
+            _dialogService.ShowError("Employer has no source system.", "Error");
+            return;
+        }
+        if (_dialogService.ShowConfirm($"Delete '{SelectedEmployer.ExternalId}'?", "Confirm"))
         {
             try { await _referenceDataService.DeleteEmployerAsync(SelectedEmployer.ExternalId, SelectedEmployer.Source); await RefreshAsync(); }
-            catch (Exception ex) { MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+            catch (Exception ex) { _dialogService.ShowError($"Error: {ex.Message}", "Error"); }
         }
     }
 
@@ -138,7 +150,6 @@ public partial class EmployersViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[EmployersViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.EmployersColumnOrder = columnNames;
     }
 
@@ -151,11 +162,9 @@ public partial class EmployersViewModel : ObservableObject
         var order = _userPreferencesService.EmployersColumnOrder;
         if (order == null)
         {
-            System.Diagnostics.Debug.WriteLine("[EmployersViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[EmployersViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
         }
         return order;
     }
@@ -166,7 +175,6 @@ public partial class EmployersViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[EmployersViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.EmployersColumnWidths = columnWidths;
     }
 
@@ -179,11 +187,9 @@ public partial class EmployersViewModel : ObservableObject
         var widths = _userPreferencesService.EmployersColumnWidths;
         if (widths == null)
         {
-            System.Diagnostics.Debug.WriteLine("[EmployersViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[EmployersViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
         }
         return widths;
     }
@@ -194,7 +200,6 @@ public partial class EmployersViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[EmployersViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.EmployersColumnOrder = null;
     }
 
@@ -204,7 +209,6 @@ public partial class EmployersViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[EmployersViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.EmployersColumnWidths = null;
     }
 }

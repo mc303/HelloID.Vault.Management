@@ -82,7 +82,14 @@ public class UserPreferencesService : IUserPreferencesService
         get => _preferences.ContractsColumnVisibility;
         set
         {
+            // Always save when column visibility changes - need deep comparison for reference types
+            // Since ContractsColumnVisibility is mutable and properties change via CheckBox bindings,
+            // we assign and save to ensure persistence
+            System.Diagnostics.Debug.WriteLine($"[UserPreferencesService] ContractsColumnVisibility SET called");
+            System.Diagnostics.Debug.WriteLine($"[UserPreferencesService]   New value hash: {value?.GetHashCode()}");
+            System.Diagnostics.Debug.WriteLine($"[UserPreferencesService]   ShowContractId: {value?.ShowContractId}, ShowExternalId: {value?.ShowExternalId}");
             _preferences.ContractsColumnVisibility = value;
+            System.Diagnostics.Debug.WriteLine($"[UserPreferencesService]   Calling SaveAsync()");
             _ = SaveAsync();
         }
     }
@@ -732,12 +739,20 @@ public class UserPreferencesService : IUserPreferencesService
 
     public async Task LoadAsync()
     {
+        System.Diagnostics.Debug.WriteLine($"[UserPreferencesService] LoadAsync START");
+        System.Diagnostics.Debug.WriteLine($"[UserPreferencesService]   File exists: {File.Exists(_preferencesFilePath)}");
         try
         {
             if (File.Exists(_preferencesFilePath))
             {
                 var json = await File.ReadAllTextAsync(_preferencesFilePath);
                 _preferences = JsonSerializer.Deserialize<UserPreferences>(json) ?? new UserPreferences();
+                System.Diagnostics.Debug.WriteLine($"[UserPreferencesService]   Loaded successfully");
+                System.Diagnostics.Debug.WriteLine($"[UserPreferencesService]   ShowContractId: {_preferences.ContractsColumnVisibility?.ShowContractId}, ShowExternalId: {_preferences.ContractsColumnVisibility?.ShowExternalId}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[UserPreferencesService]   File not found, using defaults");
             }
         }
         catch (Exception ex)
@@ -746,6 +761,7 @@ public class UserPreferencesService : IUserPreferencesService
             System.Diagnostics.Debug.WriteLine($"Failed to load user preferences: {ex.Message}");
             _preferences = new UserPreferences();
         }
+        System.Diagnostics.Debug.WriteLine($"[UserPreferencesService] LoadAsync END");
     }
 
     public async Task SaveAsync()
@@ -757,7 +773,11 @@ public class UserPreferencesService : IUserPreferencesService
                 WriteIndented = true
             };
             var json = JsonSerializer.Serialize(_preferences, options);
+            System.Diagnostics.Debug.WriteLine($"[UserPreferencesService] SaveAsync START");
+            System.Diagnostics.Debug.WriteLine($"[UserPreferencesService]   Saving {json.Length} characters");
+            System.Diagnostics.Debug.WriteLine($"[UserPreferencesService]   ContractsColumnVisibility.ShowContractId: {_preferences.ContractsColumnVisibility?.ShowContractId}");
             await File.WriteAllTextAsync(_preferencesFilePath, json);
+            System.Diagnostics.Debug.WriteLine($"[UserPreferencesService] SaveAsync END - file written");
         }
         catch (Exception ex)
         {

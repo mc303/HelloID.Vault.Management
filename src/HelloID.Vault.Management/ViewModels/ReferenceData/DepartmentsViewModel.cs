@@ -20,6 +20,7 @@ public partial class DepartmentsViewModel : ObservableObject
     private readonly ISourceSystemRepository _sourceSystemRepository;
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserPreferencesService _userPreferencesService;
+    private readonly IDialogService _dialogService;
     private List<Department> _allItems = new();
 
     [ObservableProperty]
@@ -42,6 +43,7 @@ public partial class DepartmentsViewModel : ObservableObject
         _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _sourceSystemRepository = serviceProvider.GetService(typeof(ISourceSystemRepository)) as ISourceSystemRepository
             ?? throw new InvalidOperationException("ISourceSystemRepository not registered in service provider");
     }
@@ -67,7 +69,7 @@ public partial class DepartmentsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading departments: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error loading departments: {ex.Message}", "Error");
         }
         finally
         {
@@ -96,11 +98,16 @@ public partial class DepartmentsViewModel : ObservableObject
     private async Task EditItemAsync()
     {
         if (SelectedDepartment == null) return;
+        if (SelectedDepartment.Source == null)
+        {
+            _dialogService.ShowError("Department has no source system.", "Error");
+            return;
+        }
 
         var department = await _referenceDataService.GetDepartmentByIdAsync(SelectedDepartment.ExternalId, SelectedDepartment.Source);
         if (department == null)
         {
-            MessageBox.Show("Department not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError("Department not found.", "Error");
             return;
         }
 
@@ -119,14 +126,17 @@ public partial class DepartmentsViewModel : ObservableObject
     private async Task DeleteItemAsync()
     {
         if (SelectedDepartment == null) return;
+        if (SelectedDepartment.Source == null)
+        {
+            _dialogService.ShowError("Department has no source system.", "Error");
+            return;
+        }
 
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"Are you sure you want to delete department '{SelectedDepartment.DisplayName}'?",
-            "Confirm Delete",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            "Confirm Delete");
 
-        if (result == MessageBoxResult.Yes)
+        if (result)
         {
             try
             {
@@ -135,7 +145,7 @@ public partial class DepartmentsViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error deleting department: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _dialogService.ShowError($"Error deleting department: {ex.Message}", "Error");
             }
         }
     }
@@ -226,7 +236,6 @@ public partial class DepartmentsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[DepartmentsViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.DepartmentsColumnOrder = columnNames;
     }
 
@@ -237,14 +246,6 @@ public partial class DepartmentsViewModel : ObservableObject
     public List<string>? GetSavedColumnOrder()
     {
         var order = _userPreferencesService.DepartmentsColumnOrder;
-        if (order == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[DepartmentsViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[DepartmentsViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
-        }
         return order;
     }
 
@@ -254,7 +255,6 @@ public partial class DepartmentsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[DepartmentsViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.DepartmentsColumnWidths = columnWidths;
     }
 
@@ -265,14 +265,6 @@ public partial class DepartmentsViewModel : ObservableObject
     public Dictionary<string, double>? GetSavedColumnWidths()
     {
         var widths = _userPreferencesService.DepartmentsColumnWidths;
-        if (widths == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[DepartmentsViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[DepartmentsViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
-        }
         return widths;
     }
 
@@ -282,7 +274,6 @@ public partial class DepartmentsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[DepartmentsViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.DepartmentsColumnOrder = null;
     }
 
@@ -292,7 +283,6 @@ public partial class DepartmentsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[DepartmentsViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.DepartmentsColumnWidths = null;
     }
 }

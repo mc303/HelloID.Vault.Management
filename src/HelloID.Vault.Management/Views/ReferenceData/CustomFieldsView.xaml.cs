@@ -22,7 +22,6 @@ public partial class CustomFieldsView : UserControl
 
     private async void CustomFieldsView_Loaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[CustomFieldsView] ===== CustomFieldsView_Loaded START =====");
 
         if (DataContext is CustomFieldsViewModel viewModel)
         {
@@ -37,12 +36,10 @@ public partial class CustomFieldsView : UserControl
             ApplyColumnOrderAndWidths(dataGrid);
         }
 
-        System.Diagnostics.Debug.WriteLine("[CustomFieldsView] ===== CustomFieldsView_Loaded END =====");
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[CustomFieldsView] ===== CustomFieldsView_Unloaded START =====");
 
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null && _viewModel != null)
@@ -52,7 +49,6 @@ public partial class CustomFieldsView : UserControl
 
         _viewModel = null;
 
-        System.Diagnostics.Debug.WriteLine("[CustomFieldsView] ===== CustomFieldsView_Unloaded END =====");
     }
 
     private void ApplyColumnOrderAndWidths(DataGrid dataGrid)

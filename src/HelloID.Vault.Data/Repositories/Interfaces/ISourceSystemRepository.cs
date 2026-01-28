@@ -19,11 +19,6 @@ public interface ISourceSystemRepository
     Task<SourceSystemDto?> GetByIdAsync(string systemId);
 
     /// <summary>
-    /// Gets a source system by its hash prefix.
-    /// </summary>
-    Task<SourceSystemDto?> GetByHashPrefixAsync(string hashPrefix);
-
-    /// <summary>
     /// Gets source systems with no references (unused systems).
     /// </summary>
     Task<IEnumerable<SourceSystemDto>> GetUnusedAsync();

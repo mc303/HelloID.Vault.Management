@@ -18,6 +18,7 @@ public partial class ContactsViewModel : ObservableObject
     private readonly IContactRepository _contactRepository;
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserPreferencesService _userPreferencesService;
+    private readonly IDialogService _dialogService;
     private List<ContactDto> _allItems = new();
 
     [ObservableProperty]
@@ -40,6 +41,7 @@ public partial class ContactsViewModel : ObservableObject
         _contactRepository = contactRepository ?? throw new ArgumentNullException(nameof(contactRepository));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
     }
 
     public async Task InitializeAsync() => await LoadDataAsync();
@@ -58,7 +60,7 @@ public partial class ContactsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading contacts: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error loading contacts: {ex.Message}", "Error");
         }
         finally
         {
@@ -72,7 +74,7 @@ public partial class ContactsViewModel : ObservableObject
     [RelayCommand]
     private void AddItem()
     {
-        MessageBox.Show("Please add contacts through the Person detail view.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+        _dialogService.ShowInfo("Please add contacts through the Person detail view.", "Information");
     }
 
     [RelayCommand]
@@ -83,7 +85,7 @@ public partial class ContactsViewModel : ObservableObject
         var contact = await _contactRepository.GetByIdAsync(SelectedContact.ContactId);
         if (contact == null)
         {
-            MessageBox.Show("Contact not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError("Contact not found.", "Error");
             return;
         }
 
@@ -103,13 +105,11 @@ public partial class ContactsViewModel : ObservableObject
     {
         if (SelectedContact == null) return;
 
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"Are you sure you want to delete this contact for '{SelectedContact.PersonDisplayName}'?",
-            "Confirm Delete",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            "Confirm Delete");
 
-        if (result == MessageBoxResult.Yes)
+        if (result)
         {
             try
             {
@@ -118,7 +118,7 @@ public partial class ContactsViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error deleting contact: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _dialogService.ShowError($"Error deleting contact: {ex.Message}", "Error");
             }
         }
     }
@@ -212,7 +212,6 @@ public partial class ContactsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[ContactsViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.ContactsColumnOrder = columnNames;
     }
 
@@ -222,16 +221,7 @@ public partial class ContactsViewModel : ObservableObject
     /// </summary>
     public List<string>? GetSavedColumnOrder()
     {
-        var order = _userPreferencesService.ContactsColumnOrder;
-        if (order == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[ContactsViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[ContactsViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
-        }
-        return order;
+        return _userPreferencesService.ContactsColumnOrder;
     }
 
     /// <summary>
@@ -240,7 +230,6 @@ public partial class ContactsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[ContactsViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.ContactsColumnWidths = columnWidths;
     }
 
@@ -250,16 +239,7 @@ public partial class ContactsViewModel : ObservableObject
     /// </summary>
     public Dictionary<string, double>? GetSavedColumnWidths()
     {
-        var widths = _userPreferencesService.ContactsColumnWidths;
-        if (widths == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[ContactsViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[ContactsViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
-        }
-        return widths;
+        return _userPreferencesService.ContactsColumnWidths;
     }
 
     /// <summary>
@@ -268,7 +248,6 @@ public partial class ContactsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[ContactsViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.ContactsColumnOrder = null;
     }
 
@@ -278,7 +257,6 @@ public partial class ContactsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[ContactsViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.ContactsColumnWidths = null;
     }
 }

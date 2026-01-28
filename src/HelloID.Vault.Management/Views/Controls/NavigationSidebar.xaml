@@ -121,12 +121,12 @@
                             <ui:FontIcon Glyph="&#xECA5;"/>
                         </ui:NavigationViewItem.Icon>
                     </ui:NavigationViewItem>
-                    <ui:NavigationViewItem Content="Primary Contract Rules" Tag="PrimaryContractConfig">
+                    <ui:NavigationViewItem Content="Primary Contract" Tag="PrimaryContractConfig">
                         <ui:NavigationViewItem.Icon>
                             <ui:FontIcon Glyph="&#xE8A5;"/> <!-- Document icon -->
                         </ui:NavigationViewItem.Icon>
                     </ui:NavigationViewItem>
-                    <ui:NavigationViewItem Content="Primary Manager Admin" Tag="PrimaryManagerAdmin">
+                    <ui:NavigationViewItem Content="Primary Manager" Tag="PrimaryManagerAdmin">
                         <ui:NavigationViewItem.Icon>
                             <ui:FontIcon Glyph="&#xE77B;"/> <!-- Admin/User icon -->
                         </ui:NavigationViewItem.Icon>

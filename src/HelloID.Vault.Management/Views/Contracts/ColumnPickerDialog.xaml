@@ -49,26 +49,26 @@
                     <CheckBox Content="Source" IsChecked="{Binding ColumnVisibility.ShowSource, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Manager ExternalID" IsChecked="{Binding ColumnVisibility.ShowManagerPersonId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Manager Name" IsChecked="{Binding ColumnVisibility.ShowManagerPersonName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
-                    <CheckBox Content="Location Code" IsChecked="{Binding ColumnVisibility.ShowLocationId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Location Code" IsChecked="{Binding ColumnVisibility.ShowLocationCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Location Name" IsChecked="{Binding ColumnVisibility.ShowLocationName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
-                    <CheckBox Content="Cost Center Code" IsChecked="{Binding ColumnVisibility.ShowCostCenterId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Cost Center Code" IsChecked="{Binding ColumnVisibility.ShowCostCenterCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Cost Center Name" IsChecked="{Binding ColumnVisibility.ShowCostCenterName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
-                    <CheckBox Content="Cost Bearer Code" IsChecked="{Binding ColumnVisibility.ShowCostBearerId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Cost Bearer Code" IsChecked="{Binding ColumnVisibility.ShowCostBearerCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Cost Bearer Name" IsChecked="{Binding ColumnVisibility.ShowCostBearerName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
-                    <CheckBox Content="Employer Code" IsChecked="{Binding ColumnVisibility.ShowEmployerId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Employer Code" IsChecked="{Binding ColumnVisibility.ShowEmployerCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Employer Name" IsChecked="{Binding ColumnVisibility.ShowEmployerName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
-                    <CheckBox Content="Team Code" IsChecked="{Binding ColumnVisibility.ShowTeamId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Team Code" IsChecked="{Binding ColumnVisibility.ShowTeamCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Team Name" IsChecked="{Binding ColumnVisibility.ShowTeamName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
-                    <CheckBox Content="Department ExternalID" IsChecked="{Binding ColumnVisibility.ShowDepartmentId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Department ID" IsChecked="{Binding ColumnVisibility.ShowDepartmentId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Department Name" IsChecked="{Binding ColumnVisibility.ShowDepartmentName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Department Code" IsChecked="{Binding ColumnVisibility.ShowDepartmentCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Dept Manager" IsChecked="{Binding ColumnVisibility.ShowDepartmentManagerName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Parent Dept" IsChecked="{Binding ColumnVisibility.ShowDepartmentParentDepartmentName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
-                    <CheckBox Content="Division Code" IsChecked="{Binding ColumnVisibility.ShowDivisionId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Division Code" IsChecked="{Binding ColumnVisibility.ShowDivisionCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Division Name" IsChecked="{Binding ColumnVisibility.ShowDivisionName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
-                    <CheckBox Content="Title Code" IsChecked="{Binding ColumnVisibility.ShowTitleId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Title Code" IsChecked="{Binding ColumnVisibility.ShowTitleCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Title Name" IsChecked="{Binding ColumnVisibility.ShowTitleName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
-                    <CheckBox Content="Organization Code" IsChecked="{Binding ColumnVisibility.ShowOrganizationId, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
+                    <CheckBox Content="Organization Code" IsChecked="{Binding ColumnVisibility.ShowOrganizationCode, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                     <CheckBox Content="Organization Name" IsChecked="{Binding ColumnVisibility.ShowOrganizationName, Mode=TwoWay}" Margin="12,4" FontSize="14"/>
                 </StackPanel>
             </ScrollViewer>
@@ -80,16 +80,12 @@
                     HorizontalAlignment="Left"
                     Margin="0,16,0,0">
             <Button Content="Select All"
-                    Command="{Binding ShowAllColumnsCommand}"
+                    Click="OnSelectAllClick"
                     Width="100"
                     Margin="0,0,8,0"
                     Style="{StaticResource AccentButtonStyle}"/>
             <Button Content="Hide Empty Columns"
-                    Command="{Binding HideEmptyColumnsCommand}"
-                    Width="140"
-                    Margin="0,0,8,0"/>
-            <Button Content="Reset Column Order"
-                    Click="OnResetColumnOrderClick"
+                    Click="OnHideEmptyColumnsClick"
                     Width="140"/>
         </StackPanel>
 

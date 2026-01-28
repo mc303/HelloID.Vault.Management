@@ -79,7 +79,7 @@ public class PrimaryManagerService : IPrimaryManagerService
             PrimaryManagerPersonId = (object?)managerId ?? DBNull.Value,
             PrimaryManagerSource = (object?)source ?? DBNull.Value,
             PrimaryManagerUpdatedAt = updatedAt
-        });
+        }).ConfigureAwait(false);
     }
 
     public async Task UpdatePrimaryManagerForDepartmentAsync(string departmentExternalId, string source, PrimaryManagerLogic logic)
@@ -103,7 +103,7 @@ public class PrimaryManagerService : IPrimaryManagerService
         {
             DepartmentId = departmentExternalId,
             Source = source
-        });
+        }).ConfigureAwait(false);
 
         // Update each person's primary manager
         foreach (var personId in personIds)
@@ -118,7 +118,7 @@ public class PrimaryManagerService : IPrimaryManagerService
 
         // Get all person IDs
         var personIds = await connection.QueryAsync<string>(
-            "SELECT person_id FROM persons");
+            "SELECT person_id FROM persons").ConfigureAwait(false);
 
         var updateCount = 0;
 
@@ -136,19 +136,19 @@ public class PrimaryManagerService : IPrimaryManagerService
         using var connection = _connectionFactory.CreateConnection();
 
         var totalPersons = await connection.QuerySingleOrDefaultAsync<int>(
-            "SELECT COUNT(*) FROM persons");
+            "SELECT COUNT(*) FROM persons").ConfigureAwait(false);
 
         var personsWithManager = await connection.QuerySingleOrDefaultAsync<int>(
-            "SELECT COUNT(*) FROM persons WHERE primary_manager_person_id IS NOT NULL");
+            "SELECT COUNT(*) FROM persons WHERE primary_manager_person_id IS NOT NULL").ConfigureAwait(false);
 
         var contractBasedCount = await connection.QuerySingleOrDefaultAsync<int>(
-            "SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'contract'");
+            "SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'contract'").ConfigureAwait(false);
 
         var departmentBasedCount = await connection.QuerySingleOrDefaultAsync<int>(
-            "SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'department'");
+            "SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'department'").ConfigureAwait(false);
 
         var fromJsonCount = await connection.QuerySingleOrDefaultAsync<int>(
-            "SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'import'");
+            "SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'import'").ConfigureAwait(false);
 
         return new Core.Models.DTOs.PrimaryManagerStatisticsDto
         {
@@ -200,7 +200,7 @@ public class PrimaryManagerService : IPrimaryManagerService
                 sequence DESC,
                 start_date ASC";
 
-        var contracts = await connection.QueryAsync<ContractDto>(sql, new { PersonId = personId });
+        var contracts = await connection.QueryAsync<ContractDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
         var contractsList = contracts.ToList();
 
         if (!contractsList.Any())

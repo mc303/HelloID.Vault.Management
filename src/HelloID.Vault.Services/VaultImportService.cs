@@ -3,10 +3,15 @@ using System.Text.Json;
 using Dapper;
 using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.Json;
-using HelloID.Vault.Core.Utilities;
 using HelloID.Vault.Data;
 using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Data.Repositories.Interfaces;
+using HelloID.Vault.Services.Database;
+using HelloID.Vault.Services.Import.Collectors;
+using HelloID.Vault.Services.Import.Mappers;
+using HelloID.Vault.Services.Import.Models;
+using HelloID.Vault.Services.Import.Utilities;
+using HelloID.Vault.Services.Import.Validators;
 using HelloID.Vault.Services.Interfaces;
 using Microsoft.Data.Sqlite;
 
@@ -20,6 +25,7 @@ public class VaultImportService : IVaultImportService
 {
     private readonly ISqliteConnectionFactory _connectionFactory;
     private readonly DatabaseInitializer _databaseInitializer;
+    private readonly IDatabaseManager _databaseManager;
     private readonly IPersonRepository _personRepository;
     private readonly IContractRepository _contractRepository;
     private readonly IContactRepository _contactRepository;
@@ -33,6 +39,7 @@ public class VaultImportService : IVaultImportService
     public VaultImportService(
         ISqliteConnectionFactory connectionFactory,
         DatabaseInitializer databaseInitializer,
+        IDatabaseManager databaseManager,
         IPersonRepository personRepository,
         IContractRepository contractRepository,
         IContactRepository contactRepository,
@@ -44,6 +51,7 @@ public class VaultImportService : IVaultImportService
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _databaseInitializer = databaseInitializer ?? throw new ArgumentNullException(nameof(databaseInitializer));
+        _databaseManager = databaseManager ?? throw new ArgumentNullException(nameof(databaseManager));
         _personRepository = personRepository ?? throw new ArgumentNullException(nameof(personRepository));
         _contractRepository = contractRepository ?? throw new ArgumentNullException(nameof(contractRepository));
         _contactRepository = contactRepository ?? throw new ArgumentNullException(nameof(contactRepository));
@@ -56,87 +64,12 @@ public class VaultImportService : IVaultImportService
 
     public async Task<bool> HasDataAsync()
     {
-        try
-        {
-            using var connection = _connectionFactory.CreateConnection();
-
-            // Check if any of the main tables have data
-            var tables = new[] { "persons", "contracts", "departments", "contacts", "custom_field_schemas" };
-
-            foreach (var table in tables)
-            {
-                var count = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM {table}");
-                if (count > 0)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-        catch
-        {
-            // If database doesn't exist or tables don't exist, consider it empty
-            return false;
-        }
+        return await _databaseManager.HasDataAsync();
     }
 
     public async Task DeleteDatabaseAsync()
     {
-        string? dbPath = null;
-
-        try
-        {
-            // Get the database file path
-            using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
-            {
-                var sqliteConnection = connection as SqliteConnection;
-                if (sqliteConnection == null)
-                {
-                    throw new Exception("Connection is not a SQLite connection");
-                }
-
-                dbPath = sqliteConnection.DataSource;
-
-                if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
-                {
-                    // Database doesn't exist, nothing to delete
-                    return;
-                }
-
-                // Close connection explicitly
-                connection.Close();
-            } // Dispose connection here
-
-            // Clear all connections from the pool to release file locks
-            SqliteConnection.ClearAllPools();
-
-            // Wait for file locks to be fully released
-            await Task.Delay(500);
-
-            // Delete database files
-            File.Delete(dbPath);
-
-            var walPath = dbPath + "-wal";
-            var shmPath = dbPath + "-shm";
-
-            if (File.Exists(walPath))
-            {
-                File.Delete(walPath);
-            }
-
-            if (File.Exists(shmPath))
-            {
-                File.Delete(shmPath);
-            }
-
-            // Recreate the database schema after deletion
-            await _databaseInitializer.InitializeAsync();
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"Failed to delete database: {ex.Message}", ex);
-        }
+        await _databaseManager.DeleteDatabaseAsync();
     }
 
     public async Task<ImportResult> ImportAsync(string filePath, PrimaryManagerLogic primaryManagerLogic, bool createBackup = false, IProgress<ImportProgress>? progress = null)
@@ -150,7 +83,7 @@ public class VaultImportService : IVaultImportService
             if (createBackup)
             {
                 progress?.Report(new ImportProgress { CurrentOperation = "Creating database backup..." });
-                await CreateDatabaseBackupAsync();
+                await _databaseManager.CreateDatabaseBackupAsync();
 
                 // Clear pools again to ensure fresh connections after schema recreation
                 SqliteConnection.ClearAllPools();
@@ -310,393 +243,8 @@ public class VaultImportService : IVaultImportService
             // Step 3: Collect all lookup tables from contracts
             progress?.Report(new ImportProgress { CurrentOperation = "Collecting lookup table data..." });
 
-            var organizations = new HashSet<VaultReference>(new ReferenceComparer());
-            var locations = new HashSet<VaultReference>(new ReferenceComparer());
-            var employers = new HashSet<VaultReference>(new ReferenceComparer());
-            var costCenters = new HashSet<VaultReference>(new ReferenceComparer());
-            var costBearers = new HashSet<VaultReference>(new ReferenceComparer());
-            var teams = new HashSet<VaultReference>(new ReferenceComparer());
-            var divisions = new HashSet<VaultReference>(new ReferenceComparer());
-            var titles = new HashSet<VaultReference>(new ReferenceComparer());
-            var departments = new HashSet<Department>(new DepartmentComparer());
-
-            // Track source for each reference entity by external_id
-            var organizationSources = new Dictionary<string, string?>();
-            var locationSources = new Dictionary<string, string?>();
-            var employerSources = new Dictionary<string, string?>();
-            var employerNameToSourceMap = new Dictionary<string, string?>(); // ExternalId|Name -> Source
-            var costCenterSources = new Dictionary<string, string?>();
-            var costBearerSources = new Dictionary<string, string?>();
-            var teamSources = new Dictionary<string, string?>();
-            var divisionSources = new Dictionary<string, string?>();
-            var titleSources = new Dictionary<string, string?>();
-
-            // Track seen names to enforce uniqueness (for entities without external_id)
-            var seenOrganizations = new Dictionary<string, VaultReference>();
-            var seenLocations = new Dictionary<string, VaultReference>();
-            var seenEmployers = new Dictionary<string, VaultReference>();
-            var seenCostCenters = new Dictionary<string, VaultReference>();
-            var seenCostBearers = new Dictionary<string, VaultReference>();
-            var seenTeams = new Dictionary<string, VaultReference>();
-            var seenDivisions = new Dictionary<string, VaultReference>();
-            var seenTitles = new Dictionary<string, VaultReference>();
-
-            // Extract departments from root-level Departments array (full data with hierarchy)
-            if (vaultData.Departments != null && vaultData.Departments.Any())
-            {
-                progress?.Report(new ImportProgress { CurrentOperation = $"Extracting {vaultData.Departments.Count} departments from root array..." });
-                foreach (var deptRef in vaultData.Departments)
-                {
-                    if (!string.IsNullOrWhiteSpace(deptRef.ExternalId))
-                    {
-                        departments.Add(MapDepartment(deptRef, sourceLookup));
-                    }
-                }
-            }
-            else
-            {
-                // Fallback: If no root-level Departments array, extract from contracts (references only)
-                // This maintains backward compatibility with older vault.json formats
-                Console.WriteLine("WARNING: No root-level Departments array found in vault.json");
-                Console.WriteLine("         Extracting departments from contract references (Code, ParentExternalId, Manager will be NULL)");
-
-                foreach (var vaultPerson in vaultData.Persons)
-                {
-                    foreach (var contract in vaultPerson.Contracts)
-                    {
-                        if (contract.Department?.ExternalId != null)
-                        {
-                            departments.Add(MapDepartment(contract.Department, sourceLookup));
-                        }
-                    }
-                }
-            }
-
-            // Extract other lookup tables from contracts with source tracking
-            Debug.WriteLine($"[Import] Starting employer collection from {vaultData.Persons.Count} persons");
-            int totalContractsProcessed = 0;
-            foreach (var vaultPerson in vaultData.Persons)
-            {
-                foreach (var contract in vaultPerson.Contracts)
-                {
-                    totalContractsProcessed++;
-                    // Get contract source for inheritance
-                    string? contractSource = null;
-                    if (contract.Source?.SystemId != null && sourceLookup.TryGetValue(contract.Source.SystemId, out var sourceId))
-                    {
-                        contractSource = sourceId;
-                    }
-
-                    // Debug: Sample employer references (first 10 from each source)
-                    if (totalContractsProcessed <= 10 || (totalContractsProcessed % 1000 == 0 && totalContractsProcessed <= 20))
-                    {
-                        if (contract.Employer != null)
-                        {
-                            Debug.WriteLine($"[Import] Contract {totalContractsProcessed}: Employer {contract.Employer.ExternalId} ({contract.Employer.Name}) source: {contractSource}");
-                        }
-                    }
-
-                    if (contract.Organization != null && !string.IsNullOrWhiteSpace(contract.Organization.Name))
-                    {
-                        // Create unique key for deduplication: name|source
-                        var nameKey = $"{contract.Organization.Name}|{contractSource ?? "default"}";
-
-                        // Skip if we've already seen this name+source combination
-                        if (!seenOrganizations.ContainsKey(nameKey))
-                        {
-                            string orgExternalId;
-                            if (!string.IsNullOrWhiteSpace(contract.Organization.ExternalId))
-                            {
-                                // Has external_id: apply hash transformation for namespace isolation
-                                orgExternalId = contract.Organization.ExternalId;
-                            }
-                            else
-                            {
-                                // Missing external_id: generate random GUID
-                                orgExternalId = Guid.NewGuid().ToString();
-                            }
-
-                            var transformedOrganization = new VaultReference
-                            {
-                                ExternalId = orgExternalId,
-                                Code = contract.Organization.Code,
-                                Name = contract.Organization.Name
-                            };
-                            seenOrganizations[nameKey] = transformedOrganization;
-                            organizations.Add(transformedOrganization);
-                            if (!organizationSources.ContainsKey(orgExternalId))
-                            {
-                                organizationSources[orgExternalId] = contractSource;
-                            }
-                        }
-                    }
-                    if (contract.Location != null && !string.IsNullOrWhiteSpace(contract.Location.Name))
-                    {
-                        // Create unique key for deduplication: name|source
-                        var nameKey = $"{contract.Location.Name}|{contractSource ?? "default"}";
-
-                        // Skip if we've already seen this name+source combination
-                        if (!seenLocations.ContainsKey(nameKey))
-                        {
-                            string locationExternalId;
-                            if (!string.IsNullOrWhiteSpace(contract.Location.ExternalId))
-                            {
-                                // Has external_id: apply hash transformation for namespace isolation
-                                locationExternalId = contract.Location.ExternalId;
-                            }
-                            else
-                            {
-                                // Missing external_id: generate random GUID
-                                locationExternalId = Guid.NewGuid().ToString();
-                            }
-
-                            var transformedLocation = new VaultReference
-                            {
-                                ExternalId = locationExternalId,
-                                Code = contract.Location.Code,
-                                Name = contract.Location.Name
-                            };
-                            seenLocations[nameKey] = transformedLocation;
-                            locations.Add(transformedLocation);
-                            if (!locationSources.ContainsKey(locationExternalId))
-                            {
-                                locationSources[locationExternalId] = contractSource;
-                            }
-                        }
-                    }
-                    if (contract.Employer != null && !string.IsNullOrWhiteSpace(contract.Employer.Name))
-                    {
-                        // Create unique key for deduplication: name|source
-                        var nameKey = $"{contract.Employer.Name}|{contractSource ?? "default"}";
-
-                        // Skip if we've already seen this name+source combination
-                        if (!seenEmployers.ContainsKey(nameKey))
-                        {
-                            string employerExternalId;
-                            if (!string.IsNullOrWhiteSpace(contract.Employer.ExternalId))
-                            {
-                                // Has external_id: use it directly (no hash transformation)
-                                employerExternalId = contract.Employer.ExternalId;
-                            }
-                            else
-                            {
-                                // Missing external_id: generate random GUID
-                                employerExternalId = Guid.NewGuid().ToString();
-                            }
-
-                            // Create transformed employer entity
-                            var transformedEmployer = new VaultReference
-                            {
-                                ExternalId = employerExternalId,
-                                Code = contract.Employer.Code,
-                                Name = contract.Employer.Name
-                            };
-
-                            seenEmployers[nameKey] = transformedEmployer;
-                            employers.Add(transformedEmployer);
-
-                            // Track source mapping for the transformed ExternalId
-                            var employerKey = $"{employerExternalId}|{contractSource}";
-                            if (!employerSources.ContainsKey(employerKey))
-                            {
-                                employerSources[employerKey] = contractSource;
-                                if (!string.IsNullOrWhiteSpace(contract.Employer.ExternalId))
-                                {
-                                    Debug.WriteLine($"[Import] Collecting employer {contract.Employer.ExternalId}→{employerExternalId} ({contract.Employer.Code}) {contract.Employer.Name} from contract, inherited source: {contractSource}");
-                                }
-
-                                // Special debug for Baalderborg Groep
-                                if (contract.Employer.Name?.Contains("Baalderborg") == true)
-                                {
-                                    Debug.WriteLine($"[Import] *** FOUND BAALDERBORG *** Contract {totalContractsProcessed}: {contract.Employer.ExternalId}→{employerExternalId} ({contract.Employer.Name}) source: {contractSource}");
-                                }
-                            }
-
-                            // Also track employer name to source mapping for proper insertion later
-                            var employerNameKey = $"{employerExternalId}|{contract.Employer.Name}";
-                            if (!employerNameToSourceMap.ContainsKey(employerNameKey))
-                            {
-                                employerNameToSourceMap[employerNameKey] = contractSource;
-                            }
-                            else if (contract.Employer.Name?.Contains("Baalderborg") == true)
-                            {
-                                Debug.WriteLine($"[Import] *** BAALDERBORG ALREADY COLLECTED *** Contract {totalContractsProcessed}: {contract.Employer.ExternalId}→{employerExternalId} ({contract.Employer.Name}) source: {contractSource}");
-                            }
-                        }
-                    }
-                    if (contract.CostCenter != null && !string.IsNullOrWhiteSpace(contract.CostCenter.Name))
-                    {
-                        // Create unique key for deduplication: name|source
-                        var nameKey = $"{contract.CostCenter.Name}|{contractSource ?? "default"}";
-
-                        // Skip if we've already seen this name+source combination
-                        if (!seenCostCenters.ContainsKey(nameKey))
-                        {
-                            string costCenterExternalId;
-                            if (!string.IsNullOrWhiteSpace(contract.CostCenter.ExternalId))
-                            {
-                                // Has external_id: apply hash transformation for namespace isolation
-                                costCenterExternalId = contract.CostCenter.ExternalId;
-                            }
-                            else
-                            {
-                                // Missing external_id: generate random GUID
-                                costCenterExternalId = Guid.NewGuid().ToString();
-                            }
-
-                            var transformedCostCenter = new VaultReference
-                            {
-                                ExternalId = costCenterExternalId,
-                                Code = contract.CostCenter.Code,
-                                Name = contract.CostCenter.Name
-                            };
-                            seenCostCenters[nameKey] = transformedCostCenter;
-                            costCenters.Add(transformedCostCenter);
-                            if (!costCenterSources.ContainsKey(costCenterExternalId))
-                            {
-                                costCenterSources[costCenterExternalId] = contractSource;
-                            }
-                        }
-                    }
-                    if (contract.CostBearer != null && !string.IsNullOrWhiteSpace(contract.CostBearer.Name))
-                    {
-                        // Create unique key for deduplication: name|source
-                        var nameKey = $"{contract.CostBearer.Name}|{contractSource ?? "default"}";
-
-                        // Skip if we've already seen this name+source combination
-                        if (!seenCostBearers.ContainsKey(nameKey))
-                        {
-                            string costBearerExternalId;
-                            if (!string.IsNullOrWhiteSpace(contract.CostBearer.ExternalId))
-                            {
-                                // Has external_id: apply hash transformation for namespace isolation
-                                costBearerExternalId = contract.CostBearer.ExternalId;
-                            }
-                            else
-                            {
-                                // Missing external_id: generate random GUID
-                                costBearerExternalId = Guid.NewGuid().ToString();
-                            }
-
-                            var transformedCostBearer = new VaultReference
-                            {
-                                ExternalId = costBearerExternalId,
-                                Code = contract.CostBearer.Code,
-                                Name = contract.CostBearer.Name
-                            };
-                            seenCostBearers[nameKey] = transformedCostBearer;
-                            costBearers.Add(transformedCostBearer);
-                            if (!costBearerSources.ContainsKey(costBearerExternalId))
-                            {
-                                costBearerSources[costBearerExternalId] = contractSource;
-                            }
-                        }
-                    }
-                    if (contract.Team != null && !string.IsNullOrWhiteSpace(contract.Team.Name))
-                    {
-                        // Create unique key for deduplication: name|source
-                        var nameKey = $"{contract.Team.Name}|{contractSource ?? "default"}";
-
-                        // Skip if we've already seen this name+source combination
-                        if (!seenTeams.ContainsKey(nameKey))
-                        {
-                            string teamExternalId;
-                            if (!string.IsNullOrWhiteSpace(contract.Team.ExternalId))
-                            {
-                                // Has external_id: apply hash transformation for namespace isolation
-                                teamExternalId = contract.Team.ExternalId;
-                            }
-                            else
-                            {
-                                // Missing external_id: generate random GUID
-                                teamExternalId = Guid.NewGuid().ToString();
-                            }
-
-                            var transformedTeam = new VaultReference
-                            {
-                                ExternalId = teamExternalId,
-                                Code = contract.Team.Code,
-                                Name = contract.Team.Name
-                            };
-                            seenTeams[nameKey] = transformedTeam;
-                            teams.Add(transformedTeam);
-                            if (!teamSources.ContainsKey(teamExternalId))
-                            {
-                                teamSources[teamExternalId] = contractSource;
-                            }
-                        }
-                    }
-                    if (contract.Division != null && !string.IsNullOrWhiteSpace(contract.Division.Name))
-                    {
-                        // Create unique key for deduplication: name|source
-                        var nameKey = $"{contract.Division.Name}|{contractSource ?? "default"}";
-
-                        // Skip if we've already seen this name+source combination
-                        if (!seenDivisions.ContainsKey(nameKey))
-                        {
-                            string divisionExternalId;
-                            if (!string.IsNullOrWhiteSpace(contract.Division.ExternalId))
-                            {
-                                // Has external_id: use original external_id (no hash transformation)
-                                divisionExternalId = contract.Division.ExternalId;
-                            }
-                            else
-                            {
-                                // Missing external_id: generate random GUID
-                                divisionExternalId = Guid.NewGuid().ToString();
-                            }
-
-                            var transformedDivision = new VaultReference
-                            {
-                                ExternalId = divisionExternalId,
-                                Code = contract.Division.Code,
-                                Name = contract.Division.Name
-                            };
-                            seenDivisions[nameKey] = transformedDivision;
-                            divisions.Add(transformedDivision);
-                            if (!divisionSources.ContainsKey(divisionExternalId))
-                            {
-                                divisionSources[divisionExternalId] = contractSource;
-                            }
-                        }
-                    }
-                    if (contract.Title != null && !string.IsNullOrWhiteSpace(contract.Title.Name))
-                    {
-                        // Create unique key for deduplication: name|source
-                        var nameKey = $"{contract.Title.Name}|{contractSource ?? "default"}";
-
-                        // Skip if we've already seen this name+source combination
-                        if (!seenTitles.ContainsKey(nameKey))
-                        {
-                            string titleExternalId;
-                            if (!string.IsNullOrWhiteSpace(contract.Title.ExternalId))
-                            {
-                                // Has external_id: apply hash transformation for namespace isolation
-                                titleExternalId = contract.Title.ExternalId;
-                            }
-                            else
-                            {
-                                // Missing external_id: generate random GUID
-                                titleExternalId = Guid.NewGuid().ToString();
-                            }
-
-                            var transformedTitle = new VaultReference
-                            {
-                                ExternalId = titleExternalId,
-                                Code = contract.Title.Code,
-                                Name = contract.Title.Name
-                            };
-                            seenTitles[nameKey] = transformedTitle;
-                            titles.Add(transformedTitle);
-                            if (!titleSources.ContainsKey(titleExternalId))
-                            {
-                                titleSources[titleExternalId] = contractSource;
-                            }
-                        }
-                    }
-                }
-            }
-            Debug.WriteLine($"[Import] Processed {totalContractsProcessed} total contracts, collected {employers.Count} unique employers");
+            var context = ReferenceDataCollector.Collect(vaultData, sourceLookup);
+            Debug.WriteLine($"[Import] Collected {context.Employers.Count} unique employers");
 
             // Step 3: Import lookup tables (no dependencies)
             progress?.Report(new ImportProgress { CurrentOperation = "Importing lookup tables..." });
@@ -704,9 +252,9 @@ public class VaultImportService : IVaultImportService
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
                 // Insert organizations
-                foreach (var org in organizations)
+                foreach (var org in context.Organizations)
                 {
-                    var source = organizationSources.TryGetValue(org.ExternalId ?? string.Empty, out var orgSource) ? orgSource : null;
+                    var source = context.OrganizationSources.TryGetValue(org.ExternalId ?? string.Empty, out var orgSource) ? orgSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO organizations (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { org.ExternalId, org.Code, org.Name, Source = source });
@@ -714,9 +262,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert locations
-                foreach (var loc in locations)
+                foreach (var loc in context.Locations)
                 {
-                    var source = locationSources.TryGetValue(loc.ExternalId ?? string.Empty, out var locSource) ? locSource : null;
+                    var source = context.LocationSources.TryGetValue(loc.ExternalId ?? string.Empty, out var locSource) ? locSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO locations (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { loc.ExternalId, loc.Code, loc.Name, Source = source });
@@ -724,18 +272,18 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert employers
-                Debug.WriteLine($"[Import] Normal Import - About to insert {employers.Count} employers:");
-                Debug.WriteLine($"[Import] employerSources contains {employerSources.Count} entries:");
-                foreach (var kvp in employerSources)
+                Debug.WriteLine($"[Import] Normal Import - About to insert {context.Employers.Count} employers:");
+                Debug.WriteLine($"[Import] employerSources contains {context.EmployerSources.Count} entries:");
+                foreach (var kvp in context.EmployerSources)
                 {
                     Debug.WriteLine($"[Import]   Key: '{kvp.Key}' -> Source: {kvp.Value}");
                 }
 
-                foreach (var emp in employers)
+                foreach (var emp in context.Employers)
                 {
                     // Find the correct source for this employer using the name-to-source mapping
                     var employerNameKey = $"{emp.ExternalId ?? string.Empty}|{emp.Name ?? string.Empty}";
-                    employerNameToSourceMap.TryGetValue(employerNameKey, out var source);
+                    context.EmployerNameToSourceMap.TryGetValue(employerNameKey, out var source);
 
                     Debug.WriteLine($"[Import] Normal Import - Inserting employer: {emp.ExternalId} ({emp.Code}) {emp.Name} - Source: {source}");
                     var rowsAffected = await connection.ExecuteAsync(
@@ -747,9 +295,9 @@ public class VaultImportService : IVaultImportService
                 Debug.WriteLine($"[Import] Normal Import - Total employers imported: {result.EmployersImported}");
 
                 // Insert cost centers
-                foreach (var cc in costCenters)
+                foreach (var cc in context.CostCenters)
                 {
-                    var source = costCenterSources.TryGetValue(cc.ExternalId ?? string.Empty, out var ccSource) ? ccSource : null;
+                    var source = context.CostCenterSources.TryGetValue(cc.ExternalId ?? string.Empty, out var ccSource) ? ccSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO cost_centers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { cc.ExternalId, cc.Code, cc.Name, Source = source });
@@ -757,9 +305,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert cost bearers
-                foreach (var cb in costBearers)
+                foreach (var cb in context.CostBearers)
                 {
-                    var source = costBearerSources.TryGetValue(cb.ExternalId ?? string.Empty, out var cbSource) ? cbSource : null;
+                    var source = context.CostBearerSources.TryGetValue(cb.ExternalId ?? string.Empty, out var cbSource) ? cbSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO cost_bearers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { cb.ExternalId, cb.Code, cb.Name, Source = source });
@@ -767,9 +315,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert teams
-                foreach (var team in teams)
+                foreach (var team in context.Teams)
                 {
-                    var source = teamSources.TryGetValue(team.ExternalId ?? string.Empty, out var teamSource) ? teamSource : null;
+                    var source = context.TeamSources.TryGetValue(team.ExternalId ?? string.Empty, out var teamSource) ? teamSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO teams (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { team.ExternalId, team.Code, team.Name, Source = source });
@@ -777,9 +325,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert divisions
-                foreach (var div in divisions)
+                foreach (var div in context.Divisions)
                 {
-                    var source = divisionSources.TryGetValue(div.ExternalId ?? string.Empty, out var divSource) ? divSource : null;
+                    var source = context.DivisionSources.TryGetValue(div.ExternalId ?? string.Empty, out var divSource) ? divSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO divisions (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { div.ExternalId, div.Code, div.Name, Source = source });
@@ -787,9 +335,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert titles
-                foreach (var title in titles)
+                foreach (var title in context.Titles)
                 {
-                    var source = titleSources.TryGetValue(title.ExternalId ?? string.Empty, out var titleSource) ? titleSource : null;
+                    var source = context.TitleSources.TryGetValue(title.ExternalId ?? string.Empty, out var titleSource) ? titleSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO titles (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { title.ExternalId, title.Code, title.Name, Source = source });
@@ -799,6 +347,35 @@ public class VaultImportService : IVaultImportService
 
             // Step 4: Import persons (no FK dependencies)
             progress?.Report(new ImportProgress { CurrentOperation = "Importing persons..." });
+
+            // Detect duplicate person external_ids in vault data
+            var personExternalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var duplicatePersons = new List<string>();
+            foreach (var vaultPerson in vaultData.Persons)
+            {
+                if (string.IsNullOrWhiteSpace(vaultPerson.PersonId))
+                {
+                    continue;
+                }
+                if (personExternalIds.Contains(vaultPerson.PersonId))
+                {
+                    duplicatePersons.Add(vaultPerson.PersonId);
+                }
+                else
+                {
+                    personExternalIds.Add(vaultPerson.PersonId);
+                }
+            }
+
+            if (duplicatePersons.Count > 0)
+            {
+                Debug.WriteLine($"[Import] Found {duplicatePersons.Count} duplicate person external_ids:");
+                foreach (var dup in duplicatePersons.Distinct().Take(10))
+                {
+                    Debug.WriteLine($"  - {dup}");
+                }
+                Debug.WriteLine($"[Import] WARNING: {duplicatePersons.Count} duplicate persons will be skipped");
+            }
 
             // Import persons in transaction for atomicity
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
@@ -815,9 +392,25 @@ public class VaultImportService : IVaultImportService
                         {
                             processedCount++;
 
+                            // Skip duplicates within vault data
+                            if (string.IsNullOrWhiteSpace(vaultPerson.PersonId) || !personExternalIds.Contains(vaultPerson.PersonId))
+                            {
+                                continue;
+                            }
+                            personExternalIds.Remove(vaultPerson.PersonId); // Mark as processed
+
+                            // Log original vault person for debugging
+                            Debug.WriteLine($"[Import] Processing vault person: {vaultPerson.PersonId} - {vaultPerson.DisplayName}");
+
                             // Map and insert person
                             var person = MapPerson(vaultPerson, sourceLookup, primaryManagerLogic);
+
+                            // Log mapped person for debugging
+                            Debug.WriteLine($"[Import] Mapped person: {person.ExternalId} - {person.DisplayName} (Source: {person.Source})");
+
                             await _personRepository.InsertAsync(person, connection, transaction);
+
+                            Debug.WriteLine($"[Import] Person inserted: {person.ExternalId} - {person.DisplayName}");
                             result.PersonsImported++;
 
                             // Report progress in batches to avoid UI flooding
@@ -851,7 +444,7 @@ public class VaultImportService : IVaultImportService
             List<Department> sortedDepartments;
             try
             {
-                sortedDepartments = TopologicalSortDepartments(departments.ToList());
+                sortedDepartments = TopologicalSortDepartments(context.Departments.ToList());
             }
             catch (InvalidOperationException ex)
             {
@@ -1121,9 +714,22 @@ public class VaultImportService : IVaultImportService
                                 }
                                 contractExternalIds.Remove(vaultContract.ExternalId); // Mark as processed
 
-                                var contract = MapContract(vaultPerson.PersonId, vaultContract, sourceLookup, result,
-                                    seenLocations, seenEmployers, seenCostCenters,
-                                    seenCostBearers, seenTeams, seenDivisions, seenTitles, seenOrganizations);
+                                // Create contract mapping context
+                                var contractContext = new ContractMappingContext
+                                {
+                                    SourceLookup = sourceLookup,
+                                    Result = result,
+                                    SeenLocations = context.SeenLocations,
+                                    SeenEmployers = context.SeenEmployers,
+                                    SeenCostCenters = context.SeenCostCenters,
+                                    SeenCostBearers = context.SeenCostBearers,
+                                    SeenTeams = context.SeenTeams,
+                                    SeenDivisions = context.SeenDivisions,
+                                    SeenTitles = context.SeenTitles,
+                                    SeenOrganizations = context.SeenOrganizations
+                                };
+
+                                var contract = MapContract(vaultPerson.PersonId, vaultContract, contractContext);
 
                                 // Debug: Log first few insert attempts
                                 if (result.ContractsImported < 10)
@@ -1337,6 +943,7 @@ public class VaultImportService : IVaultImportService
 
         // Log data quality summary
         System.Diagnostics.Debug.WriteLine($"[Import] Data Quality Summary:");
+        System.Diagnostics.Debug.WriteLine($"  Persons imported: {result.PersonsImported}");
         System.Diagnostics.Debug.WriteLine($"  Empty manager GUIDs replaced: {result.EmptyManagerGuidsReplaced}");
         if (result.EmptyManagerGuidsReplaced > 0)
         {
@@ -1357,7 +964,7 @@ public class VaultImportService : IVaultImportService
             if (createBackup)
             {
                 progress?.Report(new ImportProgress { CurrentOperation = "Creating database backup..." });
-                await CreateDatabaseBackupAsync();
+                await _databaseManager.CreateDatabaseBackupAsync();
 
                 // Clear pools again to ensure fresh connections after schema recreation
                 SqliteConnection.ClearAllPools();
@@ -1457,6 +1064,27 @@ public class VaultImportService : IVaultImportService
                 }
             }
 
+            // Collect sources from contracts (needed for departments referenced in contracts)
+            if (vaultData.Persons != null)
+            {
+                foreach (var vaultPerson in vaultData.Persons)
+                {
+                    foreach (var contract in vaultPerson.Contracts)
+                    {
+                        if (contract.Source?.SystemId != null && !string.IsNullOrWhiteSpace(contract.Source.SystemId))
+                        {
+                            if (!sourceSystems.ContainsKey(contract.Source.SystemId))
+                            {
+                                sourceSystems[contract.Source.SystemId] = (
+                                    contract.Source.DisplayName ?? "Unknown",
+                                    contract.Source.IdentificationKey ?? contract.Source.SystemId
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
             // Step 2.5: Import source systems first
             progress?.Report(new ImportProgress { CurrentOperation = $"Importing {sourceSystems.Count} source systems..." });
 
@@ -1477,348 +1105,7 @@ public class VaultImportService : IVaultImportService
             // Step 3: Collect all lookup tables from contracts
             progress?.Report(new ImportProgress { CurrentOperation = "Collecting company data..." });
 
-            var organizations = new HashSet<VaultReference>(new ReferenceComparer());
-            var locations = new HashSet<VaultReference>(new ReferenceComparer());
-            var employers = new HashSet<VaultReference>(new ReferenceComparer());
-            var costCenters = new HashSet<VaultReference>(new ReferenceComparer());
-            var costBearers = new HashSet<VaultReference>(new ReferenceComparer());
-            var teams = new HashSet<VaultReference>(new ReferenceComparer());
-            var divisions = new HashSet<VaultReference>(new ReferenceComparer());
-            var titles = new HashSet<VaultReference>(new ReferenceComparer());
-            var departments = new HashSet<Department>(new DepartmentComparer());
-
-            // Track source for each reference entity by external_id
-            var organizationSources = new Dictionary<string, string?>();
-            var locationSources = new Dictionary<string, string?>();
-            var employerSources = new Dictionary<string, string?>();
-            var costCenterSources = new Dictionary<string, string?>();
-            var costBearerSources = new Dictionary<string, string?>();
-            var teamSources = new Dictionary<string, string?>();
-            var divisionSources = new Dictionary<string, string?>();
-            var titleSources = new Dictionary<string, string?>();
-
-            // Track seen names to enforce uniqueness (for entities without external_id)
-            var seenOrganizations = new Dictionary<string, VaultReference>();
-            var seenLocations = new Dictionary<string, VaultReference>();
-            var seenEmployers = new Dictionary<string, VaultReference>();
-            var seenCostCenters = new Dictionary<string, VaultReference>();
-            var seenCostBearers = new Dictionary<string, VaultReference>();
-            var seenTeams = new Dictionary<string, VaultReference>();
-            var seenDivisions = new Dictionary<string, VaultReference>();
-            var seenTitles = new Dictionary<string, VaultReference>();
-
-            // Extract departments from root-level Departments array (full data with hierarchy)
-            if (vaultData.Departments != null && vaultData.Departments.Any())
-            {
-                progress?.Report(new ImportProgress { CurrentOperation = $"Extracting {vaultData.Departments.Count} departments..." });
-                foreach (var deptRef in vaultData.Departments)
-                {
-                    if (!string.IsNullOrWhiteSpace(deptRef.ExternalId))
-                    {
-                        departments.Add(MapDepartment(deptRef, sourceLookup));
-                    }
-                }
-            }
-
-            // Extract other lookup tables from contracts with source tracking
-            if (vaultData.Persons != null)
-            {
-                foreach (var vaultPerson in vaultData.Persons)
-                {
-                    foreach (var contract in vaultPerson.Contracts)
-                    {
-                        // Get contract source for inheritance
-                        string? contractSource = null;
-                        if (contract.Source?.SystemId != null && sourceLookup.TryGetValue(contract.Source.SystemId, out var sourceId))
-                        {
-                            contractSource = sourceId;
-                        }
-
-                        if (contract.Organization != null && !string.IsNullOrWhiteSpace(contract.Organization.Name))
-                        {
-                            // Create unique key for deduplication: name|source
-                            var nameKey = $"{contract.Organization.Name}|{contractSource ?? "default"}";
-
-                            // Skip if we've already seen this name+source combination
-                            if (!seenOrganizations.ContainsKey(nameKey))
-                            {
-                                string orgExternalId;
-                                if (!string.IsNullOrWhiteSpace(contract.Organization.ExternalId))
-                                {
-                                    // Has external_id: use it directly (no hash transformation)
-                                    orgExternalId = contract.Organization.ExternalId;
-                                }
-                                else
-                                {
-                                    // Missing external_id: generate random GUID
-                                    orgExternalId = Guid.NewGuid().ToString();
-                                }
-
-                                var transformedOrganization = new VaultReference
-                                {
-                                    ExternalId = orgExternalId,
-                                    Code = contract.Organization.Code,
-                                    Name = contract.Organization.Name
-                                };
-                                seenOrganizations[nameKey] = transformedOrganization;
-                                organizations.Add(transformedOrganization);
-                                if (!organizationSources.ContainsKey(orgExternalId))
-                                {
-                                    organizationSources[orgExternalId] = contractSource;
-                                }
-                            }
-                        }
-                        if (contract.Location != null && !string.IsNullOrWhiteSpace(contract.Location.Name))
-                        {
-                            // Create unique key for deduplication: name|source
-                            var nameKey = $"{contract.Location.Name}|{contractSource ?? "default"}";
-
-                            // Skip if we've already seen this name+source combination
-                            if (!seenLocations.ContainsKey(nameKey))
-                            {
-                                string locationExternalId;
-                                if (!string.IsNullOrWhiteSpace(contract.Location.ExternalId))
-                                {
-                                    // Has external_id: use it directly (no hash transformation)
-                                    locationExternalId = contract.Location.ExternalId;
-                                }
-                                else
-                                {
-                                    // Missing external_id: generate random GUID
-                                    locationExternalId = Guid.NewGuid().ToString();
-                                }
-
-                                var transformedLocation = new VaultReference
-                                {
-                                    ExternalId = locationExternalId,
-                                    Code = contract.Location.Code,
-                                    Name = contract.Location.Name
-                                };
-                                seenLocations[nameKey] = transformedLocation;
-                                locations.Add(transformedLocation);
-                                if (!locationSources.ContainsKey(locationExternalId))
-                                {
-                                    locationSources[locationExternalId] = contractSource;
-                                }
-                            }
-                        }
-                        if (contract.Employer != null && !string.IsNullOrWhiteSpace(contract.Employer.Name))
-                        {
-                            // Create unique key for deduplication: name|source
-                            var nameKey = $"{contract.Employer.Name}|{contractSource ?? "default"}";
-
-                            // Skip if we've already seen this name+source combination
-                            if (!seenEmployers.ContainsKey(nameKey))
-                            {
-                                string employerExternalId;
-                                if (!string.IsNullOrWhiteSpace(contract.Employer.ExternalId))
-                                {
-                                    // Has external_id: use it directly (no hash transformation)
-                                    employerExternalId = contract.Employer.ExternalId;
-                                }
-                                else
-                                {
-                                    // Missing external_id: generate random GUID
-                                    employerExternalId = Guid.NewGuid().ToString();
-                                }
-
-                                var transformedEmployer = new VaultReference
-                                {
-                                    ExternalId = employerExternalId,
-                                    Code = contract.Employer.Code,
-                                    Name = contract.Employer.Name
-                                };
-                                seenEmployers[nameKey] = transformedEmployer;
-                                employers.Add(transformedEmployer);
-                                if (!employerSources.ContainsKey(employerExternalId))
-                                {
-                                    employerSources[employerExternalId] = contractSource;
-                                    if (!string.IsNullOrWhiteSpace(contract.Employer.ExternalId))
-                                    {
-                                        Debug.WriteLine($"[Import CompanyOnly] Collecting employer {contract.Employer.ExternalId}→{employerExternalId} ({contract.Employer.Code}) {contract.Employer.Name} from contract, inherited source: {contractSource}");
-                                    }
-                                }
-                            }
-                        }
-                        if (contract.CostCenter != null && !string.IsNullOrWhiteSpace(contract.CostCenter.Name))
-                        {
-                            // Create unique key for deduplication: name|source
-                            var nameKey = $"{contract.CostCenter.Name}|{contractSource ?? "default"}";
-
-                            // Skip if we've already seen this name+source combination
-                            if (!seenCostCenters.ContainsKey(nameKey))
-                            {
-                                string costCenterExternalId;
-                                if (!string.IsNullOrWhiteSpace(contract.CostCenter.ExternalId))
-                                {
-                                    // Has external_id: use it directly (no hash transformation)
-                                    costCenterExternalId = contract.CostCenter.ExternalId;
-                                }
-                                else
-                                {
-                                    // Missing external_id: generate random GUID
-                                    costCenterExternalId = Guid.NewGuid().ToString();
-                                }
-
-                                var transformedCostCenter = new VaultReference
-                                {
-                                    ExternalId = costCenterExternalId,
-                                    Code = contract.CostCenter.Code,
-                                    Name = contract.CostCenter.Name
-                                };
-                                seenCostCenters[nameKey] = transformedCostCenter;
-                                costCenters.Add(transformedCostCenter);
-                                if (!costCenterSources.ContainsKey(costCenterExternalId))
-                                {
-                                    costCenterSources[costCenterExternalId] = contractSource;
-                                }
-                            }
-                        }
-                        if (contract.CostBearer != null && !string.IsNullOrWhiteSpace(contract.CostBearer.Name))
-                        {
-                            // Create unique key for deduplication: name|source
-                            var nameKey = $"{contract.CostBearer.Name}|{contractSource ?? "default"}";
-
-                            // Skip if we've already seen this name+source combination
-                            if (!seenCostBearers.ContainsKey(nameKey))
-                            {
-                                string costBearerExternalId;
-                                if (!string.IsNullOrWhiteSpace(contract.CostBearer.ExternalId))
-                                {
-                                    // Has external_id: use it directly (no hash transformation)
-                                    costBearerExternalId = contract.CostBearer.ExternalId;
-                                }
-                                else
-                                {
-                                    // Missing external_id: generate random GUID
-                                    costBearerExternalId = Guid.NewGuid().ToString();
-                                }
-
-                                var transformedCostBearer = new VaultReference
-                                {
-                                    ExternalId = costBearerExternalId,
-                                    Code = contract.CostBearer.Code,
-                                    Name = contract.CostBearer.Name
-                                };
-                                seenCostBearers[nameKey] = transformedCostBearer;
-                                costBearers.Add(transformedCostBearer);
-                                if (!costBearerSources.ContainsKey(costBearerExternalId))
-                                {
-                                    costBearerSources[costBearerExternalId] = contractSource;
-                                }
-                            }
-                        }
-                        if (contract.Team != null && !string.IsNullOrWhiteSpace(contract.Team.Name))
-                        {
-                            // Create unique key for deduplication: name|source
-                            var nameKey = $"{contract.Team.Name}|{contractSource ?? "default"}";
-
-                            // Skip if we've already seen this name+source combination
-                            if (!seenTeams.ContainsKey(nameKey))
-                            {
-                                string teamExternalId;
-                                if (!string.IsNullOrWhiteSpace(contract.Team.ExternalId))
-                                {
-                                    // Has external_id: use it directly (no hash transformation)
-                                    teamExternalId = contract.Team.ExternalId;
-                                }
-                                else
-                                {
-                                    // Missing external_id: generate random GUID
-                                    teamExternalId = Guid.NewGuid().ToString();
-                                }
-
-                                var transformedTeam = new VaultReference
-                                {
-                                    ExternalId = teamExternalId,
-                                    Code = contract.Team.Code,
-                                    Name = contract.Team.Name
-                                };
-                                seenTeams[nameKey] = transformedTeam;
-                                teams.Add(transformedTeam);
-                                if (!teamSources.ContainsKey(teamExternalId))
-                                {
-                                    teamSources[teamExternalId] = contractSource;
-                                }
-                            }
-                        }
-                        if (contract.Division != null && !string.IsNullOrWhiteSpace(contract.Division.Name))
-                        {
-                            // Create unique key for deduplication: name|source
-                            var nameKey = $"{contract.Division.Name}|{contractSource ?? "default"}";
-
-                            // Skip if we've already seen this name+source combination
-                            if (!seenDivisions.ContainsKey(nameKey))
-                            {
-                                string divisionExternalId;
-                                if (!string.IsNullOrWhiteSpace(contract.Division.ExternalId))
-                                {
-                                    // Has external_id: use it directly (no hash transformation)
-                                    divisionExternalId = contract.Division.ExternalId;
-                                }
-                                else
-                                {
-                                    // Missing external_id: generate random GUID
-                                    divisionExternalId = Guid.NewGuid().ToString();
-                                }
-
-                                var transformedDivision = new VaultReference
-                                {
-                                    ExternalId = divisionExternalId,
-                                    Code = contract.Division.Code,
-                                    Name = contract.Division.Name
-                                };
-                                seenDivisions[nameKey] = transformedDivision;
-                                divisions.Add(transformedDivision);
-                                if (!divisionSources.ContainsKey(divisionExternalId))
-                                {
-                                    divisionSources[divisionExternalId] = contractSource;
-                                }
-                            }
-                        }
-                        if (contract.Title != null && !string.IsNullOrWhiteSpace(contract.Title.Name))
-                        {
-                            // Create unique key for deduplication: name|source
-                            var nameKey = $"{contract.Title.Name}|{contractSource ?? "default"}";
-
-                            // Skip if we've already seen this name+source combination
-                            if (!seenTitles.ContainsKey(nameKey))
-                            {
-                                string titleExternalId;
-                                if (!string.IsNullOrWhiteSpace(contract.Title.ExternalId))
-                                {
-                                    // Has external_id: use it directly (no hash transformation)
-                                    titleExternalId = contract.Title.ExternalId;
-                                }
-                                else
-                                {
-                                    // Missing external_id: generate random GUID
-                                    titleExternalId = Guid.NewGuid().ToString();
-                                }
-
-                                var transformedTitle = new VaultReference
-                                {
-                                    ExternalId = titleExternalId,
-                                    Code = contract.Title.Code,
-                                    Name = contract.Title.Name
-                                };
-                                seenTitles[nameKey] = transformedTitle;
-                                titles.Add(transformedTitle);
-                                if (!titleSources.ContainsKey(titleExternalId))
-                                {
-                                    titleSources[titleExternalId] = contractSource;
-                                }
-                            }
-                        }
-
-                        // Also collect departments from contracts in case they're not in root array
-                        if (contract.Department?.ExternalId != null)
-                        {
-                            departments.Add(MapDepartment(contract.Department, sourceLookup));
-                        }
-                    }
-                }
-            }
+            var context = ReferenceDataCollector.Collect(vaultData, sourceLookup);
 
             // Step 4: Import company data tables
             progress?.Report(new ImportProgress { CurrentOperation = "Importing company data..." });
@@ -1826,9 +1113,9 @@ public class VaultImportService : IVaultImportService
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
                 // Insert organizations
-                foreach (var org in organizations)
+                foreach (var org in context.Organizations)
                 {
-                    var source = organizationSources.TryGetValue(org.ExternalId ?? string.Empty, out var orgSource) ? orgSource : null;
+                    var source = context.OrganizationSources.TryGetValue(org.ExternalId ?? string.Empty, out var orgSource) ? orgSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO organizations (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { org.ExternalId, org.Code, org.Name, Source = source });
@@ -1836,9 +1123,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert locations
-                foreach (var loc in locations)
+                foreach (var loc in context.Locations)
                 {
-                    var source = locationSources.TryGetValue(loc.ExternalId ?? string.Empty, out var locSource) ? locSource : null;
+                    var source = context.LocationSources.TryGetValue(loc.ExternalId ?? string.Empty, out var locSource) ? locSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO locations (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { loc.ExternalId, loc.Code, loc.Name, Source = source });
@@ -1846,10 +1133,10 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert employers
-                Debug.WriteLine($"[Import CompanyOnly] About to insert {employers.Count} employers:");
-                foreach (var emp in employers)
+                Debug.WriteLine($"[Import CompanyOnly] About to insert {context.Employers.Count} employers:");
+                foreach (var emp in context.Employers)
                 {
-                    var source = employerSources.TryGetValue(emp.ExternalId ?? string.Empty, out var empSource) ? empSource : null;
+                    var source = context.EmployerSources.TryGetValue(emp.ExternalId ?? string.Empty, out var empSource) ? empSource : null;
                     Debug.WriteLine($"[Import CompanyOnly] Inserting employer: {emp.ExternalId} ({emp.Code}) {emp.Name} - Source: {source}");
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO employers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
@@ -1860,9 +1147,9 @@ public class VaultImportService : IVaultImportService
                 Debug.WriteLine($"[Import CompanyOnly] Total employers imported: {result.EmployersImported}");
 
                 // Insert cost centers
-                foreach (var cc in costCenters)
+                foreach (var cc in context.CostCenters)
                 {
-                    var source = costCenterSources.TryGetValue(cc.ExternalId ?? string.Empty, out var ccSource) ? ccSource : null;
+                    var source = context.CostCenterSources.TryGetValue(cc.ExternalId ?? string.Empty, out var ccSource) ? ccSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO cost_centers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { cc.ExternalId, cc.Code, cc.Name, Source = source });
@@ -1870,9 +1157,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert cost bearers
-                foreach (var cb in costBearers)
+                foreach (var cb in context.CostBearers)
                 {
-                    var source = costBearerSources.TryGetValue(cb.ExternalId ?? string.Empty, out var cbSource) ? cbSource : null;
+                    var source = context.CostBearerSources.TryGetValue(cb.ExternalId ?? string.Empty, out var cbSource) ? cbSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO cost_bearers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { cb.ExternalId, cb.Code, cb.Name, Source = source });
@@ -1880,9 +1167,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert teams
-                foreach (var team in teams)
+                foreach (var team in context.Teams)
                 {
-                    var source = teamSources.TryGetValue(team.ExternalId ?? string.Empty, out var teamSource) ? teamSource : null;
+                    var source = context.TeamSources.TryGetValue(team.ExternalId ?? string.Empty, out var teamSource) ? teamSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO teams (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { team.ExternalId, team.Code, team.Name, Source = source });
@@ -1890,9 +1177,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert divisions
-                foreach (var div in divisions)
+                foreach (var div in context.Divisions)
                 {
-                    var source = divisionSources.TryGetValue(div.ExternalId ?? string.Empty, out var divSource) ? divSource : null;
+                    var source = context.DivisionSources.TryGetValue(div.ExternalId ?? string.Empty, out var divSource) ? divSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO divisions (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { div.ExternalId, div.Code, div.Name, Source = source });
@@ -1900,9 +1187,9 @@ public class VaultImportService : IVaultImportService
                 }
 
                 // Insert titles
-                foreach (var title in titles)
+                foreach (var title in context.Titles)
                 {
-                    var source = titleSources.TryGetValue(title.ExternalId ?? string.Empty, out var titleSource) ? titleSource : null;
+                    var source = context.TitleSources.TryGetValue(title.ExternalId ?? string.Empty, out var titleSource) ? titleSource : null;
                     var rowsAffected = await connection.ExecuteAsync(
                         "INSERT OR IGNORE INTO titles (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
                         new { title.ExternalId, title.Code, title.Name, Source = source });
@@ -1917,7 +1204,7 @@ public class VaultImportService : IVaultImportService
             List<Department> sortedDepartments;
             try
             {
-                sortedDepartments = TopologicalSortDepartments(departments.ToList());
+                sortedDepartments = TopologicalSortDepartments(context.Departments.ToList());
             }
             catch (InvalidOperationException ex)
             {
@@ -2028,51 +1315,7 @@ public class VaultImportService : IVaultImportService
 
     private Person MapPerson(VaultPerson vaultPerson, Dictionary<string, string> sourceLookup, PrimaryManagerLogic primaryManagerLogic)
     {
-        // Get source from lookup, or null if not found
-        string? sourceId = null;
-        if (vaultPerson.Source?.SystemId != null && sourceLookup.TryGetValue(vaultPerson.Source.SystemId, out var mappedSourceId))
-        {
-            sourceId = mappedSourceId;
-        }
-
-        // Handle primary manager for FromJson logic
-        string? primaryManagerPersonId = null;
-        string? primaryManagerSource = null;
-        if (primaryManagerLogic == PrimaryManagerLogic.FromJson)
-        {
-            primaryManagerPersonId = vaultPerson.PrimaryManager?.PersonId;
-            primaryManagerSource = "import";
-        }
-
-        return new Person
-        {
-            PersonId = vaultPerson.PersonId,
-            DisplayName = vaultPerson.DisplayName,
-            ExternalId = vaultPerson.ExternalId,
-            UserName = vaultPerson.UserName,
-            Gender = vaultPerson.Details?.Gender,
-            BirthDate = vaultPerson.Details?.BirthDate?.ToString("yyyy-MM-dd"),
-            BirthLocality = vaultPerson.Details?.BirthLocality,
-            Initials = vaultPerson.Name?.Initials,
-            GivenName = vaultPerson.Name?.GivenName,
-            FamilyName = vaultPerson.Name?.FamilyName,
-            FamilyNamePrefix = vaultPerson.Name?.FamilyNamePrefix,
-            FamilyNamePartner = vaultPerson.Name?.FamilyNamePartner,
-            FamilyNamePartnerPrefix = vaultPerson.Name?.FamilyNamePartnerPrefix,
-            Convention = vaultPerson.Name?.Convention,
-            HonorificPrefix = vaultPerson.Details?.HonorificPrefix,
-            HonorificSuffix = vaultPerson.Details?.HonorificSuffix,
-            NickName = vaultPerson.Name?.NickName,
-            MaritalStatus = vaultPerson.Details?.MaritalStatus,
-            Blocked = vaultPerson.Status?.Blocked ?? false,
-            StatusReason = vaultPerson.Status?.Reason,
-            Excluded = vaultPerson.Excluded,
-            HrExcluded = vaultPerson.ExclusionDetails?.Hr ?? false,
-            ManualExcluded = vaultPerson.ExclusionDetails?.Manual ?? false,
-            Source = sourceId,
-            PrimaryManagerPersonId = primaryManagerPersonId,
-            PrimaryManagerUpdatedAt = primaryManagerPersonId != null ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : null
-        };
+        return PersonMapper.Map(vaultPerson, sourceLookup, primaryManagerLogic);
     }
 
     /// <summary>
@@ -2082,29 +1325,14 @@ public class VaultImportService : IVaultImportService
     private string? ResolveReferenceExternalId(VaultReference? reference, string? contractSource,
         Dictionary<string, VaultReference> seenDictionary)
     {
-        if (reference == null || string.IsNullOrWhiteSpace(reference.Name))
-            return null;
-
-        var key = $"{reference.Name}|{contractSource ?? "default"}";
-        if (seenDictionary.TryGetValue(key, out var transformed))
-            return transformed.ExternalId;
-
-        return null;
+        return ReferenceResolver.ResolveReferenceExternalId(reference, contractSource, seenDictionary);
     }
 
-    private Contract MapContract(string personId, VaultContract vaultContract, Dictionary<string, string> sourceLookup, ImportResult result,
-        Dictionary<string, VaultReference> seenLocations,
-        Dictionary<string, VaultReference> seenEmployers,
-        Dictionary<string, VaultReference> seenCostCenters,
-        Dictionary<string, VaultReference> seenCostBearers,
-        Dictionary<string, VaultReference> seenTeams,
-        Dictionary<string, VaultReference> seenDivisions,
-        Dictionary<string, VaultReference> seenTitles,
-        Dictionary<string, VaultReference> seenOrganizations)
+    private Contract MapContract(string personId, VaultContract vaultContract, ContractMappingContext context)
     {
         // Get source from lookup, or null if not found
         string? sourceId = null;
-        if (vaultContract.Source?.SystemId != null && sourceLookup.TryGetValue(vaultContract.Source.SystemId, out var mappedSourceId))
+        if (vaultContract.Source?.SystemId != null && context.SourceLookup.TryGetValue(vaultContract.Source.SystemId, out var mappedSourceId))
         {
             sourceId = mappedSourceId;
         }
@@ -2125,14 +1353,8 @@ public class VaultImportService : IVaultImportService
                          $"sourceId={sourceId ?? "NULL"}");
         }
 
-        // Check if manager GUID is empty/blank - count and replace with null
-        string? managerPersonId = vaultContract.Manager?.PersonId;
-        if (managerPersonId == "00000000-0000-0000-0000-000000000000" || string.IsNullOrWhiteSpace(managerPersonId))
-        {
-            result.EmptyManagerGuidsReplaced++;
-            managerPersonId = null;
-            System.Diagnostics.Debug.WriteLine($"[MapContract] Empty manager GUID replaced for contract {vaultContract.ExternalId} (person {personId})");
-        }
+        // Resolve manager reference
+        var managerPersonId = ResolveManagerReference(vaultContract.Manager?.PersonId, context, vaultContract.ExternalId, personId);
 
         return new Contract
         {
@@ -2146,45 +1368,49 @@ public class VaultImportService : IVaultImportService
             Sequence = vaultContract.Details?.Sequence,
             TypeCode = vaultContract.Type?.Code,
             TypeDescription = vaultContract.Type?.Description,
-            LocationExternalId = ResolveReferenceExternalId(vaultContract.Location, sourceId, seenLocations),
+            LocationExternalId = ResolveReferenceExternalId(vaultContract.Location, sourceId, context.SeenLocations),
             LocationSource = sourceId,
             DepartmentExternalId = !string.IsNullOrWhiteSpace(vaultContract.Department?.ExternalId) && sourceId != null ?
                 vaultContract.Department.ExternalId : null,
             DepartmentSource = sourceId,
-            CostCenterExternalId = ResolveReferenceExternalId(vaultContract.CostCenter, sourceId, seenCostCenters),
+            CostCenterExternalId = ResolveReferenceExternalId(vaultContract.CostCenter, sourceId, context.SeenCostCenters),
             CostCenterSource = sourceId,
-            CostBearerExternalId = ResolveReferenceExternalId(vaultContract.CostBearer, sourceId, seenCostBearers),
+            CostBearerExternalId = ResolveReferenceExternalId(vaultContract.CostBearer, sourceId, context.SeenCostBearers),
             CostBearerSource = sourceId,
-            EmployerExternalId = ResolveReferenceExternalId(vaultContract.Employer, sourceId, seenEmployers),
+            EmployerExternalId = ResolveReferenceExternalId(vaultContract.Employer, sourceId, context.SeenEmployers),
             EmployerSource = sourceId,
-            TitleExternalId = ResolveReferenceExternalId(vaultContract.Title, sourceId, seenTitles),
+            TitleExternalId = ResolveReferenceExternalId(vaultContract.Title, sourceId, context.SeenTitles),
             TitleSource = sourceId,
-            TeamExternalId = ResolveReferenceExternalId(vaultContract.Team, sourceId, seenTeams),
+            TeamExternalId = ResolveReferenceExternalId(vaultContract.Team, sourceId, context.SeenTeams),
             TeamSource = sourceId,
-            DivisionExternalId = ResolveReferenceExternalId(vaultContract.Division, sourceId, seenDivisions),
+            DivisionExternalId = ResolveReferenceExternalId(vaultContract.Division, sourceId, context.SeenDivisions),
             DivisionSource = sourceId,
-            OrganizationExternalId = ResolveReferenceExternalId(vaultContract.Organization, sourceId, seenOrganizations),
+            OrganizationExternalId = ResolveReferenceExternalId(vaultContract.Organization, sourceId, context.SeenOrganizations),
             OrganizationSource = sourceId,
             ManagerPersonExternalId = managerPersonId,
             Source = sourceId
         };
     }
 
+    /// <summary>
+    /// Resolves the manager reference for a contract, handling empty GUIDs.
+    /// </summary>
+    private string? ResolveManagerReference(string? managerPersonId, ContractMappingContext context, string contractExternalId, string personId)
+    {
+        // Check if manager GUID is empty/blank - count and replace with null
+        if (managerPersonId == "00000000-0000-0000-0000-000000000000" || string.IsNullOrWhiteSpace(managerPersonId))
+        {
+            context.Result.EmptyManagerGuidsReplaced++;
+            System.Diagnostics.Debug.WriteLine($"[MapContract] Empty manager GUID replaced for contract {contractExternalId} (person {personId})");
+            return null;
+        }
+
+        return managerPersonId;
+    }
+
     private Contact MapContact(string personId, string type, VaultContactInfo contactInfo)
     {
-        return new Contact
-        {
-            PersonId = personId,
-            Type = type,
-            Email = contactInfo.Email,
-            PhoneMobile = contactInfo.Phone?.Mobile,
-            PhoneFixed = contactInfo.Phone?.Fixed,
-            AddressStreet = contactInfo.Address?.Street,
-            AddressHouseNumber = contactInfo.Address?.HouseNumber,
-            AddressPostal = contactInfo.Address?.PostalCode,
-            AddressLocality = contactInfo.Address?.Locality,
-            AddressCountry = contactInfo.Address?.Country
-        };
+        return ContactMapper.Map(personId, type, contactInfo);
     }
 
     /// <summary>
@@ -2194,15 +1420,7 @@ public class VaultImportService : IVaultImportService
     /// </summary>
     private bool IsEmptyContact(VaultContactInfo contactInfo)
     {
-        // Contact is considered empty if ALL fields are null or empty
-        return string.IsNullOrWhiteSpace(contactInfo.Email) &&
-               string.IsNullOrWhiteSpace(contactInfo.Phone?.Mobile) &&
-               string.IsNullOrWhiteSpace(contactInfo.Phone?.Fixed) &&
-               string.IsNullOrWhiteSpace(contactInfo.Address?.Street) &&
-               string.IsNullOrWhiteSpace(contactInfo.Address?.HouseNumber) &&
-               string.IsNullOrWhiteSpace(contactInfo.Address?.PostalCode) &&
-               string.IsNullOrWhiteSpace(contactInfo.Address?.Locality) &&
-               string.IsNullOrWhiteSpace(contactInfo.Address?.Country);
+        return ContactMapper.IsEmpty(contactInfo);
     }
 
     /// <summary>
@@ -2211,324 +1429,7 @@ public class VaultImportService : IVaultImportService
     /// </summary>
     private async Task ValidateContractReferencesAsync(ImportResult result)
     {
-        using var connection = _connectionFactory.CreateConnection();
-
-        // Debug: Check total contracts in database
-        var totalContractsInDb = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM contracts");
-        Debug.WriteLine($"[Import Validation] Database contains {totalContractsInDb} total contracts");
-
-        // Validate departments
-        var orphanedDepts = await connection.QueryAsync<(string ContractId, string DepartmentId, string Source)>(@"
-            SELECT
-                c.external_id AS ContractId,
-                c.department_external_id AS DepartmentId,
-                c.source AS Source
-            FROM contracts c
-            WHERE c.department_external_id IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM departments d
-                WHERE d.external_id = c.department_external_id
-                AND d.source = c.source
-            )");
-
-        if (orphanedDepts.Any())
-        {
-            result.OrphanedDepartmentsDetected = orphanedDepts.Count();
-            Debug.WriteLine($"[Import Validation] Found {result.OrphanedDepartmentsDetected} orphaned department reference(s):");
-            foreach (var orphan in orphanedDepts.Take(10)) // Log first 10
-            {
-                Debug.WriteLine($"  - Contract {orphan.ContractId} → Department {orphan.DepartmentId} (Source: {orphan.Source}) - not in master table");
-            }
-            if (orphanedDepts.Count() > 10)
-            {
-                Debug.WriteLine($"  ... and {orphanedDepts.Count() - 10} more");
-            }
-        }
-
-        // Validate locations
-        var orphanedLocs = await connection.QueryAsync<(string ContractId, string LocationId, string Source)>(@"
-            SELECT
-                c.external_id AS ContractId,
-                c.location_external_id AS LocationId,
-                c.source AS Source
-            FROM contracts c
-            WHERE c.location_external_id IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM locations l
-                WHERE l.external_id = c.location_external_id
-                AND l.source = c.source
-            )");
-
-        if (orphanedLocs.Any())
-        {
-            result.OrphanedLocationsDetected = orphanedLocs.Count();
-            Debug.WriteLine($"[Import Validation] Found {result.OrphanedLocationsDetected} orphaned location reference(s):");
-            foreach (var orphan in orphanedLocs.Take(10))
-            {
-                Debug.WriteLine($"  - Contract {orphan.ContractId} → Location {orphan.LocationId} (Source: {orphan.Source}) - not in master table");
-            }
-            if (orphanedLocs.Count() > 10)
-            {
-                Debug.WriteLine($"  ... and {orphanedLocs.Count() - 10} more");
-            }
-        }
-
-        // Validate cost centers
-        var orphanedCCs = await connection.QueryAsync<(string ContractId, string CostCenterId, string Source)>(@"
-            SELECT
-                c.external_id AS ContractId,
-                c.cost_center_external_id AS CostCenterId,
-                c.source AS Source
-            FROM contracts c
-            WHERE c.cost_center_external_id IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM cost_centers cc
-                WHERE cc.external_id = c.cost_center_external_id
-                AND cc.source = c.source
-            )");
-
-        if (orphanedCCs.Any())
-        {
-            result.OrphanedCostCentersDetected = orphanedCCs.Count();
-            Debug.WriteLine($"[Import Validation] Found {result.OrphanedCostCentersDetected} orphaned cost center reference(s):");
-            foreach (var orphan in orphanedCCs.Take(10))
-            {
-                Debug.WriteLine($"  - Contract {orphan.ContractId} → Cost Center {orphan.CostCenterId} (Source: {orphan.Source}) - not in master table");
-            }
-            if (orphanedCCs.Count() > 10)
-            {
-                Debug.WriteLine($"  ... and {orphanedCCs.Count() - 10} more");
-            }
-        }
-
-        // Validate cost bearers
-        var orphanedCBs = await connection.QueryAsync<(string ContractId, string CostBearerId, string Source)>(@"
-            SELECT
-                c.external_id AS ContractId,
-                c.cost_bearer_external_id AS CostBearerId,
-                c.source AS Source
-            FROM contracts c
-            WHERE c.cost_bearer_external_id IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM cost_bearers cb
-                WHERE cb.external_id = c.cost_bearer_external_id
-                AND cb.source = c.source
-            )");
-
-        if (orphanedCBs.Any())
-        {
-            result.OrphanedCostBearersDetected = orphanedCBs.Count();
-            Debug.WriteLine($"[Import Validation] Found {result.OrphanedCostBearersDetected} orphaned cost bearer reference(s):");
-            foreach (var orphan in orphanedCBs.Take(10))
-            {
-                Debug.WriteLine($"  - Contract {orphan.ContractId} → Cost Bearer {orphan.CostBearerId} (Source: {orphan.Source}) - not in master table");
-            }
-            if (orphanedCBs.Count() > 10)
-            {
-                Debug.WriteLine($"  ... and {orphanedCBs.Count() - 10} more");
-            }
-        }
-
-        // Validate employers
-        var orphanedEmps = await connection.QueryAsync<(string ContractId, string EmployerId, string Source)>(@"
-            SELECT
-                c.external_id AS ContractId,
-                c.employer_external_id AS EmployerId,
-                c.source AS Source
-            FROM contracts c
-            WHERE c.employer_external_id IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM employers e
-                WHERE e.external_id = c.employer_external_id
-                AND e.source = c.source
-            )");
-
-        if (orphanedEmps.Any())
-        {
-            result.OrphanedEmployersDetected = orphanedEmps.Count();
-            Debug.WriteLine($"[Import Validation] Found {result.OrphanedEmployersDetected} orphaned employer reference(s):");
-            foreach (var orphan in orphanedEmps.Take(10))
-            {
-                Debug.WriteLine($"  - Contract {orphan.ContractId} → Employer {orphan.EmployerId} (Source: {orphan.Source}) - not in master table");
-            }
-            if (orphanedEmps.Count() > 10)
-            {
-                Debug.WriteLine($"  ... and {orphanedEmps.Count() - 10} more");
-            }
-        }
-
-        // Validate teams
-        var orphanedTeams = await connection.QueryAsync<(string ContractId, string TeamId, string Source)>(@"
-            SELECT
-                c.external_id AS ContractId,
-                c.team_external_id AS TeamId,
-                c.source AS Source
-            FROM contracts c
-            WHERE c.team_external_id IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM teams t
-                WHERE t.external_id = c.team_external_id
-                AND t.source = c.source
-            )");
-
-        if (orphanedTeams.Any())
-        {
-            result.OrphanedTeamsDetected = orphanedTeams.Count();
-            Debug.WriteLine($"[Import Validation] Found {result.OrphanedTeamsDetected} orphaned team reference(s):");
-            foreach (var orphan in orphanedTeams.Take(10))
-            {
-                Debug.WriteLine($"  - Contract {orphan.ContractId} → Team {orphan.TeamId} (Source: {orphan.Source}) - not in master table");
-            }
-            if (orphanedTeams.Count() > 10)
-            {
-                Debug.WriteLine($"  ... and {orphanedTeams.Count() - 10} more");
-            }
-        }
-
-        // Validate divisions
-        var orphanedDivs = await connection.QueryAsync<(string ContractId, string DivisionId, string Source)>(@"
-            SELECT
-                c.external_id AS ContractId,
-                c.division_external_id AS DivisionId,
-                c.source AS Source
-            FROM contracts c
-            WHERE c.division_external_id IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM divisions d
-                WHERE d.external_id = c.division_external_id
-                AND d.source = c.source
-            )");
-
-        if (orphanedDivs.Any())
-        {
-            result.OrphanedDivisionsDetected = orphanedDivs.Count();
-            Debug.WriteLine($"[Import Validation] Found {result.OrphanedDivisionsDetected} orphaned division reference(s):");
-            foreach (var orphan in orphanedDivs.Take(10))
-            {
-                Debug.WriteLine($"  - Contract {orphan.ContractId} → Division {orphan.DivisionId} (Source: {orphan.Source}) - not in master table");
-            }
-            if (orphanedDivs.Count() > 10)
-            {
-                Debug.WriteLine($"  ... and {orphanedDivs.Count() - 10} more");
-            }
-        }
-
-        // Validate titles
-        var orphanedTitles = await connection.QueryAsync<(string ContractId, string TitleId, string Source)>(@"
-            SELECT
-                c.external_id AS ContractId,
-                c.title_external_id AS TitleId,
-                c.source AS Source
-            FROM contracts c
-            WHERE c.title_external_id IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM titles t
-                WHERE t.external_id = c.title_external_id
-                AND t.source = c.source
-            )");
-
-        if (orphanedTitles.Any())
-        {
-            result.OrphanedTitlesDetected = orphanedTitles.Count();
-            Debug.WriteLine($"[Import Validation] Found {result.OrphanedTitlesDetected} orphaned title reference(s):");
-            foreach (var orphan in orphanedTitles.Take(10))
-            {
-                Debug.WriteLine($"  - Contract {orphan.ContractId} → Title {orphan.TitleId} (Source: {orphan.Source}) - not in master table");
-            }
-            if (orphanedTitles.Count() > 10)
-            {
-                Debug.WriteLine($"  ... and {orphanedTitles.Count() - 10} more");
-            }
-        }
-
-        // Validate organizations
-        var orphanedOrgs = await connection.QueryAsync<(string ContractId, string OrganizationId, string Source)>(@"
-            SELECT
-                c.external_id AS ContractId,
-                c.organization_external_id AS OrganizationId,
-                c.source AS Source
-            FROM contracts c
-            WHERE c.organization_external_id IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 FROM organizations o
-                WHERE o.external_id = c.organization_external_id
-                AND o.source = c.source
-            )");
-
-        if (orphanedOrgs.Any())
-        {
-            result.OrphanedOrganizationsDetected = orphanedOrgs.Count();
-            Debug.WriteLine($"[Import Validation] Found {result.OrphanedOrganizationsDetected} orphaned organization reference(s):");
-            foreach (var orphan in orphanedOrgs.Take(10))
-            {
-                Debug.WriteLine($"  - Contract {orphan.ContractId} → Organization {orphan.OrganizationId} (Source: {orphan.Source}) - not in master table");
-            }
-            if (orphanedOrgs.Count() > 10)
-            {
-                Debug.WriteLine($"  ... and {orphanedOrgs.Count() - 10} more");
-            }
-        }
-
-        // Summary log
-        var totalOrphaned = result.OrphanedDepartmentsDetected + result.OrphanedLocationsDetected +
-                           result.OrphanedCostCentersDetected + result.OrphanedCostBearersDetected +
-                           result.OrphanedEmployersDetected + result.OrphanedTeamsDetected +
-                           result.OrphanedDivisionsDetected + result.OrphanedTitlesDetected +
-                           result.OrphanedOrganizationsDetected;
-
-        if (totalOrphaned > 0)
-        {
-            Debug.WriteLine($"\n[Import Validation] Total orphaned references: {totalOrphaned}");
-            Debug.WriteLine("[Import Validation] Orphaned references are contracts that reference entities not in master tables with matching source.");
-            Debug.WriteLine("[Import Validation] This is acceptable by design - source is inherited from contract.");
-        }
-        else
-        {
-            Debug.WriteLine("[Import Validation] No orphaned references detected - all contract references match master table entries.");
-        }
-    }
-
-    private Department MapDepartment(VaultDepartmentReference deptRef, Dictionary<string, string> sourceLookup)
-    {
-        // Convert null UUID to actual NULL
-        // Check for: "00000000-0000-0000-0000-000000000000", empty string, or null
-        string? managerPersonId = null;
-        if (!string.IsNullOrWhiteSpace(deptRef.Manager?.PersonId) &&
-            deptRef.Manager.PersonId != "00000000-0000-0000-0000-000000000000")
-        {
-            managerPersonId = deptRef.Manager.PersonId;
-        }
-
-        // Get source from lookup, or null if not found
-        string? sourceId = null;
-        if (deptRef.Source?.SystemId != null && sourceLookup.TryGetValue(deptRef.Source.SystemId, out var mappedSourceId))
-        {
-            sourceId = mappedSourceId;
-        }
-
-        // Apply hash transformation to ExternalId for namespace isolation
-        string transformedExternalId = string.Empty;
-        if (!string.IsNullOrWhiteSpace(deptRef.ExternalId) && sourceId != null)
-        {
-            transformedExternalId = deptRef.ExternalId;
-        }
-
-        // Also transform ParentExternalId if it exists
-        string transformedParentExternalId = string.Empty;
-        if (!string.IsNullOrWhiteSpace(deptRef.ParentExternalId) && sourceId != null)
-        {
-            transformedParentExternalId = deptRef.ParentExternalId;
-        }
-
-        return new Department
-        {
-            ExternalId = transformedExternalId,
-            DisplayName = deptRef.DisplayName ?? string.Empty,
-            Code = deptRef.Code,
-            ParentExternalId = transformedParentExternalId,
-            ManagerPersonId = managerPersonId,
-            Source = sourceId
-        };
+        await ContractReferenceValidator.ValidateAsync(_connectionFactory, result);
     }
 
     /// <summary>
@@ -2537,45 +1438,7 @@ public class VaultImportService : IVaultImportService
     /// </summary>
     private List<Department> TopologicalSortDepartments(List<Department> departments)
     {
-        var sorted = new List<Department>();
-        var visited = new HashSet<string>();
-        var visiting = new HashSet<string>(); // For cycle detection
-        var deptLookup = departments.ToDictionary(d => d.ExternalId);
-
-        void Visit(Department dept)
-        {
-            // Skip if already processed
-            if (visited.Contains(dept.ExternalId))
-                return;
-
-            // Detect cycles
-            if (visiting.Contains(dept.ExternalId))
-            {
-                throw new InvalidOperationException(
-                    $"Circular dependency detected in department hierarchy at: {dept.ExternalId} ({dept.DisplayName})");
-            }
-
-            visiting.Add(dept.ExternalId);
-
-            // Visit parent first (if exists in our dataset)
-            if (!string.IsNullOrEmpty(dept.ParentExternalId) &&
-                deptLookup.TryGetValue(dept.ParentExternalId, out var parent))
-            {
-                Visit(parent);
-            }
-
-            visiting.Remove(dept.ExternalId);
-            visited.Add(dept.ExternalId);
-            sorted.Add(dept);
-        }
-
-        // Visit all departments
-        foreach (var dept in departments)
-        {
-            Visit(dept);
-        }
-
-        return sorted;
+        return DepartmentSorter.TopologicalSort(departments);
     }
 
     private string DetectDataType(HashSet<object> sampleValues)
@@ -2587,134 +1450,7 @@ public class VaultImportService : IVaultImportService
 
     private string FormatDisplayName(string fieldKey)
     {
-        // Convert snake_case or camelCase to Title Case
-        // Examples:
-        //   ip_phone_number -> I P Phone Number
-        //   mobilePhoneNumber -> Mobile Phone Number
-
-        var words = new List<string>();
-        var currentWord = "";
-
-        for (int i = 0; i < fieldKey.Length; i++)
-        {
-            var c = fieldKey[i];
-
-            if (c == '_' || c == '-')
-            {
-                if (currentWord.Length > 0)
-                {
-                    words.Add(currentWord);
-                    currentWord = "";
-                }
-            }
-            else if (char.IsUpper(c) && currentWord.Length > 0)
-            {
-                words.Add(currentWord);
-                currentWord = c.ToString();
-            }
-            else
-            {
-                currentWord += c;
-            }
-        }
-
-        if (currentWord.Length > 0)
-        {
-            words.Add(currentWord);
-        }
-
-        // Capitalize each word
-        for (int i = 0; i < words.Count; i++)
-        {
-            if (words[i].Length == 1)
-            {
-                // Single letter words stay uppercase (like "I" in "IP")
-                words[i] = words[i].ToUpper();
-            }
-            else
-            {
-                // Regular words: capitalize first letter
-                words[i] = char.ToUpper(words[i][0]) + words[i].Substring(1).ToLower();
-            }
-        }
-
-        return string.Join(" ", words);
-    }
-
-    private async Task CreateDatabaseBackupAsync()
-    {
-        string? dbPath = null;
-
-        try
-        {
-            // Get the database file path from connection factory
-            using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
-            {
-                var sqliteConnection = connection as SqliteConnection;
-                if (sqliteConnection == null)
-                {
-                    throw new Exception("Connection is not a SQLite connection");
-                }
-
-                dbPath = sqliteConnection.DataSource;
-
-                if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
-                {
-                    throw new Exception("Database file not found: " + dbPath);
-                }
-
-                // Close connection explicitly
-                connection.Close();
-            } // Dispose connection here
-
-            // Clear all connections from the pool to release file locks
-            SqliteConnection.ClearAllPools();
-
-            // Wait for file locks to be fully released
-            await Task.Delay(500);
-
-            // Create backup filename with timestamp: vault_backup_{yyyymmdd}_{hhmmss}.db
-            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var dbDirectory = Path.GetDirectoryName(dbPath) ?? string.Empty;
-            var backupPath = Path.Combine(dbDirectory, $"vault_backup_{timestamp}.db");
-
-            // Copy database file to backup location
-            File.Copy(dbPath, backupPath, overwrite: false);
-
-            // Also copy WAL and SHM files if they exist
-            var walPath = dbPath + "-wal";
-            var shmPath = dbPath + "-shm";
-
-            if (File.Exists(walPath))
-            {
-                File.Copy(walPath, backupPath + "-wal", overwrite: false);
-            }
-
-            if (File.Exists(shmPath))
-            {
-                File.Copy(shmPath, backupPath + "-shm", overwrite: false);
-            }
-
-            // Now delete the original database files to start fresh
-            File.Delete(dbPath);
-
-            if (File.Exists(walPath))
-            {
-                File.Delete(walPath);
-            }
-
-            if (File.Exists(shmPath))
-            {
-                File.Delete(shmPath);
-            }
-
-            // Recreate the database schema after deletion
-            await _databaseInitializer.InitializeAsync();
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"Failed to create database backup: {ex.Message}", ex);
-        }
+        return StringFormatter.FormatDisplayName(fieldKey);
     }
 
     /// <summary>

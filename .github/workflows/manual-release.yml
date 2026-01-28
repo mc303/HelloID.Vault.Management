@@ -74,14 +74,21 @@ jobs:
       - name: Create and push tag (if missing)
         shell: bash
         run: |
+<<<<<<< HEAD
           set -e
+=======
+>>>>>>> 98cad35 (Update production files)
           TAG="${{ inputs.version }}"
           if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
             echo "Tag ${TAG} already exists — skipping creation."
           else
             git tag -a "${TAG}" -m "Release ${TAG}"
+<<<<<<< HEAD
             git push origin "${TAG}" || { echo "Failed to push tag ${TAG}. Check token permissions or branch protection rules."; exit 1; }
             echo "Pushed tag ${TAG} to origin."
+=======
+            git push origin "${TAG}"
+>>>>>>> 98cad35 (Update production files)
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

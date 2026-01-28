@@ -34,7 +34,7 @@ public class PrimaryContractConfigRepository : IPrimaryContractConfigRepository
             FROM primary_contract_config
             ORDER BY priority_order ASC";
 
-        return await connection.QueryAsync<PrimaryContractConfig>(sql);
+        return await connection.QueryAsync<PrimaryContractConfig>(sql).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<PrimaryContractConfig>> GetActiveConfigAsync()
@@ -55,7 +55,7 @@ public class PrimaryContractConfigRepository : IPrimaryContractConfigRepository
             WHERE is_active = 1
             ORDER BY priority_order ASC";
 
-        return await connection.QueryAsync<PrimaryContractConfig>(sql);
+        return await connection.QueryAsync<PrimaryContractConfig>(sql).ConfigureAwait(false);
     }
 
     public async Task UpdateConfigAsync(IEnumerable<PrimaryContractConfig> configs)
@@ -78,7 +78,7 @@ public class PrimaryContractConfigRepository : IPrimaryContractConfigRepository
                 config.SortOrder,
                 config.PriorityOrder,
                 IsActive = config.IsActive ? 1 : 0
-            });
+            }).ConfigureAwait(false);
         }
     }
 
@@ -99,7 +99,7 @@ public class PrimaryContractConfigRepository : IPrimaryContractConfigRepository
                 config.SortOrder,
                 config.PriorityOrder,
                 IsActive = config.IsActive ? 1 : 0
-            });
+            }).ConfigureAwait(false);
         }
     }
 
@@ -111,7 +111,7 @@ public class PrimaryContractConfigRepository : IPrimaryContractConfigRepository
             DELETE FROM primary_contract_config
             WHERE field_name IN @FieldNames";
 
-        await connection.ExecuteAsync(sql, new { FieldNames = fieldNames });
+        await connection.ExecuteAsync(sql, new { FieldNames = fieldNames }).ConfigureAwait(false);
     }
 
     public async Task ResetToDefaultAsync()
@@ -127,6 +127,6 @@ public class PrimaryContractConfigRepository : IPrimaryContractConfigRepository
             UPDATE primary_contract_config SET sort_order = 'ASC', priority_order = 5, is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE field_name = 'StartDate';
             UPDATE primary_contract_config SET sort_order = 'ASC', priority_order = 6, is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE field_name = 'ContractId';";
 
-        await connection.ExecuteAsync(sql);
+        await connection.ExecuteAsync(sql).ConfigureAwait(false);
     }
 }

@@ -77,7 +77,7 @@ public class PersonRepository : IPersonRepository
         System.Diagnostics.Debug.WriteLine($"[PersonRepository] Executing SQL: {sql}");
         System.Diagnostics.Debug.WriteLine($"[PersonRepository] Parameters: Limit={pageSize}, Offset={(page - 1) * pageSize}");
 
-        return await connection.QueryAsync<PersonListDto>(sql, parameters);
+        return await connection.QueryAsync<PersonListDto>(sql, parameters).ConfigureAwait(false);
     }
 
     public async Task<int> GetCountAsync(PersonFilter filter)
@@ -115,7 +115,7 @@ public class PersonRepository : IPersonRepository
 
         var sql = $"SELECT COUNT(*) FROM person_list_view {whereClause}";
 
-        return await connection.ExecuteScalarAsync<int>(sql, parameters);
+        return await connection.ExecuteScalarAsync<int>(sql, parameters).ConfigureAwait(false);
     }
 
     public async Task<Person?> GetByIdAsync(string personId)
@@ -153,7 +153,7 @@ public class PersonRepository : IPersonRepository
             FROM persons
             WHERE person_id = @PersonId";
 
-        return await connection.QuerySingleOrDefaultAsync<Person>(sql, new { PersonId = personId });
+        return await connection.QuerySingleOrDefaultAsync<Person>(sql, new { PersonId = personId }).ConfigureAwait(false);
     }
 
     public async Task<PersonDetailDto?> GetPersonDetailAsync(string personId)
@@ -241,7 +241,7 @@ public class PersonRepository : IPersonRepository
             LEFT JOIN person_details_view v ON p.person_id = v.person_id
             WHERE p.person_id = @PersonId";
 
-        return await connection.QuerySingleOrDefaultAsync<PersonDetailDto>(sql, new { PersonId = personId });
+        return await connection.QuerySingleOrDefaultAsync<PersonDetailDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
     }
 
     public async Task<Person?> GetByExternalIdAsync(string externalId)
@@ -279,7 +279,7 @@ public class PersonRepository : IPersonRepository
             FROM persons
             WHERE external_id = @ExternalId";
 
-        return await connection.QuerySingleOrDefaultAsync<Person>(sql, new { ExternalId = externalId });
+        return await connection.QuerySingleOrDefaultAsync<Person>(sql, new { ExternalId = externalId }).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Person person)
@@ -293,17 +293,17 @@ public class PersonRepository : IPersonRepository
                 initials, given_name, family_name, family_name_prefix, convention,
                 nick_name, family_name_partner, family_name_partner_prefix,
                 blocked, status_reason, excluded, hr_excluded, manual_excluded, source,
-                primary_manager_person_id, primary_manager_updated_at
+                primary_manager_person_id, primary_manager_source, primary_manager_updated_at
             ) VALUES (
                 @PersonId, @DisplayName, @ExternalId, @UserName, @Gender,
                 @HonorificPrefix, @HonorificSuffix, @BirthDate, @BirthLocality, @MaritalStatus,
                 @Initials, @GivenName, @FamilyName, @FamilyNamePrefix, @Convention,
                 @NickName, @FamilyNamePartner, @FamilyNamePartnerPrefix,
                 @Blocked, @StatusReason, @Excluded, @HrExcluded, @ManualExcluded, @Source,
-                @PrimaryManagerPersonId, @PrimaryManagerUpdatedAt
+                @PrimaryManagerPersonId, @PrimaryManagerSource, @PrimaryManagerUpdatedAt
             )";
 
-        return await connection.ExecuteAsync(sql, person);
+        return await connection.ExecuteAsync(sql, person).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Person person, System.Data.IDbConnection connection, System.Data.IDbTransaction transaction)
@@ -315,17 +315,17 @@ public class PersonRepository : IPersonRepository
                 initials, given_name, family_name, family_name_prefix, convention,
                 nick_name, family_name_partner, family_name_partner_prefix,
                 blocked, status_reason, excluded, hr_excluded, manual_excluded, source,
-                primary_manager_person_id, primary_manager_updated_at
+                primary_manager_person_id, primary_manager_source, primary_manager_updated_at
             ) VALUES (
                 @PersonId, @DisplayName, @ExternalId, @UserName, @Gender,
                 @HonorificPrefix, @HonorificSuffix, @BirthDate, @BirthLocality, @MaritalStatus,
                 @Initials, @GivenName, @FamilyName, @FamilyNamePrefix, @Convention,
                 @NickName, @FamilyNamePartner, @FamilyNamePartnerPrefix,
                 @Blocked, @StatusReason, @Excluded, @HrExcluded, @ManualExcluded, @Source,
-                @PrimaryManagerPersonId, @PrimaryManagerUpdatedAt
+                @PrimaryManagerPersonId, @PrimaryManagerSource, @PrimaryManagerUpdatedAt
             )";
 
-        return await connection.ExecuteAsync(sql, person, transaction);
+        return await connection.ExecuteAsync(sql, person, transaction).ConfigureAwait(false);
     }
 
     public async Task<int> UpdateAsync(Person person)
@@ -335,7 +335,6 @@ public class PersonRepository : IPersonRepository
         var sql = @"
             UPDATE persons SET
                 display_name = @DisplayName,
-                external_id = @ExternalId,
                 user_name = @UserName,
                 gender = @Gender,
                 honorific_prefix = @HonorificPrefix,
@@ -356,12 +355,12 @@ public class PersonRepository : IPersonRepository
                 excluded = @Excluded,
                 hr_excluded = @HrExcluded,
                 manual_excluded = @ManualExcluded,
-                source = @Source,
                 primary_manager_person_id = @PrimaryManagerPersonId,
+                primary_manager_source = @PrimaryManagerSource,
                 primary_manager_updated_at = @PrimaryManagerUpdatedAt
             WHERE person_id = @PersonId";
 
-        return await connection.ExecuteAsync(sql, person);
+        return await connection.ExecuteAsync(sql, person).ConfigureAwait(false);
     }
 
     public async Task<int> DeleteAsync(string personId)
@@ -370,7 +369,7 @@ public class PersonRepository : IPersonRepository
 
         var sql = "DELETE FROM persons WHERE person_id = @PersonId";
 
-        return await connection.ExecuteAsync(sql, new { PersonId = personId });
+        return await connection.ExecuteAsync(sql, new { PersonId = personId }).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<Person>> GetAllAsync()
@@ -389,7 +388,7 @@ public class PersonRepository : IPersonRepository
             FROM persons
             ORDER BY display_name";
 
-        return await connection.QueryAsync<Person>(sql);
+        return await connection.QueryAsync<Person>(sql).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<CustomFieldDto>> GetCustomFieldsAsync(string personId)
@@ -408,7 +407,7 @@ public class PersonRepository : IPersonRepository
                 AND p.person_id = @PersonId
             ORDER BY s.sort_order, s.display_name";
 
-        return await connection.QueryAsync<CustomFieldDto>(sql, new { PersonId = personId });
+        return await connection.QueryAsync<CustomFieldDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
     }
 
     public async Task<PersonDetailDto?> GetPersonWithMostContractsAsync(int skip = 0)
@@ -443,7 +442,7 @@ public class PersonRepository : IPersonRepository
             INNER JOIN PersonContractCounts pcc ON p.person_id = pcc.person_id
             LIMIT 1";
 
-        var person = await connection.QueryFirstOrDefaultAsync<Person?>(sql, new { Skip = skip });
+        var person = await connection.QueryFirstOrDefaultAsync<Person?>(sql, new { Skip = skip }).ConfigureAwait(false);
 
         if (person == null)
             return null;

@@ -1,12 +1,13 @@
 using System.Collections.ObjectModel;
-using System.Timers;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HelloID.Vault.Core.Models.DTOs;
 using HelloID.Vault.Core.Models.Filters;
 using HelloID.Vault.Services.Interfaces;
 using HelloID.Vault.Data.Repositories.Interfaces;
+using HelloID.Vault.Management.Views.Persons;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HelloID.Vault.Management.ViewModels.Persons;
@@ -20,7 +21,9 @@ public partial class PersonsViewModel : ObservableObject
     private readonly IPersonService _personService;
     private readonly ICustomFieldRepository _customFieldRepository;
     private readonly IUserPreferencesService _userPreferencesService;
-    private readonly System.Timers.Timer _searchDebounceTimer;
+    private readonly IContractService _contractService;
+    private readonly ISourceSystemRepository _sourceSystemRepository;
+    private readonly DispatcherTimer _searchDebounceTimer;
     private const int BatchSize = 200;
     private const int SearchDebounceMs = 300;
     private int _currentOffset = 0;
@@ -40,6 +43,12 @@ public partial class PersonsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isBusy;
+
+    /// <summary>
+    /// Gets whether a person is currently selected.
+    /// Used to enable/disable Add Contract button.
+    /// </summary>
+    public bool IsPersonSelected => SelectedPerson != null;
 
     private bool _showAll = true;
     private bool _showPast;
@@ -126,17 +135,21 @@ public partial class PersonsViewModel : ObservableObject
 
     private readonly IServiceProvider _serviceProvider;
 
-    public PersonsViewModel(IPersonService personService, ICustomFieldRepository customFieldRepository, IUserPreferencesService userPreferencesService, IServiceProvider serviceProvider)
+    public PersonsViewModel(IPersonService personService, ICustomFieldRepository customFieldRepository, IUserPreferencesService userPreferencesService, IContractService contractService, ISourceSystemRepository sourceSystemRepository, IServiceProvider serviceProvider)
     {
         _personService = personService ?? throw new ArgumentNullException(nameof(personService));
         _customFieldRepository = customFieldRepository ?? throw new ArgumentNullException(nameof(customFieldRepository));
         _userPreferencesService = userPreferencesService ?? throw new ArgumentNullException(nameof(userPreferencesService));
+        _contractService = contractService ?? throw new ArgumentNullException(nameof(contractService));
+        _sourceSystemRepository = sourceSystemRepository ?? throw new ArgumentNullException(nameof(sourceSystemRepository));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
         // Initialize search debounce timer
-        _searchDebounceTimer = new System.Timers.Timer(SearchDebounceMs);
-        _searchDebounceTimer.AutoReset = false;
-        _searchDebounceTimer.Elapsed += OnSearchDebounceTimerElapsed;
+        _searchDebounceTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(SearchDebounceMs)
+        };
+        _searchDebounceTimer.Tick += OnSearchDebounceTimerElapsed;
     }
 
     /// <summary>
@@ -146,15 +159,8 @@ public partial class PersonsViewModel : ObservableObject
     {
         if (_isInitializing)
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] InitializeAsync already in progress, skipping");
             return;
         }
-
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] ===== InitializeAsync START =====");
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Saved search text: '{_userPreferencesService.LastPersonSearchText}'");
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Saved person ID: '{_userPreferencesService.LastSelectedPersonId}'");
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Current SearchText: '{SearchText}'");
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Current SelectedPerson: {SelectedPerson?.DisplayName ?? "null"}");
 
         _isInitializing = true;
 
@@ -164,18 +170,14 @@ public partial class PersonsViewModel : ObservableObject
             var savedSearchText = _userPreferencesService.LastPersonSearchText;
             if (!string.IsNullOrEmpty(savedSearchText))
             {
-                System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Restoring search text: '{savedSearchText}'");
                 SearchText = savedSearchText;
             }
 
             await LoadPersonsAsync();
-
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] LoadPersonsAsync completed. Final SelectedPerson: {SelectedPerson?.DisplayName ?? "null"}");
         }
         finally
         {
             _isInitializing = false;
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] ===== InitializeAsync END =====");
         }
     }
 
@@ -186,12 +188,8 @@ public partial class PersonsViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadPersonsAsync()
     {
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] ----- LoadPersonsAsync START -----");
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] IsBusy: {IsBusy}, _isRestoringSelection: {_isRestoringSelection}");
-
         if (IsBusy)
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Already busy, returning");
             return;
         }
 
@@ -202,21 +200,16 @@ public partial class PersonsViewModel : ObservableObject
         if (!_isRestoringSelection && SelectedPerson != null)
         {
             targetPersonId = SelectedPerson.PersonId;
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Target from current selection: '{targetPersonId}'");
         }
 
         // Also check user preferences if no current selection
         if (string.IsNullOrEmpty(targetPersonId) && !_isRestoringSelection)
         {
             targetPersonId = _userPreferencesService.LastSelectedPersonId;
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Target from preferences: '{targetPersonId}'");
         }
-
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Final targetPersonId: '{targetPersonId}'");
 
         // Set flag to prevent intermediate null selection from corrupting preferences
         _willRestoreSelection = !string.IsNullOrEmpty(targetPersonId);
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] _willRestoreSelection: {_willRestoreSelection}");
 
         try
         {
@@ -230,7 +223,6 @@ public partial class PersonsViewModel : ObservableObject
             // If we have a target person to restore, load as many batches as needed to find them
             if (!string.IsNullOrEmpty(targetPersonId))
             {
-                System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Loading batches to find person '{targetPersonId}'");
                 PersonListDto? targetPerson = null;
                 int batchCount = 0;
 
@@ -238,51 +230,38 @@ public partial class PersonsViewModel : ObservableObject
                 while (_hasMoreData && targetPerson == null)
                 {
                     batchCount++;
-                    System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Loading batch {batchCount}");
                     await LoadNextBatchAsync();
                     targetPerson = Persons.FirstOrDefault(p => p.PersonId == targetPersonId);
-                    System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Batch {batchCount} loaded. Items in collection: {Persons.Count}. Target found: {targetPerson != null}");
                 }
-
-                System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Loaded {batchCount} batches. _hasMoreData: {_hasMoreData}");
 
                 // Select the person if found
                 if (targetPerson != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] FOUND target person: {targetPerson.DisplayName}. Setting SelectedPerson.");
                     _isRestoringSelection = true;
                     try
                     {
                         SelectedPerson = targetPerson;
-                        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] SelectedPerson set to: {SelectedPerson?.DisplayName ?? "null"}");
                     }
                     finally
                     {
                         _isRestoringSelection = false;
                     }
                 }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Target person NOT FOUND in loaded results");
-                }
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] No target person, loading first batch only");
                 // No target person, just load first batch
                 await LoadNextBatchAsync();
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // TODO: Add error handling/logging
-            System.Diagnostics.Debug.WriteLine($"Error loading persons: {ex.Message}");
         }
         finally
         {
             IsBusy = false;
             _willRestoreSelection = false;
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] ----- LoadPersonsAsync END -----");
         }
     }
 
@@ -309,16 +288,10 @@ public partial class PersonsViewModel : ObservableObject
                 PersonStatus = ShowAll ? null : (ShowPast ? "Past" : (ShowActive ? "Active" : (ShowFuture ? "Future" : null)))
             };
 
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] LoadNextBatchAsync: SearchText='{SearchText}', SearchTerm='{filter.SearchTerm}', PersonStatus='{filter.PersonStatus}'");
-
             // Calculate page number from offset
             int pageNumber = (_currentOffset / BatchSize) + 1;
 
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Calling GetPagedAsync with page={pageNumber}, pageSize={BatchSize}");
-
             var (items, totalCount) = await _personService.GetPagedAsync(filter, pageNumber, BatchSize);
-
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] GetPagedAsync returned {items.Count()} items, totalCount={totalCount}");
 
             // Update total count
             TotalCount = totalCount;
@@ -331,15 +304,13 @@ public partial class PersonsViewModel : ObservableObject
                 itemsAdded++;
             }
 
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Added {itemsAdded} items to collection, new total={Persons.Count}");
-
             // Update offset and check if more data available
             _currentOffset += itemsAdded;
             _hasMoreData = _currentOffset < totalCount;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading batch: {ex.Message}");
+            // TODO: Add error handling/logging
         }
     }
 
@@ -368,19 +339,13 @@ public partial class PersonsViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedPersonChanged(PersonListDto? value)
     {
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] *** OnSelectedPersonChanged ***");
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] New value: {value?.DisplayName ?? "null"}");
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] _isRestoringSelection: {_isRestoringSelection}, _willRestoreSelection: {_willRestoreSelection}");
+        // Notify that IsPersonSelected changed
+        OnPropertyChanged(nameof(IsPersonSelected));
 
         // Save the selection to user preferences (unless we're restoring or will restore)
         if (!_isRestoringSelection && !_willRestoreSelection)
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Saving selection to preferences: '{value?.PersonId}'");
             _userPreferencesService.LastSelectedPersonId = value?.PersonId;
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Skipping save (restoring: {_isRestoringSelection}, will restore: {_willRestoreSelection})");
         }
 
         if (value == null)
@@ -408,8 +373,6 @@ public partial class PersonsViewModel : ObservableObject
     /// </summary>
     partial void OnSearchTextChanged(string value)
     {
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] OnSearchTextChanged called with value: '{value}'");
-
         // Save search text to preferences
         _userPreferencesService.LastPersonSearchText = value;
 
@@ -419,12 +382,6 @@ public partial class PersonsViewModel : ObservableObject
             // Reset and restart the debounce timer
             _searchDebounceTimer.Stop();
             _searchDebounceTimer.Start();
-
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Debounce timer started");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Initializing, skipping debounce timer");
         }
     }
 
@@ -432,16 +389,11 @@ public partial class PersonsViewModel : ObservableObject
     /// Called when the search debounce timer elapses.
     /// Triggers the actual search on the UI thread.
     /// </summary>
-    private void OnSearchDebounceTimerElapsed(object? sender, ElapsedEventArgs e)
+    private void OnSearchDebounceTimerElapsed(object? sender, EventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] OnSearchDebounceTimerElapsed called");
-
-        // Dispatch to UI thread since timer runs on background thread
-        Application.Current?.Dispatcher.InvokeAsync(async () =>
-        {
-            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Dispatcher.InvokeAsync executing, calling LoadPersonsAsync");
-            await LoadPersonsAsync();
-        });
+        // DispatcherTimer already runs on UI thread
+        _searchDebounceTimer.Stop();
+        _ = LoadPersonsAsync();
     }
 
     // Button commands for status filtering
@@ -467,5 +419,78 @@ public partial class PersonsViewModel : ObservableObject
     private void ShowFuturePersons()
     {
         ShowFuture = true;
+    }
+
+    /// <summary>
+    /// Resets all view settings to default values.
+    /// Clears search text, resets filters to All, and reloads data.
+    /// </summary>
+    [RelayCommand]
+    private async Task ResetSettingsAsync()
+    {
+        // Clear search text and saved preference
+        SearchText = string.Empty;
+        _userPreferencesService.LastPersonSearchText = string.Empty;
+
+        // Reset to ShowAll filter
+        ShowAll = true;
+
+        // Reload data with reset settings
+        await LoadPersonsAsync();
+    }
+
+    /// <summary>
+    /// Opens a dialog to add a new person.
+    /// </summary>
+    [RelayCommand]
+    private async Task AddPersonAsync()
+    {
+        var editViewModel = new ViewModels.Persons.PersonEditViewModel(_personService, _customFieldRepository, _sourceSystemRepository);
+        await editViewModel.InitializeAsync();
+
+        var editWindow = new PersonEditWindow();
+        editWindow.SetViewModel(editViewModel);
+        editWindow.Owner = Application.Current.MainWindow;
+
+        var result = editWindow.ShowDialog();
+        if (result == true)
+        {
+            await LoadPersonsAsync();
+        }
+    }
+
+    /// <summary>
+    /// Opens a dialog to add a contract to the selected person.
+    /// Requires a person to be selected.
+    /// </summary>
+    [RelayCommand]
+    private async Task AddContractAsync()
+    {
+        if (SelectedPerson == null)
+        {
+            MessageBox.Show("Please select a person first.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            var editViewModel = ActivatorUtilities.CreateInstance<ViewModels.Persons.ContractEditViewModel>(_serviceProvider, SelectedPerson.PersonId);
+            var editWindow = new ContractEditWindow();
+            editWindow.SetViewModel(editViewModel);
+            editWindow.Owner = Application.Current.MainWindow;
+
+            if (editWindow.ShowDialog() == true)
+            {
+                // Refresh detail view if person is still selected
+                if (DetailViewModel != null)
+                {
+                    await DetailViewModel.LoadAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error opening contract window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 }

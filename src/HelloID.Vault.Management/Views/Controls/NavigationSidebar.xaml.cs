@@ -91,9 +91,6 @@ public partial class NavigationSidebar : UserControl
                     case "PrimaryManagerAdmin":
                         viewModel.NavigateToPrimaryManagerAdminCommand.Execute(null);
                         break;
-                    default:
-                        System.Diagnostics.Debug.WriteLine($"Navigation to {tag} not yet implemented");
-                        break;
                 }
 
                 // Ensure selection persists after navigation

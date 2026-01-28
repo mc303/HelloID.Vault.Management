@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.modernwpf.com/2019"
         Title="{Binding WindowTitle}"
-        Height="330"
+        SizeToContent="Height"
         Width="420"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"

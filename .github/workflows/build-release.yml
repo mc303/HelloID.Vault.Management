@@ -36,14 +36,9 @@ jobs:
       - name: Publish self-contained EXE (x64)
         run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 
-      - name: Publish self-contained EXE (x86)
-        run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x86 --self-contained true --output publish/win-x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 
       - name: Create ZIP archive (x64)
         run: Compress-Archive -Path publish/win-x64/* -DestinationPath HelloID.Vault.Management-win-x64.zip
-
-      - name: Create ZIP archive (x86)
-        run: Compress-Archive -Path publish/win-x86/* -DestinationPath HelloID.Vault.Management-win-x86.zip
 
       - name: Upload artifacts (x64)
         uses: actions/upload-artifact@v4
@@ -51,11 +46,97 @@ jobs:
           name: HelloID.Vault.Management-win-x64
           path: HelloID.Vault.Management-win-x64.zip
 
-      - name: Upload artifacts (x86)
+      - name: Install WiX Toolset v3
+        run: choco install wixtoolset -y --no-progress
+
+      - name: Create WiX configuration file
+        run: |
+          # Get all files from publish directory
+          $files = Get-ChildItem -Path "publish/win-x64" -File
+          $fileXml = ""
+          $guidIndex = 100
+
+          foreach ($file in $files) {
+            $fileName = $file.Name
+            $filePath = $file.FullName.Replace('\', '/')
+
+            if ($fileName -eq "HelloID.Vault.Management.exe") {
+              $fileXml += "                <Component Id=`"MainExecutable`" Guid=`"*`">`n"
+              $fileXml += "                  <File Source=`"$filePath`" KeyPath=`"yes`" Checksum=`"yes`"/>`n"
+              $fileXml += "                </Component>`n"
+            } else {
+              $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`">`n"
+              $fileXml += "                  <File Source=`"$filePath`"/>`n"
+              $fileXml += "                </Component>`n"
+            }
+            $guidIndex++
+          }
+
+          @"
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+            <Product Id="*"
+                     Name="HelloID Vault Management"
+                     Manufacturer="HelloID"
+                     Version="1.0.0.0"
+                     UpgradeCode="6B8FA84C-3E2A-4F8E-9B5F-1E2D3C4A5B6C"
+                     Language="1033">
+
+              <Package InstallerVersion="200" Compressed="yes" InstallScope="perUser" />
+
+              <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+
+              <MediaTemplate EmbedCab="yes" />
+
+              <Feature Id="MainFeature" Title="HelloID Vault Management" Level="1">
+                <ComponentGroupRef Id="ProductComponents" />
+                <ComponentGroupRef Id="Shortcuts" />
+              </Feature>
+
+            </Product>
+
+            <Fragment>
+              <Directory Id="TARGETDIR" Name="SourceDir">
+                <Directory Id="ProgramFilesFolder">
+                  <Directory Id="INSTALLFOLDER" Name="HelloID Vault Management" />
+                </Directory>
+                <Directory Id="ProgramMenuFolder" />
+              </Directory>
+            </Fragment>
+
+            <Fragment>
+              <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+          $fileXml
+              </ComponentGroup>
+            </Fragment>
+
+            <Fragment>
+              <ComponentGroup Id="Shortcuts" Directory="ProgramMenuFolder">
+                <Component Id="StartMenuShortcut" Guid="*">
+                  <Shortcut Id="ApplicationStartMenuShortcut"
+                            Name="HelloID Vault Management"
+                            Description="HelloID Vault Management Application"
+                            Target="[INSTALLFOLDER]HelloID.Vault.Management.exe"
+                            WorkingDirectory="INSTALLFOLDER" />
+                  <RemoveFolder Id="CleanUpShortCut" Directory="ProgramMenuFolder" On="uninstall" />
+                  <RegistryValue Root="HKCU" Key="Software\HelloID\VaultManagement" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+                </Component>
+              </ComponentGroup>
+            </Fragment>
+
+          </Wix>
+          "@ | Out-File -FilePath HelloID.Vault.Management.wxs -Encoding UTF8
+
+      - name: Build MSI installer
+        run: |
+          candle HelloID.Vault.Management.wxs
+          light -out HelloID.Vault.Management.msi HelloID.Vault.Management.wixobj
+
+      - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HelloID.Vault.Management-win-x86
-          path: HelloID.Vault.Management-win-x86.zip
+          name: HelloID.Vault.Management.msi
+          path: HelloID.Vault.Management.msi
 
       - name: Get version from tag
         id: get_version
@@ -70,30 +151,36 @@ jobs:
         with:
           files: |
             HelloID.Vault.Management-win-x64.zip
-            HelloID.Vault.Management-win-x86.zip
+            HelloID.Vault.Management.msi
           draft: false
           prerelease: false
           name: HelloID.Vault.Management ${{ steps.get_version.outputs.version }}
           body: |
             ## Release ${{ steps.get_version.outputs.version }}
-            
+
             ### Installation Options
-            
+
             **Windows x64 (Recommended):**
             Download `HelloID.Vault.Management-win-x64.zip` for 64-bit Windows systems.
-            
-            **Windows x86:**
-            Download `HelloID.Vault.Management-win-x86.zip` for 32-bit Windows systems.
-            
+
+            **MSI Installer (Recommended for easy installation):**
+            Download `HelloID.Vault.Management.msi` for automated installation with Start Menu shortcut.
+
             ### Installation Instructions
-            
-            1. Download the appropriate ZIP file for your system
-            2. Extract the ZIP file to a folder of your choice
-            3. Run `HelloID.Vault.Management.exe` to start the application
-            
+
+            **ZIP Archive:**
+            1. Download `HelloID.Vault.Management-win-x64.zip`
+            2. Extract to a folder of your choice
+            3. Run `HelloID.Vault.Management.exe`
+
+            **MSI Installer:**
+            1. Download `HelloID.Vault.Management.msi`
+            2. Double-click to install
+            3. Launch from Start Menu under "HelloID Vault Management"
+
             ### Requirements
-            
-            - Windows 10 or later
+
+            - Windows 10 or later (64-bit)
             - .NET 8.0 Runtime (included in self-contained package)
             
             ### Changelog

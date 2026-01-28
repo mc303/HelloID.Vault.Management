@@ -37,7 +37,7 @@ public class DepartmentRepository : IDepartmentRepository
             LEFT JOIN persons m ON d.manager_person_id = m.person_id
             ORDER BY d.display_name";
 
-        return await connection.QueryAsync<DepartmentDto>(sql);
+        return await connection.QueryAsync<DepartmentDto>(sql).ConfigureAwait(false);
     }
 
     public async Task<Department?> GetByIdAsync(string externalId, string source)
@@ -55,7 +55,7 @@ public class DepartmentRepository : IDepartmentRepository
             FROM departments
             WHERE external_id = @ExternalId AND source = @Source";
 
-        return await connection.QuerySingleOrDefaultAsync<Department>(sql, new { ExternalId = externalId, Source = source });
+        return await connection.QuerySingleOrDefaultAsync<Department>(sql, new { ExternalId = externalId, Source = source }).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<DepartmentDto>> GetChildrenAsync(string parentExternalId, string source)
@@ -78,7 +78,7 @@ public class DepartmentRepository : IDepartmentRepository
             WHERE d.parent_external_id = @ParentExternalId AND d.source = @Source
             ORDER BY d.display_name";
 
-        return await connection.QueryAsync<DepartmentDto>(sql, new { ParentExternalId = parentExternalId, Source = source });
+        return await connection.QueryAsync<DepartmentDto>(sql, new { ParentExternalId = parentExternalId, Source = source }).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Department department)
@@ -92,7 +92,7 @@ public class DepartmentRepository : IDepartmentRepository
                 @ExternalId, @DisplayName, @Code, @ParentExternalId, @ManagerPersonId, @Source
             )";
 
-        return await connection.ExecuteAsync(sql, department);
+        return await connection.ExecuteAsync(sql, department).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Department department, System.Data.IDbConnection connection, System.Data.IDbTransaction transaction)
@@ -104,7 +104,7 @@ public class DepartmentRepository : IDepartmentRepository
                 @ExternalId, @DisplayName, @Code, @ParentExternalId, @ManagerPersonId, @Source
             )";
 
-        return await connection.ExecuteAsync(sql, department, transaction);
+        return await connection.ExecuteAsync(sql, department, transaction).ConfigureAwait(false);
     }
 
     public async Task<int> InsertBatchAsync(IEnumerable<Department> departments, System.Data.IDbConnection connection, System.Data.IDbTransaction transaction)
@@ -119,7 +119,7 @@ public class DepartmentRepository : IDepartmentRepository
         int totalInserted = 0;
         foreach (var department in departments)
         {
-            totalInserted += await connection.ExecuteAsync(sql, department, transaction);
+            totalInserted += await connection.ExecuteAsync(sql, department, transaction).ConfigureAwait(false);
         }
 
         return totalInserted;
@@ -138,7 +138,7 @@ public class DepartmentRepository : IDepartmentRepository
                 source = @Source
             WHERE external_id = @ExternalId AND source = @Source";
 
-        return await connection.ExecuteAsync(sql, department);
+        return await connection.ExecuteAsync(sql, department).ConfigureAwait(false);
     }
 
     public async Task<int> DeleteAsync(string externalId, string source)
@@ -147,7 +147,7 @@ public class DepartmentRepository : IDepartmentRepository
 
         var sql = "DELETE FROM departments WHERE external_id = @ExternalId AND source = @Source";
 
-        return await connection.ExecuteAsync(sql, new { ExternalId = externalId, Source = source });
+        return await connection.ExecuteAsync(sql, new { ExternalId = externalId, Source = source }).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<DepartmentDto>> GetPagedAsync(int page, int pageSize, string? source = null)
@@ -184,7 +184,7 @@ public class DepartmentRepository : IDepartmentRepository
             Source = source
         };
 
-        return await connection.QueryAsync<DepartmentDto>(sql, parameters);
+        return await connection.QueryAsync<DepartmentDto>(sql, parameters).ConfigureAwait(false);
     }
 
     public async Task<int> GetCountAsync()
@@ -193,6 +193,6 @@ public class DepartmentRepository : IDepartmentRepository
 
         var sql = "SELECT COUNT(*) FROM departments";
 
-        return await connection.ExecuteScalarAsync<int>(sql);
+        return await connection.ExecuteScalarAsync<int>(sql).ConfigureAwait(false);
     }
 }

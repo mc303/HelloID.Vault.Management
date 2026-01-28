@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -13,7 +14,7 @@ namespace HelloID.Vault.Management.ViewModels.ReferenceData;
 /// Generic ViewModel for editing simple reference data tables.
 /// Handles: Locations, Titles, CostCenters, CostBearers, Employers, Teams, Divisions, Organizations
 /// </summary>
-public partial class ReferenceDataEditViewModel : ObservableObject
+public partial class ReferenceDataEditViewModel : ObservableValidator
 {
     private readonly IReferenceDataService _service;
     private readonly ISourceSystemRepository _sourceSystemRepository;
@@ -24,6 +25,8 @@ public partial class ReferenceDataEditViewModel : ObservableObject
     private string _windowTitle = string.Empty;
 
     [ObservableProperty]
+    [Required(ErrorMessage = "External ID is required.")]
+    [StringLength(200, ErrorMessage = "External ID cannot exceed 200 characters.")]
     private string _externalId = string.Empty;
 
     [ObservableProperty]
@@ -33,6 +36,8 @@ public partial class ReferenceDataEditViewModel : ObservableObject
     private string? _name;
 
     [ObservableProperty]
+    [Required(ErrorMessage = "Source is required.")]
+    [StringLength(50, ErrorMessage = "Source cannot exceed 50 characters.")]
     private string? _source;
 
     [ObservableProperty]
@@ -80,16 +85,18 @@ public partial class ReferenceDataEditViewModel : ObservableObject
     {
         ErrorMessage = null;
 
-        // Validation
-        if (string.IsNullOrWhiteSpace(ExternalId))
+        // Validate all properties using ObservableValidator
+        ValidateAllProperties();
+        if (HasErrors)
         {
-            ErrorMessage = "External ID is required.";
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(Source))
-        {
-            ErrorMessage = "Source is required.";
+            // Get all errors and display the first one
+            var allErrors = GetErrors(null);
+            if (allErrors != null)
+            {
+                // ObservableValidator returns ValidationResult objects
+                var firstResult = allErrors.OfType<ValidationResult>().FirstOrDefault();
+                ErrorMessage = firstResult?.ErrorMessage ?? "Please fix validation errors before saving.";
+            }
             return;
         }
 
@@ -326,9 +333,11 @@ public partial class ReferenceDataEditViewModel : ObservableObject
                 SelectedSourceSystem = SourceSystems.FirstOrDefault(s => s.SystemId == Source);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently fail - source systems are critical, but don't block UI
+            // Log error but don't block UI - user can still edit but source selection will be empty
+            System.Diagnostics.Debug.WriteLine($"[ReferenceDataEditViewModel] Error loading source systems: {ex.Message}");
+            ErrorMessage = $"Warning: Could not load source systems. Source selection may not work correctly.";
         }
     }
 

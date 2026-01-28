@@ -18,34 +18,34 @@ public class DivisionRepository : IDivisionRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = "SELECT external_id AS ExternalId, code AS Code, name AS Name, source AS Source FROM divisions ORDER BY name";
-        return await connection.QueryAsync<Division>(sql);
+        return await connection.QueryAsync<Division>(sql).ConfigureAwait(false);
     }
 
     public async Task<Division?> GetByIdAsync(string externalId, string source)
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = "SELECT external_id AS ExternalId, code AS Code, name AS Name, source AS Source FROM divisions WHERE external_id = @ExternalId AND source = @Source";
-        return await connection.QuerySingleOrDefaultAsync<Division>(sql, new { ExternalId = externalId, Source = source });
+        return await connection.QuerySingleOrDefaultAsync<Division>(sql, new { ExternalId = externalId, Source = source }).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Division division)
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = "INSERT INTO divisions (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)";
-        return await connection.ExecuteAsync(sql, division);
+        return await connection.ExecuteAsync(sql, division).ConfigureAwait(false);
     }
 
     public async Task<int> UpdateAsync(Division division)
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = "UPDATE divisions SET code = @Code, name = @Name, source = @Source WHERE external_id = @ExternalId AND source = @Source";
-        return await connection.ExecuteAsync(sql, division);
+        return await connection.ExecuteAsync(sql, division).ConfigureAwait(false);
     }
 
     public async Task<int> DeleteAsync(string externalId, string source)
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = "DELETE FROM divisions WHERE external_id = @ExternalId AND source = @Source";
-        return await connection.ExecuteAsync(sql, new { ExternalId = externalId, Source = source });
+        return await connection.ExecuteAsync(sql, new { ExternalId = externalId, Source = source }).ConfigureAwait(false);
     }
 }

@@ -213,7 +213,7 @@ public class PersonService : IPersonService
                 END,
                 start_date DESC";
 
-        var contracts = await connection.QueryAsync<ContractDetailDto>(sql, new { PersonId = personId });
+        var contracts = await connection.QueryAsync<ContractDetailDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
         var contractsList = contracts.ToList();
 
         System.Diagnostics.Debug.WriteLine($"[PersonService] Loaded {contractsList.Count} contracts from contract_details_view");

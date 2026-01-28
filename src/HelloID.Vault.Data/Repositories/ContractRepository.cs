@@ -76,7 +76,7 @@ public class ContractRepository : IContractRepository
             ORDER BY c.start_date DESC
             LIMIT @Limit OFFSET @Offset";
 
-        return await connection.QueryAsync<ContractDto>(sql, parameters);
+        return await connection.QueryAsync<ContractDto>(sql, parameters).ConfigureAwait(false);
     }
 
     public async Task<(IEnumerable<ContractDetailDto> items, int totalCount)> GetPagedDetailsAsync(ContractFilter filter, int page, int pageSize)
@@ -118,7 +118,7 @@ public class ContractRepository : IContractRepository
 
         // Get total count
         var countSql = $"SELECT COUNT(*) FROM contract_details_view {whereClause}";
-        var totalCount = await connection.ExecuteScalarAsync<int>(countSql, parameters);
+        var totalCount = await connection.ExecuteScalarAsync<int>(countSql, parameters).ConfigureAwait(false);
 
         // Get paged data
         parameters.Add("Limit", pageSize);
@@ -182,7 +182,7 @@ public class ContractRepository : IContractRepository
             ORDER BY c.start_date DESC
             LIMIT @Limit OFFSET @Offset";
 
-        var items = await connection.QueryAsync<ContractDetailDto>(sql, parameters);
+        var items = await connection.QueryAsync<ContractDetailDto>(sql, parameters).ConfigureAwait(false);
 
         return (items, totalCount);
     }
@@ -215,7 +215,7 @@ public class ContractRepository : IContractRepository
             WHERE c.person_id = @PersonId
             ORDER BY c.start_date DESC";
 
-        return await connection.QueryAsync<ContractDto>(sql, new { PersonId = personId });
+        return await connection.QueryAsync<ContractDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
     }
 
     public async Task<Contract?> GetByIdAsync(int contractId)
@@ -258,7 +258,7 @@ public class ContractRepository : IContractRepository
             FROM contracts
             WHERE contract_id = @ContractId";
 
-        return await connection.QuerySingleOrDefaultAsync<Contract>(sql, new { ContractId = contractId });
+        return await connection.QuerySingleOrDefaultAsync<Contract>(sql, new { ContractId = contractId }).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Contract contract)
@@ -282,7 +282,7 @@ public class ContractRepository : IContractRepository
                 @TeamSource, @DepartmentSource, @DivisionSource, @TitleSource, @OrganizationSource
             )";
 
-        return await connection.ExecuteAsync(sql, contract);
+        return await connection.ExecuteAsync(sql, contract).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Contract contract, System.Data.IDbConnection connection, System.Data.IDbTransaction transaction)
@@ -304,7 +304,7 @@ public class ContractRepository : IContractRepository
                 @TeamSource, @DepartmentSource, @DivisionSource, @TitleSource, @OrganizationSource
             )";
 
-        return await connection.ExecuteAsync(sql, contract, transaction);
+        return await connection.ExecuteAsync(sql, contract, transaction).ConfigureAwait(false);
     }
 
     public async Task<int> UpdateAsync(Contract contract)
@@ -330,7 +330,7 @@ public class ContractRepository : IContractRepository
         {
             var exists = await connection.QuerySingleOrDefaultAsync<int>(
                 "SELECT COUNT(*) FROM persons WHERE person_id = @ExternalId",
-                new { ExternalId = managerId });
+                new { ExternalId = managerId }).ConfigureAwait(false);
             if (exists == 0)
             {
                 Debug.WriteLine($"[ContractRepository] Manager FK VALIDATION - Looking for person_id '{managerId}', found: {exists > 0}");
@@ -346,7 +346,7 @@ public class ContractRepository : IContractRepository
         {
             var exists = await connection.QuerySingleOrDefaultAsync<int>(
                 "SELECT COUNT(*) FROM departments WHERE external_id = @ExternalId AND source = @Source",
-                new { ExternalId = contract.DepartmentExternalId, Source = contract.DepartmentSource });
+                new { ExternalId = contract.DepartmentExternalId, Source = contract.DepartmentSource }).ConfigureAwait(false);
             if (exists == 0)
                 errors.Add($"Department '{contract.DepartmentExternalId}' not found");
         }
@@ -355,7 +355,7 @@ public class ContractRepository : IContractRepository
         {
             var exists = await connection.QuerySingleOrDefaultAsync<int>(
                 "SELECT COUNT(*) FROM locations WHERE external_id = @ExternalId AND source = @Source",
-                new { ExternalId = contract.LocationExternalId, Source = contract.LocationSource });
+                new { ExternalId = contract.LocationExternalId, Source = contract.LocationSource }).ConfigureAwait(false);
             if (exists == 0)
                 errors.Add($"Location '{contract.LocationExternalId}' not found");
         }
@@ -364,7 +364,7 @@ public class ContractRepository : IContractRepository
         {
             var exists = await connection.QuerySingleOrDefaultAsync<int>(
                 "SELECT COUNT(*) FROM titles WHERE external_id = @ExternalId AND source = @Source",
-                new { ExternalId = contract.TitleExternalId, Source = contract.TitleSource });
+                new { ExternalId = contract.TitleExternalId, Source = contract.TitleSource }).ConfigureAwait(false);
             if (exists == 0)
                 errors.Add($"Title '{contract.TitleExternalId}' not found");
         }
@@ -373,7 +373,7 @@ public class ContractRepository : IContractRepository
         {
             var exists = await connection.QuerySingleOrDefaultAsync<int>(
                 "SELECT COUNT(*) FROM organizations WHERE external_id = @ExternalId AND source = @Source",
-                new { ExternalId = contract.OrganizationExternalId, Source = contract.OrganizationSource });
+                new { ExternalId = contract.OrganizationExternalId, Source = contract.OrganizationSource }).ConfigureAwait(false);
             if (exists == 0)
                 errors.Add($"Organization '{contract.OrganizationExternalId}' not found");
         }
@@ -453,7 +453,7 @@ public class ContractRepository : IContractRepository
             contract.ContractId
         };
 
-        var rowsAffected = await connection.ExecuteAsync(sql, parameters);
+        var rowsAffected = await connection.ExecuteAsync(sql, parameters).ConfigureAwait(false);
         Debug.WriteLine($"[ContractRepository] Update completed: {rowsAffected} rows affected");
         return rowsAffected;
     }
@@ -464,7 +464,7 @@ public class ContractRepository : IContractRepository
 
         var sql = "DELETE FROM contracts WHERE contract_id = @ContractId";
 
-        return await connection.ExecuteAsync(sql, new { ContractId = contractId });
+        return await connection.ExecuteAsync(sql, new { ContractId = contractId }).ConfigureAwait(false);
     }
 
     public async Task<int> GetCountAsync(ContractFilter filter)
@@ -490,7 +490,7 @@ public class ContractRepository : IContractRepository
 
         var sql = $"SELECT COUNT(*) FROM contracts {whereClause}";
 
-        return await connection.ExecuteScalarAsync<int>(sql, parameters);
+        return await connection.ExecuteScalarAsync<int>(sql, parameters).ConfigureAwait(false);
     }
 
     public async Task<ContractJsonDto?> GetJsonViewByIdAsync(int contractId)
@@ -542,7 +542,7 @@ public class ContractRepository : IContractRepository
             FROM contract_json_view
             WHERE contract_id = @ContractId";
 
-        var result = await connection.QuerySingleOrDefaultAsync<dynamic>(sql, new { ContractId = contractId });
+        var result = await connection.QuerySingleOrDefaultAsync<dynamic>(sql, new { ContractId = contractId }).ConfigureAwait(false);
 
         if (result == null)
             return null;
@@ -688,7 +688,7 @@ public class ContractRepository : IContractRepository
             LEFT JOIN source_system ss ON c.source = ss.system_id
             ORDER BY c.start_date DESC";
 
-        return await connection.QueryAsync<ContractDetailDto>(sql);
+        return await connection.QueryAsync<ContractDetailDto>(sql).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<ContractDetailDto>> GetAllFromCacheAsync()
@@ -751,7 +751,7 @@ public class ContractRepository : IContractRepository
             LEFT JOIN source_system ss ON c.source = ss.system_id
             ORDER BY c.start_date DESC";
 
-        return await connection.QueryAsync<ContractDetailDto>(sql);
+        return await connection.QueryAsync<ContractDetailDto>(sql).ConfigureAwait(false);
     }
 
     public async Task RebuildCacheAsync()
@@ -761,17 +761,17 @@ public class ContractRepository : IContractRepository
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         // Delete existing cache data
-        await connection.ExecuteAsync("DELETE FROM contract_details_cache");
+        await connection.ExecuteAsync("DELETE FROM contract_details_cache").ConfigureAwait(false);
 
         // Rebuild cache from view
         var insertSql = @"
             INSERT INTO contract_details_cache
             SELECT * FROM contract_details_view";
 
-        await connection.ExecuteAsync(insertSql);
+        await connection.ExecuteAsync(insertSql).ConfigureAwait(false);
 
         // Update metadata
-        var rowCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM contract_details_cache");
+        var rowCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM contract_details_cache").ConfigureAwait(false);
 
         stopwatch.Stop();
 
@@ -788,7 +788,7 @@ public class ContractRepository : IContractRepository
             LastRefreshed = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
             RowCount = rowCount,
             RefreshDurationMs = stopwatch.ElapsedMilliseconds
-        });
+        }).ConfigureAwait(false);
     }
 
     public async Task RefreshContractCacheItemAsync(int contractId)
@@ -802,7 +802,7 @@ public class ContractRepository : IContractRepository
             INSERT OR REPLACE INTO contract_details_cache
             SELECT * FROM contract_details_view WHERE contract_id = @ContractId";
 
-        await connection.ExecuteAsync(refreshSql, new { ContractId = contractId });
+        await connection.ExecuteAsync(refreshSql, new { ContractId = contractId }).ConfigureAwait(false);
 
         // Update metadata with incremental refresh duration
         var updateMetadataSql = @"
@@ -818,7 +818,7 @@ public class ContractRepository : IContractRepository
             CacheName = "contract_details_cache",
             LastRefreshed = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
             RefreshDurationMs = stopwatch.ElapsedMilliseconds
-        });
+        }).ConfigureAwait(false);
     }
 
     public async Task<CacheMetadata> GetCacheMetadataAsync()
@@ -834,7 +834,7 @@ public class ContractRepository : IContractRepository
             FROM cache_metadata
             WHERE cache_name = @CacheName";
 
-        var result = await connection.QuerySingleOrDefaultAsync<CacheMetadata>(sql, new { CacheName = "contract_details_cache" });
+        var result = await connection.QuerySingleOrDefaultAsync<CacheMetadata>(sql, new { CacheName = "contract_details_cache" }).ConfigureAwait(false);
 
         return result ?? new CacheMetadata
         {

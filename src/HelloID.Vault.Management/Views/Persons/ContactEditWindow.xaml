@@ -6,9 +6,22 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
-        Height="440" Width="540"
+        SizeToContent="Height" Width="540"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
+
+    <Window.Resources>
+        <!-- Validation Error Template -->
+        <ControlTemplate x:Key="ValidationErrorTemplate">
+            <StackPanel>
+                <AdornedElementPlaceholder x:Name="adorner"/>
+                <TextBlock Text="{Binding AdornedElement.(Validation.Errors)[0].ErrorContent, ElementName=adorner}"
+                           Foreground="Red"
+                           FontSize="10"
+                           Margin="0,2,0,0"/>
+            </StackPanel>
+        </ControlTemplate>
+    </Window.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="12">
@@ -84,7 +97,7 @@
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Email" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Email, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" FontSize="12" Margin="0,0,0,6" Validation.ErrorTemplate="{StaticResource ValidationErrorTemplate}"/>
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Phone Mobile" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
                         <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PhoneMobile, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>

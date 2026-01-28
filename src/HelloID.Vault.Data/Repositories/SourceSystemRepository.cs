@@ -1,7 +1,6 @@
 using Dapper;
 using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.DTOs;
-using HelloID.Vault.Core.Utilities;
 using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Data.Repositories.Interfaces;
 
@@ -33,13 +32,7 @@ public class SourceSystemRepository : ISourceSystemRepository
             FROM source_systems_view
             ORDER BY display_name";
 
-        var results = await connection.QueryAsync<SourceSystemDto>(sql);
-
-        // Compute hash prefix for each result
-        foreach (var result in results)
-        {
-            result.HashPrefix = SourceHashProvider.GetSourceHash(result.SystemId);
-        }
+        var results = await connection.QueryAsync<SourceSystemDto>(sql).ConfigureAwait(false);
 
         return results;
     }
@@ -58,43 +51,9 @@ public class SourceSystemRepository : ISourceSystemRepository
             FROM source_systems_view
             WHERE system_id = @SystemId";
 
-        var result = await connection.QuerySingleOrDefaultAsync<SourceSystemDto>(sql, new { SystemId = systemId });
-
-        if (result != null)
-        {
-            result.HashPrefix = SourceHashProvider.GetSourceHash(result.SystemId);
-        }
+        var result = await connection.QuerySingleOrDefaultAsync<SourceSystemDto>(sql, new { SystemId = systemId }).ConfigureAwait(false);
 
         return result;
-    }
-
-    public async Task<SourceSystemDto?> GetByHashPrefixAsync(string hashPrefix)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-
-        var sql = @"
-            SELECT
-                system_id AS SystemId,
-                display_name AS DisplayName,
-                identification_key AS IdentificationKey,
-                reference_count AS ReferenceCount,
-                created_at AS CreatedAt
-            FROM source_systems_view
-            ORDER BY display_name";
-
-        var allResults = await connection.QueryAsync<SourceSystemDto>(sql);
-
-        // Compute hash for each and find the match
-        foreach (var result in allResults)
-        {
-            result.HashPrefix = SourceHashProvider.GetSourceHash(result.SystemId);
-            if (result.HashPrefix == hashPrefix)
-            {
-                return result;
-            }
-        }
-
-        return null;
     }
 
     public async Task<IEnumerable<SourceSystemDto>> GetUnusedAsync()
@@ -112,13 +71,7 @@ public class SourceSystemRepository : ISourceSystemRepository
             WHERE reference_count = 0
             ORDER BY display_name";
 
-        var results = await connection.QueryAsync<SourceSystemDto>(sql);
-
-        // Compute hash prefix for each result
-        foreach (var result in results)
-        {
-            result.HashPrefix = SourceHashProvider.GetSourceHash(result.SystemId);
-        }
+        var results = await connection.QueryAsync<SourceSystemDto>(sql).ConfigureAwait(false);
 
         return results;
     }
@@ -138,13 +91,7 @@ public class SourceSystemRepository : ISourceSystemRepository
             ORDER BY reference_count DESC
             LIMIT @Limit";
 
-        var results = await connection.QueryAsync<SourceSystemDto>(sql, new { Limit = limit });
-
-        // Compute hash prefix for each result
-        foreach (var result in results)
-        {
-            result.HashPrefix = SourceHashProvider.GetSourceHash(result.SystemId);
-        }
+        var results = await connection.QueryAsync<SourceSystemDto>(sql, new { Limit = limit }).ConfigureAwait(false);
 
         return results;
     }
@@ -157,7 +104,7 @@ public class SourceSystemRepository : ISourceSystemRepository
             INSERT OR IGNORE INTO source_system (system_id, display_name, identification_key)
             VALUES (@SystemId, @DisplayName, @IdentificationKey)";
 
-        return await connection.ExecuteAsync(sql, sourceSystem);
+        return await connection.ExecuteAsync(sql, sourceSystem).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(SourceSystem sourceSystem, System.Data.IDbConnection connection, System.Data.IDbTransaction transaction)
@@ -166,7 +113,7 @@ public class SourceSystemRepository : ISourceSystemRepository
             INSERT OR IGNORE INTO source_system (system_id, display_name, identification_key)
             VALUES (@SystemId, @DisplayName, @IdentificationKey)";
 
-        return await connection.ExecuteAsync(sql, sourceSystem, transaction);
+        return await connection.ExecuteAsync(sql, sourceSystem, transaction).ConfigureAwait(false);
     }
 
     public async Task<int> UpdateAsync(SourceSystem sourceSystem)
@@ -179,7 +126,7 @@ public class SourceSystemRepository : ISourceSystemRepository
                 identification_key = @IdentificationKey
             WHERE system_id = @SystemId";
 
-        return await connection.ExecuteAsync(sql, sourceSystem);
+        return await connection.ExecuteAsync(sql, sourceSystem).ConfigureAwait(false);
     }
 
     public async Task<int> DeleteAsync(string systemId)
@@ -188,7 +135,7 @@ public class SourceSystemRepository : ISourceSystemRepository
 
         var sql = "DELETE FROM source_system WHERE system_id = @SystemId";
 
-        return await connection.ExecuteAsync(sql, new { SystemId = systemId });
+        return await connection.ExecuteAsync(sql, new { SystemId = systemId }).ConfigureAwait(false);
     }
 
     public async Task<int> GetCountAsync()
@@ -197,7 +144,7 @@ public class SourceSystemRepository : ISourceSystemRepository
 
         var sql = "SELECT COUNT(*) FROM source_system";
 
-        return await connection.ExecuteScalarAsync<int>(sql);
+        return await connection.ExecuteScalarAsync<int>(sql).ConfigureAwait(false);
     }
 
     public async Task<bool> ExistsAsync(string systemId)
@@ -206,7 +153,7 @@ public class SourceSystemRepository : ISourceSystemRepository
 
         var sql = "SELECT COUNT(*) FROM source_system WHERE system_id = @SystemId";
 
-        var count = await connection.ExecuteScalarAsync<int>(sql, new { SystemId = systemId });
+        var count = await connection.ExecuteScalarAsync<int>(sql, new { SystemId = systemId }).ConfigureAwait(false);
 
         return count > 0;
     }
@@ -222,7 +169,7 @@ public class SourceSystemRepository : ISourceSystemRepository
             FROM source_systems_view ss
             ORDER BY ss.reference_count DESC";
 
-        var results = await connection.QueryAsync<(string DisplayName, int ReferenceCount)>(sql);
+        var results = await connection.QueryAsync<(string DisplayName, int ReferenceCount)>(sql).ConfigureAwait(false);
 
         return results.ToDictionary(x => x.DisplayName, x => x.ReferenceCount);
     }
