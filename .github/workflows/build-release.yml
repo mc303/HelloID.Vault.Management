@@ -61,11 +61,11 @@ jobs:
             $filePath = $file.FullName.Replace('\', '/')
 
             if ($fileName -eq "HelloID.Vault.Management.exe") {
-              $fileXml += "                <Component Id=`"MainExecutable`" Guid=`"*`">`n"
+              $fileXml += "                <Component Id=`"MainExecutable`" Guid=`"*`" Win64=`"yes`">`n"
               $fileXml += "                  <File Source=`"$filePath`" KeyPath=`"yes`" Checksum=`"yes`"/>`n"
               $fileXml += "                </Component>`n"
             } else {
-              $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`">`n"
+              $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`" Win64=`"yes`">`n"
               $fileXml += "                  <File Source=`"$filePath`"/>`n"
               $fileXml += "                </Component>`n"
             }
@@ -80,9 +80,10 @@ jobs:
                      Manufacturer="HelloID"
                      Version="1.0.0.0"
                      UpgradeCode="6B8FA84C-3E2A-4F8E-9B5F-1E2D3C4A5B6C"
-                     Language="1033">
+                     Language="1033"
+                     Platform="x64">
 
-              <Package InstallerVersion="200" Compressed="yes" InstallScope="perUser" />
+              <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
 
               <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
 
@@ -97,7 +98,7 @@ jobs:
 
             <Fragment>
               <Directory Id="TARGETDIR" Name="SourceDir">
-                <Directory Id="ProgramFilesFolder">
+                <Directory Id="ProgramFiles64Folder">
                   <Directory Id="INSTALLFOLDER" Name="HelloID Vault Management" />
                 </Directory>
                 <Directory Id="ProgramMenuFolder" />
@@ -112,7 +113,7 @@ jobs:
 
             <Fragment>
               <ComponentGroup Id="Shortcuts" Directory="ProgramMenuFolder">
-                <Component Id="StartMenuShortcut" Guid="*">
+                <Component Id="StartMenuShortcut" Guid="*" Win64="yes">
                   <Shortcut Id="ApplicationStartMenuShortcut"
                             Name="HelloID Vault Management"
                             Description="HelloID Vault Management Application"
