@@ -46,11 +46,22 @@ jobs:
           name: HelloID.Vault.Management-win-x64
           path: HelloID.Vault.Management-win-x64.zip
 
-      - name: Install WiX Toolset v3
-        run: choco install wixtoolset -y --no-progress
+      - name: Get version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          $version = "${{ github.ref }}" -replace "refs/tags/", ""
+          $version = $version -replace "^v", ""
+          Add-Content -Path $env:GITHUB_ENV -Value "VERSION=$version"
+
+      - name: Install WiX CLI v6
+        run: dotnet tool install --global wix --version 6.0.2
 
       - name: Create WiX configuration file
         run: |
+          # Get version from environment or use default
+          $version = "${{ env.VERSION }}"
+          if (-not $version) { $version = "1.0.0.0" }
+
           # Get all files from publish directory
           $files = Get-ChildItem -Path "publish/win-x64" -File
           $fileXml = ""
@@ -61,11 +72,11 @@ jobs:
             $filePath = $file.FullName.Replace('\', '/')
 
             if ($fileName -eq "HelloID.Vault.Management.exe") {
-              $fileXml += "                <Component Id=`"MainExecutable`" Guid=`"*`" Win64=`"yes`">`n"
+              $fileXml += "                <Component Id=`"MainExecutable`" Guid=`"*`">`n"
               $fileXml += "                  <File Source=`"$filePath`" KeyPath=`"yes`" Checksum=`"yes`"/>`n"
               $fileXml += "                </Component>`n"
             } else {
-              $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`" Win64=`"yes`">`n"
+              $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`">`n"
               $fileXml += "                  <File Source=`"$filePath`"/>`n"
               $fileXml += "                </Component>`n"
             }
@@ -74,35 +85,29 @@ jobs:
 
           @"
           <?xml version="1.0" encoding="UTF-8"?>
-          <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-            <Product Id="*"
-                     Name="HelloID Vault Management"
+          <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+            <Package Name="HelloID Vault Management"
                      Manufacturer="HelloID"
-                     Version="1.0.0.0"
+                     Version="$version"
                      UpgradeCode="6B8FA84C-3E2A-4F8E-9B5F-1E2D3C4A5B6C"
-                     Language="1033"
-                     Platform="x64">
-
-              <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
-
-              <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+                     Language="1033">
 
               <MediaTemplate EmbedCab="yes" />
+
+              <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
 
               <Feature Id="MainFeature" Title="HelloID Vault Management" Level="1">
                 <ComponentGroupRef Id="ProductComponents" />
                 <ComponentGroupRef Id="Shortcuts" />
               </Feature>
 
-            </Product>
+            </Package>
 
             <Fragment>
-              <Directory Id="TARGETDIR" Name="SourceDir">
-                <Directory Id="ProgramFiles64Folder">
-                  <Directory Id="INSTALLFOLDER" Name="HelloID Vault Management" />
-                </Directory>
-                <Directory Id="ProgramMenuFolder" />
-              </Directory>
+              <StandardDirectory Id="ProgramFiles64Folder">
+                <Directory Id="INSTALLFOLDER" Name="HelloID Vault Management" />
+              </StandardDirectory>
+              <StandardDirectory Id="ProgramMenuFolder" />
             </Fragment>
 
             <Fragment>
@@ -113,7 +118,7 @@ jobs:
 
             <Fragment>
               <ComponentGroup Id="Shortcuts" Directory="ProgramMenuFolder">
-                <Component Id="StartMenuShortcut" Guid="*" Win64="yes">
+                <Component Id="StartMenuShortcut" Guid="*">
                   <Shortcut Id="ApplicationStartMenuShortcut"
                             Name="HelloID Vault Management"
                             Description="HelloID Vault Management Application"
@@ -130,8 +135,8 @@ jobs:
 
       - name: Build MSI installer
         run: |
-          candle HelloID.Vault.Management.wxs
-          light -out HelloID.Vault.Management.msi HelloID.Vault.Management.wixobj
+          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
+          wix build HelloID.Vault.Management.wxs -out HelloID.Vault.Management.msi
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
