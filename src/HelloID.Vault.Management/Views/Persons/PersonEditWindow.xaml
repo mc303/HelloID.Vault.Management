@@ -7,9 +7,22 @@
         mc:Ignorable="d"
         ui:WindowHelper.UseModernWindowStyle="True"
          Title="{Binding WindowTitle}"
-         Height="700" Width="540"
+         SizeToContent="Height" Width="540"
          WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
+
+    <Window.Resources>
+        <!-- Validation Error Template -->
+        <ControlTemplate x:Key="ValidationErrorTemplate">
+            <StackPanel>
+                <AdornedElementPlaceholder x:Name="adorner"/>
+                <TextBlock Text="{Binding AdornedElement.(Validation.Errors)[0].ErrorContent, ElementName=adorner}"
+                           Foreground="Red"
+                           FontSize="10"
+                           Margin="0,2,0,0"/>
+            </StackPanel>
+        </ControlTemplate>
+    </Window.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="12">
@@ -58,7 +71,10 @@
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Display name *" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="0" Grid.Column="1"
+                                 Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
+                                 FontSize="12" Margin="0,0,0,6"
+                                 Validation.ErrorTemplate="{StaticResource ValidationErrorTemplate}"/>
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="External ID" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
                         <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ExternalId, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
@@ -69,9 +85,10 @@
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Source *" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
                         <ComboBox Grid.Row="3" Grid.Column="1"
                                   ItemsSource="{Binding SourceSystems}"
-                                  SelectedItem="{Binding SelectedSourceSystem}"
+                                  SelectedItem="{Binding SelectedSourceSystem, ValidatesOnDataErrors=True}"
                                   DisplayMemberPath="DisplayName"
-                                  FontSize="12" Margin="0,0,0,6"/>
+                                  FontSize="12" Margin="0,0,0,6"
+                                  Validation.ErrorTemplate="{StaticResource ValidationErrorTemplate}"/>
 
                         <TextBlock Grid.Row="4" Grid.Column="0" Text="Gender" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
                         <ComboBox Grid.Row="4" Grid.Column="1" SelectedValue="{Binding Gender, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" FontSize="12" Margin="0,0,0,6">

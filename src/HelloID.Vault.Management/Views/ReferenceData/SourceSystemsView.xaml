@@ -45,7 +45,7 @@
 
                 <!-- Search Box -->
                 <ui:AutoSuggestBox Grid.Column="1"
-                                   PlaceholderText="Search source systems (name, hash prefix, identification key)..."
+                                   PlaceholderText="Search source systems (name, identification key)..."
                                    Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                    QueryIcon="Find"
                                    VerticalAlignment="Center"
@@ -125,12 +125,6 @@
                 </DataGrid.ContextMenu>
 
                 <DataGrid.Columns>
-                    <!-- Hash Prefix (most important for debugging) -->
-                    <DataGridTextColumn Header="Hash Prefix"
-                                        Binding="{Binding HashPrefix}"
-                                        Width="100"
-                                        IsReadOnly="True"/>
-
                     <!-- System ID -->
                     <DataGridTextColumn Header="System ID"
                                         Binding="{Binding SystemId}"
@@ -195,7 +189,7 @@
 
                 <!-- Status Information -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock Text="Hash prefixes are used for namespace isolation in multi-source systems"
+                    <TextBlock Text="Source systems provide data provenance tracking and namespace isolation"
                               FontSize="12"
                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
                               VerticalAlignment="Center"/>

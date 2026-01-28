@@ -55,7 +55,7 @@ CREATE TABLE departments (
 CREATE TABLE persons (
     person_id TEXT PRIMARY KEY,
     display_name TEXT NOT NULL,
-    external_id TEXT UNIQUE,  -- Added UNIQUE constraint for foreign key references
+    external_id TEXT,  -- Allow duplicates across source systems
     user_name TEXT,
     gender TEXT,
     honorific_prefix TEXT,
@@ -78,6 +78,7 @@ CREATE TABLE persons (
     manual_excluded INTEGER DEFAULT 0,
     source TEXT,
     primary_manager_person_id TEXT,
+    primary_manager_source TEXT,
     primary_manager_updated_at TEXT,
     custom_fields TEXT DEFAULT '{}',
     FOREIGN KEY (source) REFERENCES source_system(system_id) ON DELETE SET NULL,
@@ -225,10 +226,11 @@ CREATE TABLE custom_field_schemas (
 
 -- Create indexes for performance optimization
 CREATE INDEX idx_persons_display_name ON persons(display_name);
-CREATE INDEX idx_persons_external_id ON persons(external_id);
+CREATE INDEX idx_persons_external_id_source ON persons(external_id, source);
 CREATE INDEX idx_persons_status ON persons(blocked, excluded, hr_excluded, manual_excluded);
 CREATE INDEX idx_persons_source ON persons(source);
 CREATE INDEX idx_persons_primary_manager ON persons(primary_manager_person_id);
+CREATE INDEX idx_persons_primary_manager_source ON persons(primary_manager_source);
 
 CREATE INDEX idx_contracts_person_id ON contracts(person_id);
 CREATE INDEX idx_contracts_external_id ON contracts(external_id);

@@ -22,7 +22,6 @@ public partial class SourceSystemsView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[SourceSystemsView] ===== SourceSystemsView_Loaded START =====");
 
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null)
@@ -36,12 +35,10 @@ public partial class SourceSystemsView : UserControl
             }
         }
 
-        System.Diagnostics.Debug.WriteLine("[SourceSystemsView] ===== SourceSystemsView_Loaded END =====");
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[SourceSystemsView] ===== SourceSystemsView_Unloaded START =====");
 
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null && _viewModel != null)
@@ -51,7 +48,6 @@ public partial class SourceSystemsView : UserControl
 
         _viewModel = null;
 
-        System.Diagnostics.Debug.WriteLine("[SourceSystemsView] ===== SourceSystemsView_Unloaded END =====");
     }
 
     private void ApplyColumnOrderAndWidths(DataGrid dataGrid)

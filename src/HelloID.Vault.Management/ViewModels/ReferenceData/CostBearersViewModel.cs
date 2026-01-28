@@ -16,6 +16,7 @@ public partial class CostBearersViewModel : ObservableObject
     private readonly IServiceProvider _serviceProvider;
     private readonly ISourceSystemRepository _sourceSystemRepository;
     private readonly IUserPreferencesService _userPreferencesService;
+    private readonly IDialogService _dialogService;
     private List<CostBearer> _allItems = new();
 
     [ObservableProperty] private ObservableCollection<CostBearer> _costBearers = new();
@@ -29,6 +30,7 @@ public partial class CostBearersViewModel : ObservableObject
         _referenceDataService = referenceDataService;
         _serviceProvider = serviceProvider;
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _sourceSystemRepository = serviceProvider.GetService(typeof(ISourceSystemRepository)) as ISourceSystemRepository ?? throw new InvalidOperationException("ISourceSystemRepository not registered");
     }
 
@@ -43,7 +45,7 @@ public partial class CostBearersViewModel : ObservableObject
     {
         if (IsBusy) return;
         try { IsBusy = true; _allItems = (await _referenceDataService.GetCostBearersAsync()).ToList(); ApplyFilter(); }
-        catch (Exception ex) { MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception ex) { _dialogService.ShowError($"Error: {ex.Message}", "Error"); }
         finally { IsBusy = false; }
     }
 
@@ -54,6 +56,11 @@ public partial class CostBearersViewModel : ObservableObject
     private async Task EditItemAsync()
     {
         if (SelectedCostBearer == null) return;
+        if (SelectedCostBearer.Source == null)
+        {
+            _dialogService.ShowError("Cost Bearer has no source system.", "Error");
+            return;
+        }
         var item = await _referenceDataService.GetCostBearerByIdAsync(SelectedCostBearer.ExternalId, SelectedCostBearer.Source);
         if (item == null) return;
         var vm = new ReferenceDataEditViewModel(_referenceDataService, _sourceSystemRepository, "CostBearers", item.ExternalId, item.Code, item.Name, item.Source);
@@ -65,10 +72,15 @@ public partial class CostBearersViewModel : ObservableObject
     private async Task DeleteItemAsync()
     {
         if (SelectedCostBearer == null) return;
-        if (MessageBox.Show($"Delete '{SelectedCostBearer.ExternalId}'?", "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+        if (SelectedCostBearer.Source == null)
+        {
+            _dialogService.ShowError("Cost Bearer has no source system.", "Error");
+            return;
+        }
+        if (_dialogService.ShowConfirm($"Delete '{SelectedCostBearer.ExternalId}'?", "Confirm"))
         {
             try { await _referenceDataService.DeleteCostBearerAsync(SelectedCostBearer.ExternalId, SelectedCostBearer.Source); await RefreshAsync(); }
-            catch (Exception ex) { MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+            catch (Exception ex) { _dialogService.ShowError($"Error: {ex.Message}", "Error"); }
         }
     }
 
@@ -146,7 +158,6 @@ public partial class CostBearersViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[CostBearersViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.CostBearersColumnOrder = columnNames;
     }
 
@@ -157,14 +168,6 @@ public partial class CostBearersViewModel : ObservableObject
     public List<string>? GetSavedColumnOrder()
     {
         var order = _userPreferencesService.CostBearersColumnOrder;
-        if (order == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[CostBearersViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[CostBearersViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
-        }
         return order;
     }
 
@@ -174,7 +177,6 @@ public partial class CostBearersViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[CostBearersViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.CostBearersColumnWidths = columnWidths;
     }
 
@@ -185,14 +187,6 @@ public partial class CostBearersViewModel : ObservableObject
     public Dictionary<string, double>? GetSavedColumnWidths()
     {
         var widths = _userPreferencesService.CostBearersColumnWidths;
-        if (widths == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[CostBearersViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[CostBearersViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
-        }
         return widths;
     }
 
@@ -202,7 +196,6 @@ public partial class CostBearersViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[CostBearersViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.CostBearersColumnOrder = null;
     }
 
@@ -212,7 +205,6 @@ public partial class CostBearersViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[CostBearersViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.CostBearersColumnWidths = null;
     }
 }

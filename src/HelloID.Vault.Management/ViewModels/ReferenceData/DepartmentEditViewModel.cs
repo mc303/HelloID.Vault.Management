@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -14,7 +15,7 @@ namespace HelloID.Vault.Management.ViewModels.ReferenceData;
 /// ViewModel for editing Department entities.
 /// Handles unique Department fields: DisplayName, ParentExternalId, ManagerPersonId
 /// </summary>
-public partial class DepartmentEditViewModel : ObservableObject
+public partial class DepartmentEditViewModel : ObservableValidator
 {
     private readonly IReferenceDataService _service;
     private readonly ISourceSystemRepository _sourceSystemRepository;
@@ -24,9 +25,13 @@ public partial class DepartmentEditViewModel : ObservableObject
     private string _windowTitle = string.Empty;
 
     [ObservableProperty]
+    [Required(ErrorMessage = "External ID is required.")]
+    [StringLength(200, ErrorMessage = "External ID cannot exceed 200 characters.")]
     private string _externalId = string.Empty;
 
     [ObservableProperty]
+    [Required(ErrorMessage = "Display Name is required.")]
+    [StringLength(200, ErrorMessage = "Display Name cannot exceed 200 characters.")]
     private string _displayName = string.Empty;
 
     [ObservableProperty]
@@ -39,6 +44,8 @@ public partial class DepartmentEditViewModel : ObservableObject
     private string? _managerPersonId;
 
     [ObservableProperty]
+    [Required(ErrorMessage = "Source is required.")]
+    [StringLength(50, ErrorMessage = "Source cannot exceed 50 characters.")]
     private string? _source;
 
     [ObservableProperty]
@@ -86,22 +93,18 @@ public partial class DepartmentEditViewModel : ObservableObject
     {
         ErrorMessage = null;
 
-        // Validation
-        if (string.IsNullOrWhiteSpace(ExternalId))
+        // Validate all properties using ObservableValidator
+        ValidateAllProperties();
+        if (HasErrors)
         {
-            ErrorMessage = "External ID is required.";
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(DisplayName))
-        {
-            ErrorMessage = "Display Name is required.";
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(Source))
-        {
-            ErrorMessage = "Source is required.";
+            // Get all errors and display the first one
+            var allErrors = GetErrors(null);
+            if (allErrors != null)
+            {
+                // ObservableValidator returns ValidationResult objects
+                var firstResult = allErrors.OfType<ValidationResult>().FirstOrDefault();
+                ErrorMessage = firstResult?.ErrorMessage ?? "Please fix validation errors before saving.";
+            }
             return;
         }
 

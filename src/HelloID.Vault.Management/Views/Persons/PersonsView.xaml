@@ -119,6 +119,16 @@
                     <ui:AppBarButton Icon="Refresh"
                                     Label="Refresh"
                                     Command="{Binding RefreshCommand}"/>
+                    <ui:AppBarButton Icon="Undo"
+                                    Label="Reset Settings"
+                                    Command="{Binding ResetSettingsCommand}"/>
+                    <ui:AppBarButton Icon="Add"
+                                    Label="Add Person"
+                                    Command="{Binding AddPersonCommand}"/>
+                    <ui:AppBarButton Icon="Page2"
+                                    Label="Add Contract"
+                                    Command="{Binding AddContractCommand}"
+                                    IsEnabled="{Binding IsPersonSelected}"/>
                 </StackPanel>
             </Grid>
         </Border>

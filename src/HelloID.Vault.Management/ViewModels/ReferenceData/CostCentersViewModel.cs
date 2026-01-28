@@ -16,6 +16,7 @@ public partial class CostCentersViewModel : ObservableObject
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly ISourceSystemRepository _sourceSystemRepository;
+    private readonly IDialogService _dialogService;
     private List<CostCenter> _allItems = new();
 
     [ObservableProperty] private ObservableCollection<CostCenter> _costCenters = new();
@@ -29,6 +30,7 @@ public partial class CostCentersViewModel : ObservableObject
         _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _sourceSystemRepository = serviceProvider.GetService(typeof(ISourceSystemRepository)) as ISourceSystemRepository ?? throw new InvalidOperationException("ISourceSystemRepository not registered");
     }
 
@@ -43,7 +45,7 @@ public partial class CostCentersViewModel : ObservableObject
     {
         if (IsBusy) return;
         try { IsBusy = true; _allItems = (await _referenceDataService.GetCostCentersAsync()).ToList(); ApplyFilter(); }
-        catch (Exception ex) { MessageBox.Show($"Error loading cost centers: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception ex) { _dialogService.ShowError($"Error loading cost centers: {ex.Message}", "Error"); }
         finally { IsBusy = false; }
     }
 
@@ -63,8 +65,13 @@ public partial class CostCentersViewModel : ObservableObject
     private async Task EditItemAsync()
     {
         if (SelectedCostCenter == null) return;
+        if (SelectedCostCenter.Source == null)
+        {
+            _dialogService.ShowError("Cost Center has no source system.", "Error");
+            return;
+        }
         var item = await _referenceDataService.GetCostCenterByIdAsync(SelectedCostCenter.ExternalId, SelectedCostCenter.Source);
-        if (item == null) { MessageBox.Show("Cost Center not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error); return; }
+        if (item == null) { _dialogService.ShowError("Cost Center not found.", "Error"); return; }
         var viewModel = new ReferenceDataEditViewModel(_referenceDataService, _sourceSystemRepository, "CostCenters", item.ExternalId, item.Code, item.Name, item.Source);
         var window = new ReferenceDataEditWindow();
         window.SetViewModel(viewModel);
@@ -76,10 +83,15 @@ public partial class CostCentersViewModel : ObservableObject
     private async Task DeleteItemAsync()
     {
         if (SelectedCostCenter == null) return;
-        if (MessageBox.Show($"Delete cost center '{SelectedCostCenter.ExternalId}'?", "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+        if (SelectedCostCenter.Source == null)
+        {
+            _dialogService.ShowError("Cost Center has no source system.", "Error");
+            return;
+        }
+        if (_dialogService.ShowConfirm($"Delete cost center '{SelectedCostCenter.ExternalId}'?", "Confirm"))
         {
             try { await _referenceDataService.DeleteCostCenterAsync(SelectedCostCenter.ExternalId, SelectedCostCenter.Source); await RefreshAsync(); }
-            catch (Exception ex) { MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+            catch (Exception ex) { _dialogService.ShowError($"Error: {ex.Message}", "Error"); }
         }
     }
 
@@ -149,7 +161,6 @@ public partial class CostCentersViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[CostCentersViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.CostCentersColumnOrder = columnNames;
     }
 
@@ -160,14 +171,6 @@ public partial class CostCentersViewModel : ObservableObject
     public List<string>? GetSavedColumnOrder()
     {
         var order = _userPreferencesService.CostCentersColumnOrder;
-        if (order == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[CostCentersViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[CostCentersViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
-        }
         return order;
     }
 
@@ -177,7 +180,6 @@ public partial class CostCentersViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[CostCentersViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.CostCentersColumnWidths = columnWidths;
     }
 
@@ -188,14 +190,6 @@ public partial class CostCentersViewModel : ObservableObject
     public Dictionary<string, double>? GetSavedColumnWidths()
     {
         var widths = _userPreferencesService.CostCentersColumnWidths;
-        if (widths == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[CostCentersViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[CostCentersViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
-        }
         return widths;
     }
 
@@ -205,7 +199,6 @@ public partial class CostCentersViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[CostCentersViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.CostCentersColumnOrder = null;
     }
 
@@ -215,7 +208,6 @@ public partial class CostCentersViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[CostCentersViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.CostCentersColumnWidths = null;
     }
 }

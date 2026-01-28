@@ -11,8 +11,7 @@
              Unloaded="OnUnloaded">
 
       <UserControl.Resources>
-        <!-- BindingProxy to bridge DataGridColumn (not in visual tree) to DataContext -->
-        <helpers:BindingProxy x:Key="ColumnVisibilityProxy" Data="{Binding ColumnVisibility}"/>
+        <!-- BindingProxy removed - column visibility is handled in code-behind via PropertyChanged events -->
 
         <!-- Contract Status Filter Button Styles - BasedOn shared FilterButtonBaseStyle -->
         <Style x:Key="AllButtonStyle" TargetType="Button" BasedOn="{StaticResource FilterButtonBaseStyle}">
@@ -160,7 +159,7 @@
                     <ui:AppBarButton Icon="Undo"
                                     Label="Reset Settings"
                                     Command="{Binding ResetSettingsCommand}"
-                                    ToolTip="Clear search, filters, and selection (keeps column order)"/>
+                                    ToolTip="Clear search, filters, selection, and column order"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -180,11 +179,15 @@
                      HeadersVisibility="Column"
                      RowHeaderWidth="0"
                      BorderThickness="0"
+                     FrozenColumnCount="3"
                      VirtualizingPanel.IsVirtualizing="True"
                      VirtualizingPanel.VirtualizationMode="Recycling"
                      EnableRowVirtualization="True"
+                     EnableColumnVirtualization="True"
                      ScrollViewer.CanContentScroll="True"
-                     CanUserSortColumns="True">
+                     CanUserSortColumns="True"
+                     AutomationProperties.Name="Contracts list"
+                     AutomationProperties.HelpText="Browse and search contracts. Double-click to view details.">
                 <DataGrid.InputBindings>
                     <MouseBinding Gesture="LeftDoubleClick" Command="{Binding ViewContractCommand}"/>
                 </DataGrid.InputBindings>
@@ -217,87 +220,32 @@
                     </ContextMenu>
                 </DataGrid.ContextMenu>
 
-                <DataGrid.Columns>
-                    <!-- Contract Core Fields -->
-                    <DataGridTextColumn Header="ID" Binding="{Binding ContractId}" SortMemberPath="ContractId" Width="80" Visibility="{Binding Data.ShowContractId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="ExternalID" Binding="{Binding ExternalId}" Width="120" Visibility="{Binding Data.ShowExternalId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Person ID" Binding="{Binding PersonId}" Width="150" Visibility="{Binding Data.ShowPersonId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Person Name" Binding="{Binding PersonName}" Width="180" Visibility="{Binding Data.ShowPersonName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Start Date" Binding="{Binding StartDate, StringFormat='yyyy-MM-dd'}" Width="100" Visibility="{Binding Data.ShowStartDate, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="End Date" Binding="{Binding EndDate, StringFormat='yyyy-MM-dd'}" Width="100" Visibility="{Binding Data.ShowEndDate, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Type Code" Binding="{Binding TypeCode}" Width="90" Visibility="{Binding Data.ShowTypeCode, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Type Description" Binding="{Binding TypeDescription}" Width="150" Visibility="{Binding Data.ShowTypeDescription, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="FTE" Binding="{Binding Fte, StringFormat=N2}" SortMemberPath="Fte" Width="70" Visibility="{Binding Data.ShowFte, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Hours/Week" Binding="{Binding HoursPerWeek, StringFormat=N1}" SortMemberPath="HoursPerWeek" Width="90" Visibility="{Binding Data.ShowHoursPerWeek, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Percentage" Binding="{Binding Percentage, StringFormat=N1}" SortMemberPath="Percentage" Width="90" Visibility="{Binding Data.ShowPercentage, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Sequence" Binding="{Binding Sequence}" SortMemberPath="Sequence" Width="80" Visibility="{Binding Data.ShowSequence, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding ContractStatus}" Width="90" Visibility="{Binding Data.ShowContractStatus, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="150" Visibility="{Binding Data.ShowSource, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Manager -->
-                    <DataGridTextColumn Header="Manager ExternalID" Binding="{Binding ManagerPersonId}" Width="150" Visibility="{Binding Data.ShowManagerPersonId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Manager Name" Binding="{Binding ManagerPersonName}" Width="180" Visibility="{Binding Data.ShowManagerPersonName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Location -->
-                    <DataGridTextColumn Header="Location Code" Binding="{Binding LocationCode}" Width="120" Visibility="{Binding Data.ShowLocationId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Location Name" Binding="{Binding LocationName}" Width="180" Visibility="{Binding Data.ShowLocationName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Cost Center -->
-                    <DataGridTextColumn Header="Cost Center Code" Binding="{Binding CostCenterCode}" Width="120" Visibility="{Binding Data.ShowCostCenterId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Cost Center Name" Binding="{Binding CostCenterName}" Width="180" Visibility="{Binding Data.ShowCostCenterName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Cost Bearer -->
-                    <DataGridTextColumn Header="Cost Bearer Code" Binding="{Binding CostBearerCode}" Width="120" Visibility="{Binding Data.ShowCostBearerId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Cost Bearer Name" Binding="{Binding CostBearerName}" Width="180" Visibility="{Binding Data.ShowCostBearerName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Employer -->
-                    <DataGridTextColumn Header="Employer Code" Binding="{Binding EmployerCode}" Width="120" Visibility="{Binding Data.ShowEmployerId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Employer Name" Binding="{Binding EmployerName}" Width="180" Visibility="{Binding Data.ShowEmployerName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Team -->
-                    <DataGridTextColumn Header="Team Code" Binding="{Binding TeamCode}" Width="120" Visibility="{Binding Data.ShowTeamId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Team Name" Binding="{Binding TeamName}" Width="180" Visibility="{Binding Data.ShowTeamName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Department -->
-                    <DataGridTextColumn Header="Department Name" Binding="{Binding DepartmentName}" Width="180" Visibility="{Binding Data.ShowDepartmentName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Department ExternalID" Binding="{Binding DepartmentExternalId}" Width="150" Visibility="{Binding Data.ShowDepartmentId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Department Code" Binding="{Binding DepartmentCode}" Width="120" Visibility="{Binding Data.ShowDepartmentCode, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Dept Manager" Binding="{Binding DepartmentManagerName}" Width="180" Visibility="{Binding Data.ShowDepartmentManagerName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Parent Dept" Binding="{Binding DepartmentParentDepartmentName}" Width="180" Visibility="{Binding Data.ShowDepartmentParentDepartmentName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Division -->
-                    <DataGridTextColumn Header="Division Code" Binding="{Binding DivisionCode}" Width="120" Visibility="{Binding Data.ShowDivisionId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Division Name" Binding="{Binding DivisionName}" Width="180" Visibility="{Binding Data.ShowDivisionName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Title -->
-                    <DataGridTextColumn Header="Title Code" Binding="{Binding TitleCode}" Width="120" Visibility="{Binding Data.ShowTitleId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Title Name" Binding="{Binding TitleName}" Width="180" Visibility="{Binding Data.ShowTitleName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <!-- Organization -->
-                    <DataGridTextColumn Header="Organization Code" Binding="{Binding OrganizationCode}" Width="120" Visibility="{Binding Data.ShowOrganizationId, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <DataGridTextColumn Header="Organization Name" Binding="{Binding OrganizationName}" Width="180" Visibility="{Binding Data.ShowOrganizationName, Source={StaticResource ColumnVisibilityProxy}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                </DataGrid.Columns>
+                <!-- Columns are created dynamically in code-behind via CreateAllColumns() method -->
+                <!-- This allows for runtime column visibility management via ColumnPicker -->
 
             </DataGrid>
 
             <!-- Loading Overlay with Progress -->
-            <Border Background="#CC000000"
-                   Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border Background="{DynamicResource SystemControlPageBackgroundChromeMediumBrush}"
+                   Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"
+                   AutomationProperties.Name="Loading data">
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                     <ui:ProgressRing IsActive="{Binding IsLoading}"
                                     Width="60"
                                     Height="60"
-                                    Margin="0,0,0,16"/>
+                                    Margin="0,0,0,16"
+                                    AutomationProperties.Name="Loading"/>
                     <TextBlock Text="{Binding LoadingMessage}"
                               FontSize="16"
-                              Foreground="White"
+                              Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
                               HorizontalAlignment="Center"
                               Margin="0,0,0,8"/>
                     <ProgressBar Value="{Binding LoadingProgress}"
                                 Maximum="100"
                                 Width="300"
                                 Height="6"
-                                Foreground="{DynamicResource SystemControlHighlightAccentBrush}"/>
+                                Foreground="{DynamicResource SystemControlHighlightAccentBrush}"
+                                AutomationProperties.Name="{Binding LoadingProgress, StringFormat='Loading progress {0} percent'}"/>
                 </StackPanel>
             </Border>
         </Grid>

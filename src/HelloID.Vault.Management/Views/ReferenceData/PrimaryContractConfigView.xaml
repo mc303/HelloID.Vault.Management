@@ -41,34 +41,29 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <ComboBox ItemsSource="{Binding AvailableFields}"
                               SelectedValue="{Binding SelectedFieldToAdd}"
-                              Width="180"
+                              Width="450"
                               Margin="0,0,8,0"
+                              VerticalAlignment="Center"
                               ui:ControlHelper.PlaceholderText="Add field..."/>
 
-                    <Button Command="{Binding AddFieldCommand}"
-                            Content="Add"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Width="80"
-                            FontSize="12"
-                            Margin="0,0,8,0"/>
+                    <ui:AppBarButton Icon="Add"
+                                    Label="Add"
+                                    Command="{Binding AddFieldCommand}"
+                                    Margin="0,0,8,0"/>
 
-                    <Button Command="{Binding ResetToDefaultCommand}"
-                            Content="Reset"
-                            Width="80"
-                            FontSize="12"
-                            Margin="0,0,8,0"/>
+                    <ui:AppBarButton Icon="Undo"
+                                    Label="Reset"
+                                    Command="{Binding ResetToDefaultCommand}"
+                                    Margin="0,0,8,0"/>
 
-                    <Button Command="{Binding NavigateBackCommand}"
-                            Content="Cancel"
-                            Width="80"
-                            FontSize="12"
-                            Margin="0,0,8,0"/>
+                    <ui:AppBarButton Icon="Back"
+                                    Label="Cancel"
+                                    Command="{Binding NavigateBackCommand}"
+                                    Margin="0,0,8,0"/>
 
-                    <Button Command="{Binding SaveCommand}"
-                            Content="Save"
-                            Style="{StaticResource AccentButtonStyle}"
-                            Width="80"
-                            FontSize="12"/>
+                    <ui:AppBarButton Icon="Save"
+                                    Label="Save"
+                                    Command="{Binding SaveCommand}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -124,40 +119,40 @@
                                         CornerRadius="6"
                                         Padding="12,8"
                                         Margin="0,0,0,10">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="180"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="180"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
 
-                                    <!-- Field Name -->
-                                    <TextBlock Grid.Column="0"
+                                        <!-- Field Name -->
+                                        <TextBlock Grid.Column="0"
                                                Text="{Binding FieldName}"
                                                FontSize="13"
                                                FontWeight="Bold"
                                                VerticalAlignment="Center"/>
 
-                                    <!-- Sort Order Toggle -->
+                                        <!-- Sort Order Toggle -->
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
                                             <ui:ToggleSwitch IsOn="{Binding SortOrder, Converter={StaticResource SortOrderToBoolConverter}, Mode=TwoWay}"
                                                          OffContent="Ascending"
                                                          OnContent="Descending"
                                                          Margin="0"/>
-                                    </StackPanel>
+                                        </StackPanel>
 
-                                    <!-- Active Toggle -->
-                                    <CheckBox Grid.Column="2"
+                                        <!-- Active Toggle -->
+                                        <CheckBox Grid.Column="2"
                                               IsChecked="{Binding IsActive}"
                                               Content="Active"
                                               Margin="12,0"
                                               VerticalAlignment="Center"
                                               FontSize="12"/>
 
-                                    <!-- Move/Delete Buttons -->
-                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-                                        <Button Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        <!-- Move/Delete Buttons -->
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                                            <Button Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
                                                 Content="Up"
                                                 Width="52"
@@ -166,7 +161,7 @@
                                                 Margin="0,0,6,0"
                                                 ToolTip="Move Up"/>
 
-                                        <Button Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            <Button Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
                                                 Content="Down"
                                                 Width="52"
@@ -175,21 +170,21 @@
                                                 Margin="0,0,6,0"
                                                 ToolTip="Move Down"/>
 
-                                        <Button Command="{Binding DataContext.DeleteFieldCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            <Button Command="{Binding DataContext.DeleteFieldCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
                                                 Width="32"
                                                 Height="32"
                                                 Padding="0"
                                                 FontSize="14"
                                                 ToolTip="Remove">
-                                            <ui:FontIcon Glyph="&#xE711;"/>
-                                        </Button>
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                                                <ui:FontIcon Glyph="&#xE711;"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </ScrollViewer>
 
@@ -231,28 +226,100 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="400"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Rules Info -->
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Priority Rules"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,8"/>
-                    <TextBlock FontSize="13"
-                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                               LineHeight="20">
-                        <Run Text="1. Criteria are evaluated in order (Priority 1 = highest)"/>
-                        <LineBreak/>
-                        <Run Text="2. Only active criteria are used for primary contract selection"/>
-                        <LineBreak/>
-                        <Run Text="3. Sort order: ASC (ascending) or DESC (descending)"/>
-                    </TextBlock>
-                </StackPanel>
+                <!-- Rules Info Card -->
+                <Border Grid.Column="0"
+                        Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="12"
+                        Margin="0,0,12,0">
+                    <StackPanel>
+                        <TextBlock Text="Priority Rules"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                   LineHeight="18">
+                            <Run Text="• Criteria are evaluated in order (Priority 1 = highest)"/>
+                            <LineBreak/>
+                            <Run Text="• Only active criteria are used for selection"/>
+                            <LineBreak/>
+                            <Run Text="• Sort order: ASC (ascending) or DESC (descending)"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Update Contract Cache Card -->
+                <Border Grid.Column="1"
+                        Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="12"
+                        Margin="0,0,12,0"
+                        HorizontalAlignment="Right">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:FontIcon Glyph="&#xE8AB;" Margin="0,0,8,0"/>
+                            <TextBlock Text="Update contract status"
+                                       FontWeight="SemiBold"
+                                       FontSize="13"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Update contract status values based on current dates."
+                                   FontSize="12"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                   Margin="0,8,0,12"
+                                   TextWrapping="Wrap"/>
+
+                        <Button Command="{Binding UpdateContractCacheCommand}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Width="Auto"
+                                Height="32"
+                                HorizontalAlignment="Left"
+                                IsEnabled="{Binding IsUpdatingCache, Converter={StaticResource InverseBooleanConverter}}">
+                            <Grid>
+                                <TextBlock Text="Update Contracts"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           Visibility="{Binding IsUpdatingCache, Converter={StaticResource InverseBooleanToVisibilityConverter}}"/>
+                                <ui:ProgressRing IsActive="{Binding IsUpdatingCache}"
+                                                Width="16"
+                                                Height="16"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Center"
+                                                Visibility="{Binding IsUpdatingCache, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- Status Message -->
+                        <TextBlock Text="{Binding CacheUpdateStatusMessage}"
+                                   FontSize="11"
+                                   Margin="0,12,0,0"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding CacheUpdateStatusMessage, Converter={StaticResource NullToCollapsedConverter}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#10CF85"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsUpdatingCache}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
 
                 <!-- Preview Section -->
-                <Border Grid.Column="1"
+                <Border Grid.Column="2"
                         Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
                         BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
                         BorderThickness="1"
@@ -283,12 +350,12 @@
                                        Margin="0,4,0,0"/>
                         </StackPanel>
 
-                        <Button Grid.Row="0" Grid.Column="1"
+                        <Button Grid.Row="1"
                                 Command="{Binding RunPreviewCommand}"
-                                Content="Run Preview"
-                                Width="100"
-                                FontSize="12"
-                                Height="32"/>
+                                Style="{StaticResource AccentButtonStyle}"
+                                Content="Preview"
+                                Width="Auto"
+                                Height="32" Margin="0,10,0,0" VerticalAlignment="Top"/>
                     </Grid>
                 </Border>
             </Grid>

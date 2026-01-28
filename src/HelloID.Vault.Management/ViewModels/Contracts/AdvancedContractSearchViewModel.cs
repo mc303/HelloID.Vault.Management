@@ -3,6 +3,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HelloID.Vault.Core.Models.DTOs;
+using HelloID.Vault.Services.Interfaces;
 
 namespace HelloID.Vault.Management.ViewModels.Contracts;
 
@@ -11,8 +12,17 @@ namespace HelloID.Vault.Management.ViewModels.Contracts;
 /// </summary>
 public partial class AdvancedContractSearchViewModel : ObservableObject
 {
+    private readonly IDialogService _dialogService;
+
     [ObservableProperty]
     private ObservableCollection<FilterCriteriaDto> _filters = new();
+
+    public AdvancedContractSearchViewModel(IDialogService dialogService)
+    {
+        _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+        // Start with one empty filter
+        AddFilter();
+    }
 
     /// <summary>
     /// Available field names for filtering with display names.
@@ -85,16 +95,6 @@ public partial class AdvancedContractSearchViewModel : ObservableObject
     /// Event fired when filters are cleared.
     /// </summary>
     public event EventHandler? FiltersCleared;
-
-    public AdvancedContractSearchViewModel()
-    {
-        // Start with one empty filter
-        AddFilter();
-    }
-
-    /// <summary>
-    /// Adds a new blank filter row.
-    /// </summary>
     [RelayCommand]
     private void AddFilter()
     {
@@ -147,7 +147,7 @@ public partial class AdvancedContractSearchViewModel : ObservableObject
 
         if (validFilters.Count == 0)
         {
-            MessageBox.Show("Please enter at least one filter value.", "No Filters", MessageBoxButton.OK, MessageBoxImage.Information);
+            _dialogService.ShowInfo("Please enter at least one filter value.", "No Filters");
             return;
         }
 

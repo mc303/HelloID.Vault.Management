@@ -40,12 +40,12 @@ public interface IPersonRepository
     Task<int> InsertAsync(Person person);
 
     /// <summary>
-    /// Inserts a new person using the specified connection and transaction.
+    /// Inserts a new person using specified connection and transaction.
     /// </summary>
     Task<int> InsertAsync(Person person, System.Data.IDbConnection connection, System.Data.IDbTransaction transaction);
 
     /// <summary>
-    /// Updates an existing person.
+    /// Updates an existing person (for manual edits, not for import).
     /// </summary>
     Task<int> UpdateAsync(Person person);
 

@@ -24,10 +24,6 @@ public partial class ContactEditWindow : Window
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = _viewModel;
 
-        // DEBUG: Log DataContext setup
-        System.Diagnostics.Debug.WriteLine($"ContactEditWindow.SetViewModel called - DataContext set to ContactEditViewModel");
-        System.Diagnostics.Debug.WriteLine($"ViewModel state - IsLoading: {_viewModel.IsLoading}, HasError: {!string.IsNullOrEmpty(_viewModel.ErrorMessage)}");
-
         // Initialize async (loads existing contact types for Add mode)
         await _viewModel.InitializeAsync();
     }

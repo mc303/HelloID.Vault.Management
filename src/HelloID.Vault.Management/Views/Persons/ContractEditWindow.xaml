@@ -6,9 +6,22 @@
         xmlns:ui="http://schemas.modernwpf.com/2019"
         xmlns:dotNetKitControls="clr-namespace:DotNetKit.Windows.Controls;assembly=DotNetKit.Wpf.AutoCompleteComboBox"
         mc:Ignorable="d"
-        Title="{Binding Title}" Height="750" Width="600"
+        Title="{Binding Title}" SizeToContent="Height" Width="600"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
+
+    <Window.Resources>
+        <!-- Validation Error Template -->
+        <ControlTemplate x:Key="ValidationErrorTemplate">
+            <StackPanel>
+                <AdornedElementPlaceholder x:Name="adorner"/>
+                <TextBlock Text="{Binding AdornedElement.(Validation.Errors)[0].ErrorContent, ElementName=adorner}"
+                           Foreground="Red"
+                           FontSize="10"
+                           Margin="0,2,0,0"/>
+            </StackPanel>
+        </ControlTemplate>
+    </Window.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="12">
@@ -75,11 +88,12 @@
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Source *" FontSize="12" VerticalAlignment="Center"/>
                         <ComboBox Grid.Row="3" Grid.Column="1"
                                   ItemsSource="{Binding SourceSystems}"
-                                  SelectedItem="{Binding SelectedSourceSystem}"
+                                  SelectedItem="{Binding SelectedSourceSystem, ValidatesOnDataErrors=True}"
                                   SelectedValuePath="SystemId"
                                   DisplayMemberPath="DisplayName"
-                                  SelectedValue="{Binding Contract.Source}"
-                                  FontSize="12"/>
+                                  SelectedValue="{Binding ContractSource, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
+                                  FontSize="12"
+                                  Validation.ErrorTemplate="{StaticResource ValidationErrorTemplate}"/>
                     </Grid>
 
                     <!-- Job Statistics -->

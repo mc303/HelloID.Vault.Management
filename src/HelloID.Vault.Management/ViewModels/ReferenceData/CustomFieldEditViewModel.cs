@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,7 +10,7 @@ namespace HelloID.Vault.Management.ViewModels.ReferenceData;
 /// <summary>
 /// ViewModel for adding or editing custom field schemas.
 /// </summary>
-public partial class CustomFieldEditViewModel : ObservableObject
+public partial class CustomFieldEditViewModel : ObservableValidator
 {
     private readonly ICustomFieldRepository _customFieldRepository;
     private bool _isEditMode;
@@ -19,12 +20,18 @@ public partial class CustomFieldEditViewModel : ObservableObject
     private string _windowTitle = "Add Custom Field";
 
     [ObservableProperty]
+    [Required(ErrorMessage = "Table Name is required.")]
+    [StringLength(50, ErrorMessage = "Table Name cannot exceed 50 characters.")]
     private string _tableName = "persons";
 
     [ObservableProperty]
+    [Required(ErrorMessage = "Field Key is required.")]
+    [StringLength(100, ErrorMessage = "Field Key cannot exceed 100 characters.")]
     private string _fieldKey = string.Empty;
 
     [ObservableProperty]
+    [Required(ErrorMessage = "Display Name is required.")]
+    [StringLength(200, ErrorMessage = "Display Name cannot exceed 200 characters.")]
     private string _displayName = string.Empty;
 
     [ObservableProperty]
@@ -78,22 +85,18 @@ public partial class CustomFieldEditViewModel : ObservableObject
     {
         ErrorMessage = null;
 
-        // Validation
-        if (string.IsNullOrWhiteSpace(TableName))
+        // Validate all properties using ObservableValidator
+        ValidateAllProperties();
+        if (HasErrors)
         {
-            ErrorMessage = "Table Name is required.";
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(FieldKey))
-        {
-            ErrorMessage = "Field Key is required.";
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(DisplayName))
-        {
-            ErrorMessage = "Display Name is required.";
+            // Get all errors and display the first one
+            var allErrors = GetErrors(null);
+            if (allErrors != null)
+            {
+                // ObservableValidator returns ValidationResult objects
+                var firstResult = allErrors.OfType<ValidationResult>().FirstOrDefault();
+                ErrorMessage = firstResult?.ErrorMessage ?? "Please fix validation errors before saving.";
+            }
             return;
         }
 

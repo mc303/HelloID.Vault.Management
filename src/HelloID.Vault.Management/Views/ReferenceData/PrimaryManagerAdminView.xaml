@@ -14,13 +14,14 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,32">
-            <TextBlock Text="Primary Manager Administration"
-                      FontSize="32"
+            <TextBlock Text="Primary Manager Configuration"
+                      FontSize="22"
                       FontWeight="SemiBold"/>
             <TextBlock Text="Manage and refresh primary managers for all persons"
                       FontSize="14"
@@ -215,6 +216,68 @@
                             <Setter Property="Foreground" Value="#10CF85"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsRefreshing}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Recalculate Using Primary Contract Rules -->
+        <Border Grid.Row="4"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="24"
+                Margin="0,0,0,24">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <ui:FontIcon Glyph="&#xE8AB;" Margin="0,0,8,0"/>
+                    <TextBlock Text="Recalculate Using Primary Contract Rules"
+                               FontWeight="SemiBold"
+                               FontSize="16"/>
+                </StackPanel>
+
+                <TextBlock Text="Apply the currently configured Primary Contract priority rules to recalculate all primary managers."
+                           FontSize="13"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           Margin="0,8,0,12"
+                           TextWrapping="Wrap"/>
+
+                <Button Command="{Binding RecalculateUsingContractRulesCommand}"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Width="120"
+                        Height="32"
+                        HorizontalAlignment="Left"
+                        IsEnabled="{Binding IsRecalculatingWithContractRules, Converter={StaticResource InverseBooleanConverter}}">
+                    <Grid>
+                        <TextBlock Text="Recalculate"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   Visibility="{Binding IsRecalculatingWithContractRules, Converter={StaticResource InverseBooleanToVisibilityConverter}}"/>
+                        <ui:ProgressRing IsActive="{Binding IsRecalculatingWithContractRules}"
+                                        Width="16"
+                                        Height="16"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Center"
+                                        Visibility="{Binding IsRecalculatingWithContractRules, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    </Grid>
+                </Button>
+
+                <!-- Status Message -->
+                <TextBlock Text="{Binding RecalculateContractRulesStatusMessage}"
+                           FontSize="13"
+                           Margin="0,12,0,0"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding RecalculateContractRulesStatusMessage, Converter={StaticResource NullToCollapsedConverter}}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="#10CF85"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRecalculatingWithContractRules}" Value="True">
                                     <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>

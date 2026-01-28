@@ -1,11 +1,13 @@
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.DTOs;
+using HelloID.Vault.Management.ViewModels;
 using HelloID.Vault.Services.Interfaces;
 using HelloID.Vault.Data.Repositories.Interfaces;
 
@@ -29,7 +31,7 @@ public partial class CustomFieldEditDto : ObservableObject
     private string? _value;
 }
 
-public partial class PersonEditViewModel : ObservableObject
+public partial class PersonEditViewModel : ObservableValidator
 {
     private readonly IPersonService _personService;
     private readonly ICustomFieldRepository _customFieldRepository;
@@ -44,6 +46,8 @@ public partial class PersonEditViewModel : ObservableObject
     private string _windowTitle = "Add Person";
 
     [ObservableProperty]
+    [Required(ErrorMessage = "Display name is required.")]
+    [StringLength(200, ErrorMessage = "Display name cannot exceed 200 characters.")]
     private string _displayName = string.Empty;
 
     [ObservableProperty]
@@ -130,6 +134,8 @@ public partial class PersonEditViewModel : ObservableObject
     }
 
     [ObservableProperty]
+    [Required(ErrorMessage = "Source is required.")]
+    [StringLength(50, ErrorMessage = "Source cannot exceed 50 characters.")]
     private string? _source;
 
     [ObservableProperty]
@@ -153,7 +159,6 @@ public partial class PersonEditViewModel : ObservableObject
         _sourceSystemRepository = sourceSystemRepository ?? throw new ArgumentNullException(nameof(sourceSystemRepository));
         _isEditMode = false;
         WindowTitle = "Add Person";
-        // Note: Call InitializeAsync() after construction to load data
     }
 
     /// <summary>
@@ -168,8 +173,6 @@ public partial class PersonEditViewModel : ObservableObject
         _existingPersonId = existingPerson.PersonId;
         _existingExternalId = existingPerson.ExternalId;
         WindowTitle = "Edit Person";
-
-        System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] EDIT constructor: Set Source to '{existingPerson.Source}'");
 
         // Pre-fill form with existing data
         DisplayName = existingPerson.DisplayName;
@@ -197,7 +200,6 @@ public partial class PersonEditViewModel : ObservableObject
         PrimaryManagerPersonId = existingPerson.PrimaryManagerPersonId;
         PrimaryManagerUpdatedAt = existingPerson.PrimaryManagerUpdatedAt;
         Source = existingPerson.Source;
-        // Note: Call InitializeAsync() after construction to load data
     }
 
     /// <summary>
@@ -213,58 +215,34 @@ public partial class PersonEditViewModel : ObservableObject
             IsSaving = true;
             ErrorMessage = null;
 
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] SaveAsync started - Mode: {(_isEditMode ? "EDIT" : "ADD")}");
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] ExternalId before processing: '{ExternalId}'");
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] _existingExternalId: '{_existingExternalId}'");
-
-            // Validate required fields
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Validating DisplayName: '{DisplayName}'");
-            if (string.IsNullOrWhiteSpace(DisplayName))
+            // Validate all properties using ObservableValidator
+            ValidateAllProperties();
+            if (HasErrors)
             {
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Validation failed: DisplayName is empty");
-                ErrorMessage = "Display name is required.";
+                // Get all errors and display the first one
+                var allErrors = GetErrors(null);
+                if (allErrors != null)
+                {
+                    // ObservableValidator returns ValidationResult objects
+                    var firstResult = allErrors.OfType<ValidationResult>().FirstOrDefault();
+                    ErrorMessage = firstResult?.ErrorMessage ?? "Please fix validation errors before saving.";
+                }
                 return;
             }
-
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Validating Source: '{Source}'");
-            if (string.IsNullOrWhiteSpace(Source))
-            {
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Validation failed: Source is empty");
-                ErrorMessage = "Source is required.";
-                return;
-            }
-
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Validation passed");
 
             // Fallback: if Source is empty but SelectedSourceSystem is set, use it
             if (string.IsNullOrWhiteSpace(Source) && SelectedSourceSystem != null)
             {
                 Source = SelectedSourceSystem.SystemId;
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Using SelectedSourceSystem.SystemId for Source: '{Source}'");
-            }
-
-            // Check if custom fields have values
-            var hasCustomFieldValues = CustomFields.Any(cf => !string.IsNullOrWhiteSpace(cf.Value));
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] hasCustomFieldValues: {hasCustomFieldValues}");
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] CustomFields.Count: {CustomFields.Count}");
-
-            if (hasCustomFieldValues)
-            {
-                var fieldsWithValues = CustomFields.Where(cf => !string.IsNullOrWhiteSpace(cf.Value)).Select(cf => $"{cf.FieldKey}={cf.Value}");
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Custom fields with values: {string.Join(", ", fieldsWithValues)}");
             }
 
             // Generate External ID if not provided and custom fields have values
             var externalId = ExternalId;
+            var hasCustomFieldValues = CustomFields.Any(cf => !string.IsNullOrWhiteSpace(cf.Value));
             if (string.IsNullOrWhiteSpace(externalId) && hasCustomFieldValues)
             {
                 externalId = Guid.NewGuid().ToString();
-                ExternalId = externalId; // Update the property so it's saved
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Generated new External ID: '{externalId}'");
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Using existing External ID: '{externalId}'");
+                ExternalId = externalId;
             }
 
             var person = new Person
@@ -297,43 +275,27 @@ public partial class PersonEditViewModel : ObservableObject
                 Source = Source
             };
 
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Person object created with ExternalId: '{person.ExternalId}'");
-
             if (_isEditMode)
             {
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Calling UpdateAsync for PersonId: '{person.PersonId}', ExternalId: '{person.ExternalId}'");
                 await _personService.UpdateAsync(person);
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] UpdateAsync completed successfully");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Calling CreateAsync for PersonId: '{person.PersonId}', ExternalId: '{person.ExternalId}'");
                 await _personService.CreateAsync(person);
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] CreateAsync completed successfully");
             }
-
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Person save completed");
 
             // Save custom fields if external ID is provided
             if (!string.IsNullOrWhiteSpace(person.ExternalId))
             {
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Calling SaveCustomFieldsAsync with ExternalId: '{person.ExternalId}'");
                 await SaveCustomFieldsAsync(person.ExternalId);
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Skipping SaveCustomFieldsAsync - ExternalId is empty");
             }
 
             // Close dialog with success
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] SaveAsync completed successfully, calling CloseRequested");
             CloseRequested?.Invoke(true);
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] CloseRequested invoked");
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Error saving person: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Error saving person: {ex}");
         }
         finally
         {
@@ -370,21 +332,15 @@ public partial class PersonEditViewModel : ObservableObject
     /// </summary>
     public async Task InitializeAsync()
     {
-        System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] InitializeAsync started, isEditMode={_isEditMode}");
         await LoadSourceSystemsAsync();
         if (_isEditMode)
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Calling LoadCustomFieldsAsync");
             await LoadCustomFieldsAsync();
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] LoadCustomFieldsAsync completed");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Calling LoadCustomFieldSchemasAsync");
             await LoadCustomFieldSchemasAsync();
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] LoadCustomFieldSchemasAsync completed");
         }
-        System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] InitializeAsync completed");
     }
 
     /// <summary>
@@ -394,31 +350,23 @@ public partial class PersonEditViewModel : ObservableObject
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] LoadSourceSystemsAsync called with Source: '{Source}'");
             var sourceSystems = await _sourceSystemRepository.GetAllAsync();
             SourceSystems.Clear();
             foreach (var source in sourceSystems.OrderBy(s => s.DisplayName))
             {
                 SourceSystems.Add(source);
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Added source: {source.DisplayName} (SystemId: '{source.SystemId}')");
             }
 
-            // Set SelectedSourceSystem after loading - this runs on UI thread
+            // Set SelectedSourceSystem after loading
             if (!string.IsNullOrWhiteSpace(Source))
             {
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Looking for source with SystemId: '{Source}'");
                 var matched = SourceSystems.FirstOrDefault(s => s.SystemId == Source);
                 SelectedSourceSystem = matched;
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] SelectedSourceSystem set to: {(matched?.DisplayName ?? "NULL")}");
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Source is empty, skipping SelectedSourceSystem selection");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Error loading source systems: {ex}");
+            ErrorMessage = $"Error loading source systems: {ex.Message}";
         }
     }
 
@@ -444,7 +392,7 @@ public partial class PersonEditViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading custom field schemas: {ex}");
+            ErrorMessage = $"Error loading custom field schemas: {ex.Message}";
         }
     }
 
@@ -468,7 +416,6 @@ public partial class PersonEditViewModel : ObservableObject
             CustomFields.Clear();
             foreach (var schema in schemas.OrderBy(s => s.SortOrder))
             {
-                string? value = null;
                 if (valuesDict.TryGetValue(schema.FieldKey, out var fieldValue))
                 {
                     CustomFields.Add(new CustomFieldEditDto
@@ -483,7 +430,7 @@ public partial class PersonEditViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading custom fields: {ex}");
+            ErrorMessage = $"Error loading custom fields: {ex.Message}";
         }
     }
 
@@ -494,14 +441,10 @@ public partial class PersonEditViewModel : ObservableObject
     {
         try
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] SaveCustomFieldsAsync called with externalId='{externalId}', CustomFields.Count={CustomFields.Count}");
-
-            int savedCount = 0;
             foreach (var customField in CustomFields)
             {
                 if (string.IsNullOrWhiteSpace(customField.Value))
                 {
-                    System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Skipping custom field '{customField.FieldKey}' - value is empty");
                     continue;
                 }
 
@@ -513,16 +456,11 @@ public partial class PersonEditViewModel : ObservableObject
                     TextValue = customField.Value
                 };
 
-                System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Saving custom field '{customField.FieldKey}' as text: {customField.Value}");
                 await _customFieldRepository.UpsertValueAsync(fieldValue);
-                savedCount++;
             }
-
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Successfully saved {savedCount} custom field(s)");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonEditViewModel] Error saving custom fields: {ex}");
             ErrorMessage = $"Error saving custom fields: {ex.Message}";
         }
     }

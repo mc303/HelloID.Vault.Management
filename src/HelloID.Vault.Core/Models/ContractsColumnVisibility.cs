@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using HelloID.Vault.Core.Utilities;
+using System.Collections.ObjectModel;
 
 namespace HelloID.Vault.Core.Models;
 
@@ -8,6 +10,13 @@ namespace HelloID.Vault.Core.Models;
 /// </summary>
 public partial class ContractsColumnVisibility : ObservableObject
 {
+    /// <summary>
+    /// Constructor - subscribes to property changed for debug logging.
+    /// </summary>
+    public ContractsColumnVisibility()
+    {
+        PropertyChanged += (s, e) => LogColumnChange(e.PropertyName);
+    }
     [ObservableProperty] private bool _showContractId = true;
     [ObservableProperty] private bool _showExternalId = true;
     [ObservableProperty] private bool _showPersonId = true;
@@ -24,125 +33,108 @@ public partial class ContractsColumnVisibility : ObservableObject
     [ObservableProperty] private bool _showSource = true;
     [ObservableProperty] private bool _showManagerPersonId = true;
     [ObservableProperty] private bool _showManagerPersonName = true;
-    [ObservableProperty] private bool _showLocationId = true;
+    [ObservableProperty] private bool _showLocationCode = true;
     [ObservableProperty] private bool _showLocationName = true;
-    [ObservableProperty] private bool _showCostCenterId = true;
+    [ObservableProperty] private bool _showCostCenterCode = true;
     [ObservableProperty] private bool _showCostCenterName = true;
-    [ObservableProperty] private bool _showCostBearerId = true;
+    [ObservableProperty] private bool _showCostBearerCode = true;
     [ObservableProperty] private bool _showCostBearerName = true;
-    [ObservableProperty] private bool _showEmployerId = true;
+    [ObservableProperty] private bool _showEmployerCode = true;
     [ObservableProperty] private bool _showEmployerName = true;
-    [ObservableProperty] private bool _showTeamId = true;
+    [ObservableProperty] private bool _showTeamCode = true;
     [ObservableProperty] private bool _showTeamName = true;
     [ObservableProperty] private bool _showDepartmentId = true;
     [ObservableProperty] private bool _showDepartmentName = true;
     [ObservableProperty] private bool _showDepartmentCode = true;
     [ObservableProperty] private bool _showDepartmentManagerName = true;
     [ObservableProperty] private bool _showDepartmentParentDepartmentName = true;
-    [ObservableProperty] private bool _showDivisionId = true;
+    [ObservableProperty] private bool _showDivisionCode = true;
     [ObservableProperty] private bool _showDivisionName = true;
-    [ObservableProperty] private bool _showTitleId = true;
+    [ObservableProperty] private bool _showTitleCode = true;
     [ObservableProperty] private bool _showTitleName = true;
-    [ObservableProperty] private bool _showOrganizationId = true;
+    [ObservableProperty] private bool _showOrganizationCode = true;
     [ObservableProperty] private bool _showOrganizationName = true;
 
     /// <summary>
-    /// Column name to property mapping for reflection-based operations.
+    /// Column name (display name) to visibility property mapping.
+    /// Uses centralized DataGridConstants for consistency.
     /// </summary>
-    private static readonly Dictionary<string, string> ColumnToPropertyMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        { "ContractId", nameof(ShowContractId) },
-        { "ExternalId", nameof(ShowExternalId) },
-        { "PersonId", nameof(ShowPersonId) },
-        { "PersonName", nameof(ShowPersonName) },
-        { "StartDate", nameof(ShowStartDate) },
-        { "EndDate", nameof(ShowEndDate) },
-        { "TypeCode", nameof(ShowTypeCode) },
-        { "TypeDescription", nameof(ShowTypeDescription) },
-        { "Fte", nameof(ShowFte) },
-        { "HoursPerWeek", nameof(ShowHoursPerWeek) },
-        { "Percentage", nameof(ShowPercentage) },
-        { "Sequence", nameof(ShowSequence) },
-        { "ContractStatus", nameof(ShowContractStatus) },
-        { "Source", nameof(ShowSource) },
-        { "ManagerPersonId", nameof(ShowManagerPersonId) },
-        { "ManagerPersonName", nameof(ShowManagerPersonName) },
-        { "LocationId", nameof(ShowLocationId) },
-        { "LocationName", nameof(ShowLocationName) },
-        { "CostCenterId", nameof(ShowCostCenterId) },
-        { "CostCenterName", nameof(ShowCostCenterName) },
-        { "CostBearerId", nameof(ShowCostBearerId) },
-        { "CostBearerName", nameof(ShowCostBearerName) },
-        { "EmployerId", nameof(ShowEmployerId) },
-        { "EmployerName", nameof(ShowEmployerName) },
-        { "TeamId", nameof(ShowTeamId) },
-        { "TeamName", nameof(ShowTeamName) },
-        { "DepartmentId", nameof(ShowDepartmentId) },
-        { "DepartmentName", nameof(ShowDepartmentName) },
-        { "DepartmentCode", nameof(ShowDepartmentCode) },
-        { "DepartmentManagerName", nameof(ShowDepartmentManagerName) },
-        { "DepartmentParentDepartmentName", nameof(ShowDepartmentParentDepartmentName) },
-        { "DivisionId", nameof(ShowDivisionId) },
-        { "DivisionName", nameof(ShowDivisionName) },
-        { "TitleId", nameof(ShowTitleId) },
-        { "TitleName", nameof(ShowTitleName) },
-        { "OrganizationId", nameof(ShowOrganizationId) },
-        { "OrganizationName", nameof(ShowOrganizationName) },
-    };
+    private static readonly Dictionary<string, string> ColumnToPropertyMap = DataGridConstants.Contracts.VisibilityPropertyToDisplayName
+        .ToDictionary(kvp => kvp.Value, kvp => kvp.Key, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Gets all column definitions with display names.
+    /// Gets all column definitions from centralized DataGridConstants.
     /// </summary>
-    public static List<(string ColumnName, string DisplayName, string PropertyName)> AllColumns { get; } = new()
-    {
-        ("ContractId", "ID", nameof(ShowContractId)),
-        ("ExternalId", "External ID", nameof(ShowExternalId)),
-        ("PersonId", "Person ID", nameof(ShowPersonId)),
-        ("PersonName", "Person Name", nameof(ShowPersonName)),
-        ("StartDate", "Start Date", nameof(ShowStartDate)),
-        ("EndDate", "End Date", nameof(ShowEndDate)),
-        ("TypeCode", "Type Code", nameof(ShowTypeCode)),
-        ("TypeDescription", "Type Description", nameof(ShowTypeDescription)),
-        ("Fte", "FTE", nameof(ShowFte)),
-        ("HoursPerWeek", "Hours/Week", nameof(ShowHoursPerWeek)),
-        ("Percentage", "Percentage", nameof(ShowPercentage)),
-        ("Sequence", "Sequence", nameof(ShowSequence)),
-        ("ContractStatus", "Status", nameof(ShowContractStatus)),
-        ("Source", "Source", nameof(ShowSource)),
-        ("ManagerPersonId", "Manager ID", nameof(ShowManagerPersonId)),
-        ("ManagerPersonName", "Manager Name", nameof(ShowManagerPersonName)),
-        ("LocationId", "Location Code", nameof(ShowLocationId)),
-        ("LocationName", "Location Name", nameof(ShowLocationName)),
-        ("CostCenterId", "Cost Center Code", nameof(ShowCostCenterId)),
-        ("CostCenterName", "Cost Center Name", nameof(ShowCostCenterName)),
-        ("CostBearerId", "Cost Bearer Code", nameof(ShowCostBearerId)),
-        ("CostBearerName", "Cost Bearer Name", nameof(ShowCostBearerName)),
-        ("EmployerId", "Employer Code", nameof(ShowEmployerId)),
-        ("EmployerName", "Employer Name", nameof(ShowEmployerName)),
-        ("TeamId", "Team Code", nameof(ShowTeamId)),
-        ("TeamName", "Team Name", nameof(ShowTeamName)),
-        ("DepartmentId", "Department ID", nameof(ShowDepartmentId)),
-        ("DepartmentName", "Department Name", nameof(ShowDepartmentName)),
-        ("DepartmentCode", "Department Code", nameof(ShowDepartmentCode)),
-        ("DepartmentManagerName", "Dept Manager", nameof(ShowDepartmentManagerName)),
-        ("DepartmentParentDepartmentName", "Parent Dept", nameof(ShowDepartmentParentDepartmentName)),
-        ("DivisionId", "Division Code", nameof(ShowDivisionId)),
-        ("DivisionName", "Division Name", nameof(ShowDivisionName)),
-        ("TitleId", "Title Code", nameof(ShowTitleId)),
-        ("TitleName", "Title Name", nameof(ShowTitleName)),
-        ("OrganizationId", "Organization Code", nameof(ShowOrganizationId)),
-        ("OrganizationName", "Organization Name", nameof(ShowOrganizationName)),
-    };
+    public static ReadOnlyCollection<(string ColumnName, string DisplayName, string PropertyName)> AllColumns =>
+        DataGridConstants.Contracts.AllColumns;
 
     /// <summary>
-    /// Sets visibility for a specific column by name.
+    /// Sets visibility for a specific column by name (display name like "Cost Bearer Code").
     /// </summary>
     public void SetColumnVisibility(string columnName, bool isVisible)
     {
+        System.Diagnostics.Debug.WriteLine($"[SetColumnVisibility] Called with columnName={columnName}, isVisible={isVisible}");
+        
         if (ColumnToPropertyMap.TryGetValue(columnName, out var propertyName))
         {
             var property = GetType().GetProperty(propertyName);
+            System.Diagnostics.Debug.WriteLine($"[SetColumnVisibility] Found property: {propertyName}");
             property?.SetValue(this, isVisible);
+
+            // Log the change
+            LogColumnChange(propertyName);
+
+            // Manually raise PropertyChanged since reflection bypasses the generated setter
+            System.Diagnostics.Debug.WriteLine($"[SetColumnVisibility] Raising OnPropertyChanged for: {propertyName}");
+            base.OnPropertyChanged(propertyName);
+            System.Diagnostics.Debug.WriteLine($"[SetColumnVisibility] PropertyChanged raised");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine($"[SetColumnVisibility] WARNING: Column '{columnName}' not found in ColumnToPropertyMap!");
+        }
+    }
+
+    /// <summary>
+    /// Sets visibility for a specific column by property name (like "ShowCostBearerCode").
+    /// </summary>
+    public void SetColumnVisibilityByProperty(string propertyName, bool isVisible)
+    {
+        System.Diagnostics.Debug.WriteLine($"[SetColumnVisibilityByProperty] Called with propertyName={propertyName}, isVisible={isVisible}");
+        
+        var property = GetType().GetProperty(propertyName);
+        if (property != null)
+        {
+            property?.SetValue(this, isVisible);
+
+            // Log the change
+            LogColumnChange(propertyName);
+
+            // Manually raise PropertyChanged since reflection bypasses the generated setter
+            System.Diagnostics.Debug.WriteLine($"[SetColumnVisibilityByProperty] Raising OnPropertyChanged for: {propertyName}");
+            base.OnPropertyChanged(propertyName);
+            System.Diagnostics.Debug.WriteLine($"[SetColumnVisibilityByProperty] PropertyChanged raised");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine($"[SetColumnVisibilityByProperty] WARNING: Property '{propertyName}' not found!");
+        }
+    }
+
+    /// <summary>
+    /// Logs column visibility changes - call this from property changed callbacks.
+    /// </summary>
+    public void LogColumnChange(string? propertyName)
+    {
+        if (!string.IsNullOrEmpty(propertyName))
+        {
+            var column = AllColumns.FirstOrDefault(c => c.PropertyName == propertyName);
+            if (column.ColumnName != null)
+            {
+                var property = GetType().GetProperty(propertyName);
+                var isVisible = (bool)(property?.GetValue(this) ?? true);
+                System.Diagnostics.Debug.WriteLine($"[ColumnVisibility] {column.DisplayName} ({column.ColumnName}): {(isVisible ? "SHOW" : "HIDE")}");
+            }
         }
     }
 

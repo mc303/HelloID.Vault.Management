@@ -17,6 +17,7 @@
                 <ui:ThemeResources />
                 <ui:XamlControlsResources />
                 <ResourceDictionary Source="Styles/FilterButtonStyles.xaml" />
+                <ResourceDictionary Source="Styles/ValidationStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Value Converters -->
@@ -26,6 +27,7 @@
             <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
             <converters:PersonStatusToBrushConverter x:Key="PersonStatusToBrushConverter" />
             <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
+            <converters:DateTimeFormatConverter x:Key="DateTimeFormatConverter" Format="yyyy-MM-dd" />
             <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
             <converters:StringToBooleanConverter x:Key="StringToBooleanConverter" />
             <converters:BooleanToStringConverter x:Key="BooleanToStringConverter" />

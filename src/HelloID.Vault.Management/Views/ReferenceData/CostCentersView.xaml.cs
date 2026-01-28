@@ -19,7 +19,6 @@ public partial class CostCentersView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[CostCentersView] ===== CostCentersView_Loaded START =====");
 
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null)
@@ -33,12 +32,10 @@ public partial class CostCentersView : UserControl
             }
         }
 
-        System.Diagnostics.Debug.WriteLine("[CostCentersView] ===== CostCentersView_Loaded END =====");
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[CostCentersView] ===== CostCentersView_Unloaded START =====");
 
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null && _viewModel != null)
@@ -48,7 +45,6 @@ public partial class CostCentersView : UserControl
 
         _viewModel = null;
 
-        System.Diagnostics.Debug.WriteLine("[CostCentersView] ===== CostCentersView_Unloaded END =====");
     }
 
     private void ApplyColumnOrderAndWidths(DataGrid dataGrid)

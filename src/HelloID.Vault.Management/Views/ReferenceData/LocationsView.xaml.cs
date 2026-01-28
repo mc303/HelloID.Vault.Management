@@ -19,7 +19,6 @@ public partial class LocationsView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[LocationsView] ===== LocationsView_Loaded START =====");
 
         // Add PreviewCopy command handler to intercept before DataGrid's built-in handler
         var dataGrid = FindFirstChild<DataGrid>(this);
@@ -35,12 +34,10 @@ public partial class LocationsView : UserControl
             }
         }
 
-        System.Diagnostics.Debug.WriteLine("[LocationsView] ===== LocationsView_Loaded END =====");
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[LocationsView] ===== LocationsView_Unloaded START =====");
 
         // Save column order and widths when leaving the view
         var dataGrid = FindFirstChild<DataGrid>(this);
@@ -52,7 +49,6 @@ public partial class LocationsView : UserControl
         // Clear the stored reference
         _viewModel = null;
 
-        System.Diagnostics.Debug.WriteLine("[LocationsView] ===== LocationsView_Unloaded END =====");
     }
 
     /// <summary>
@@ -62,13 +58,11 @@ public partial class LocationsView : UserControl
     {
         if (_viewModel == null) return;
 
-        System.Diagnostics.Debug.WriteLine("[LocationsView] ApplyColumnOrderAndWidths() START");
 
         // Apply saved column order
         var savedOrder = _viewModel.GetSavedColumnOrder();
         if (savedOrder != null && savedOrder.Count > 0)
         {
-            System.Diagnostics.Debug.WriteLine($"[LocationsView] Applying {savedOrder.Count} column order");
 
             for (int i = 0; i < savedOrder.Count && i < dataGrid.Columns.Count; i++)
             {
@@ -79,7 +73,6 @@ public partial class LocationsView : UserControl
                 if (column != null)
                 {
                     column.DisplayIndex = i;
-                    System.Diagnostics.Debug.WriteLine($"[LocationsView] Set column '{columnName}' DisplayIndex to {i}");
                 }
             }
         }
@@ -88,7 +81,6 @@ public partial class LocationsView : UserControl
         var savedWidths = _viewModel.GetSavedColumnWidths();
         if (savedWidths != null && savedWidths.Count > 0)
         {
-            System.Diagnostics.Debug.WriteLine($"[LocationsView] Applying {savedWidths.Count} column widths");
 
             foreach (var kvp in savedWidths)
             {
@@ -98,12 +90,10 @@ public partial class LocationsView : UserControl
                 if (column != null)
                 {
                     column.Width = new DataGridLength(kvp.Value, DataGridLengthUnitType.Pixel);
-                    System.Diagnostics.Debug.WriteLine($"[LocationsView] Set column '{kvp.Key}' width to {kvp.Value}px");
                 }
             }
         }
 
-        System.Diagnostics.Debug.WriteLine("[LocationsView] ApplyColumnOrderAndWidths() END");
     }
 
     /// <summary>
@@ -113,7 +103,6 @@ public partial class LocationsView : UserControl
     {
         if (_viewModel == null) return;
 
-        System.Diagnostics.Debug.WriteLine("[LocationsView] SaveColumnOrderAndWidths() START");
 
         // Save column order
         var columnOrder = dataGrid.Columns
@@ -124,7 +113,6 @@ public partial class LocationsView : UserControl
         if (columnOrder.Count > 0)
         {
             _viewModel.SaveColumnOrder(columnOrder);
-            System.Diagnostics.Debug.WriteLine($"[LocationsView] Saved {columnOrder.Count} column order");
         }
 
         // Save column widths (only columns that have been resized from default)
@@ -141,10 +129,8 @@ public partial class LocationsView : UserControl
         if (columnWidths.Count > 0)
         {
             _viewModel.SaveColumnWidths(columnWidths);
-            System.Diagnostics.Debug.WriteLine($"[LocationsView] Saved {columnWidths.Count} column widths");
         }
 
-        System.Diagnostics.Debug.WriteLine("[LocationsView] SaveColumnOrderAndWidths() END");
     }
 
     private void OnCopyPreviewExecuted(object sender, ExecutedRoutedEventArgs e)

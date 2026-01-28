@@ -16,6 +16,7 @@ public partial class TeamsViewModel : ObservableObject
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly ISourceSystemRepository _sourceSystemRepository;
+    private readonly IDialogService _dialogService;
     private List<Team> _allItems = new();
 
     [ObservableProperty] private ObservableCollection<Team> _teams = new();
@@ -29,6 +30,7 @@ public partial class TeamsViewModel : ObservableObject
         _referenceDataService = referenceDataService;
         _serviceProvider = serviceProvider;
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _sourceSystemRepository = serviceProvider.GetService(typeof(ISourceSystemRepository)) as ISourceSystemRepository ?? throw new InvalidOperationException("ISourceSystemRepository not registered");
     }
 
@@ -43,7 +45,7 @@ public partial class TeamsViewModel : ObservableObject
     {
         if (IsBusy) return;
         try { IsBusy = true; _allItems = (await _referenceDataService.GetTeamsAsync()).ToList(); ApplyFilter(); }
-        catch (Exception ex) { MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception ex) { _dialogService.ShowError($"Error: {ex.Message}", "Error"); }
         finally { IsBusy = false; }
     }
 
@@ -54,6 +56,11 @@ public partial class TeamsViewModel : ObservableObject
     private async Task EditItemAsync()
     {
         if (SelectedTeam == null) return;
+        if (SelectedTeam.Source == null)
+        {
+            _dialogService.ShowError("Team has no source system.", "Error");
+            return;
+        }
         var item = await _referenceDataService.GetTeamByIdAsync(SelectedTeam.ExternalId, SelectedTeam.Source);
         if (item == null) return;
         var vm = new ReferenceDataEditViewModel(_referenceDataService, _sourceSystemRepository, "Teams", item.ExternalId, item.Code, item.Name, item.Source);
@@ -65,10 +72,15 @@ public partial class TeamsViewModel : ObservableObject
     private async Task DeleteItemAsync()
     {
         if (SelectedTeam == null) return;
-        if (MessageBox.Show($"Delete '{SelectedTeam.ExternalId}'?", "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+        if (SelectedTeam.Source == null)
+        {
+            _dialogService.ShowError("Team has no source system.", "Error");
+            return;
+        }
+        if (_dialogService.ShowConfirm($"Delete '{SelectedTeam.ExternalId}'?", "Confirm"))
         {
             try { await _referenceDataService.DeleteTeamAsync(SelectedTeam.ExternalId, SelectedTeam.Source); await RefreshAsync(); }
-            catch (Exception ex) { MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }
+            catch (Exception ex) { _dialogService.ShowError($"Error: {ex.Message}", "Error"); }
         }
     }
 
@@ -138,7 +150,6 @@ public partial class TeamsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[TeamsViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.TeamsColumnOrder = columnNames;
     }
 
@@ -151,11 +162,9 @@ public partial class TeamsViewModel : ObservableObject
         var order = _userPreferencesService.TeamsColumnOrder;
         if (order == null)
         {
-            System.Diagnostics.Debug.WriteLine("[TeamsViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[TeamsViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
         }
         return order;
     }
@@ -166,7 +175,6 @@ public partial class TeamsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[TeamsViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.TeamsColumnWidths = columnWidths;
     }
 
@@ -179,11 +187,9 @@ public partial class TeamsViewModel : ObservableObject
         var widths = _userPreferencesService.TeamsColumnWidths;
         if (widths == null)
         {
-            System.Diagnostics.Debug.WriteLine("[TeamsViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[TeamsViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
         }
         return widths;
     }
@@ -194,7 +200,6 @@ public partial class TeamsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[TeamsViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.TeamsColumnOrder = null;
     }
 
@@ -204,7 +209,6 @@ public partial class TeamsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[TeamsViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.TeamsColumnWidths = null;
     }
 }

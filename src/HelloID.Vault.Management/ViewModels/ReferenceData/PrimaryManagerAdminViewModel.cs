@@ -13,6 +13,7 @@ public partial class PrimaryManagerAdminViewModel : ObservableObject
 {
     private readonly IPrimaryManagerService _primaryManagerService;
     private readonly IUserPreferencesService _userPreferencesService;
+    private readonly IDialogService _dialogService;
 
     [ObservableProperty]
     private PrimaryManagerLogic _selectedLogic = PrimaryManagerLogic.DepartmentBased;
@@ -22,6 +23,12 @@ public partial class PrimaryManagerAdminViewModel : ObservableObject
 
     [ObservableProperty]
     private string? _statusMessage;
+
+    [ObservableProperty]
+    private bool _isRecalculatingWithContractRules;
+
+    [ObservableProperty]
+    private string? _recalculateContractRulesStatusMessage;
 
     [ObservableProperty]
     private int _totalPersons;
@@ -43,10 +50,12 @@ public partial class PrimaryManagerAdminViewModel : ObservableObject
 
     public PrimaryManagerAdminViewModel(
         IPrimaryManagerService primaryManagerService,
-        IUserPreferencesService userPreferencesService)
+        IUserPreferencesService userPreferencesService,
+        IDialogService dialogService)
     {
         _primaryManagerService = primaryManagerService ?? throw new ArgumentNullException(nameof(primaryManagerService));
         _userPreferencesService = userPreferencesService ?? throw new ArgumentNullException(nameof(userPreferencesService));
+        _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
 
         // Load the last-used import logic as the default
         _selectedLogic = _userPreferencesService.LastPrimaryManagerLogic;
@@ -73,15 +82,13 @@ public partial class PrimaryManagerAdminViewModel : ObservableObject
     [RelayCommand]
     private async Task RefreshAllAsync()
     {
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"This will recalculate primary managers for all {TotalPersons} persons using {SelectedLogic} logic.\n\n" +
             "Existing primary manager values will be overwritten.\n\n" +
             "Do you want to continue?",
-            "Confirm Refresh All Primary Managers",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+            "Confirm Refresh All Primary Managers");
 
-        if (result != MessageBoxResult.Yes)
+        if (!result)
             return;
 
         try
@@ -107,6 +114,45 @@ public partial class PrimaryManagerAdminViewModel : ObservableObject
         finally
         {
             IsRefreshing = false;
+        }
+    }
+
+    /// <summary>
+    /// Recalculates all primary managers using Primary Contract Rules (ContractBased logic).
+    /// </summary>
+    [RelayCommand]
+    private async Task RecalculateUsingContractRulesAsync()
+    {
+        try
+        {
+            IsRecalculatingWithContractRules = true;
+            RecalculateContractRulesStatusMessage = null;
+
+            // Force UI update before starting heavy operation
+            await Task.Delay(1).ConfigureAwait(true);
+
+            // Run heavy work on background thread to keep UI responsive
+            int updatedCount = await Task.Run(async () =>
+            {
+                return await _primaryManagerService.RefreshAllPrimaryManagersAsync(PrimaryManagerLogic.ContractBased);
+            }).ConfigureAwait(true);
+
+            RecalculateContractRulesStatusMessage = $"Successfully updated {updatedCount:N0} primary managers using Primary Contract Rules. Changes applied.";
+
+            // Reload statistics after refresh
+            await LoadStatisticsAsync();
+
+            // Auto-clear after delay
+            await Task.Delay(5000);
+            RecalculateContractRulesStatusMessage = null;
+        }
+        catch (Exception ex)
+        {
+            RecalculateContractRulesStatusMessage = $"Failed to recalculate: {ex.Message}";
+        }
+        finally
+        {
+            IsRecalculatingWithContractRules = false;
         }
     }
 }

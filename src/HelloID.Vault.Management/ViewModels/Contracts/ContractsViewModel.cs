@@ -1,13 +1,15 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
-using System.Timers;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HelloID.Vault.Core.Models;
 using HelloID.Vault.Core.Models.DTOs;
 using HelloID.Vault.Services;
 using HelloID.Vault.Services.Interfaces;
+using HelloID.Vault.Management.Services;
 using Microsoft.Extensions.DependencyInjection;
 using HelloID.Vault.Management.Views.Contracts;
 using HelloID.Vault.Management.Views.Persons;
@@ -18,14 +20,23 @@ namespace HelloID.Vault.Management.ViewModels.Contracts;
 /// <summary>
 /// ViewModel for Contracts module.
 /// Uses in-memory filtering for fast search across all contracts.
+/// Implements IDisposable to properly clean up the debounce timer.
 /// </summary>
-public partial class ContractsViewModel : ObservableObject
+public partial class ContractsViewModel : ObservableObject, IDisposable
 {
+    // Cached reflection result for string properties in ContractDetailDto
+    private static readonly Lazy<System.Reflection.PropertyInfo[]> _stringProperties = new(() =>
+        typeof(ContractDetailDto).GetProperties()
+            .Where(p => p.PropertyType == typeof(string) && p.CanRead)
+            .ToArray());
+
     private readonly IContractService _contractService;
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserPreferencesService _userPreferencesService;
-    private readonly System.Timers.Timer _filterDebounceTimer;
-    
+    private readonly IDialogService _dialogService;
+    private readonly IColumnLayoutManager _columnLayoutManager;
+    private readonly DispatcherTimer _filterDebounceTimer;
+
     // Event raised when data is loaded and ready for column creation
     public event EventHandler? DataLoaded;
 
@@ -77,26 +88,33 @@ public partial class ContractsViewModel : ObservableObject
     [ObservableProperty]
     private int _filteredCount;
 
-    // Column visibility management
-    [ObservableProperty]
-    private ContractsColumnVisibility _columnVisibility = new();
+    // Column visibility management - delegated to ColumnLayoutManager
+    public ContractsColumnVisibility ColumnVisibility => _columnLayoutManager.ColumnVisibility;
 
-    // DataGrid reference for column operations
-    public DataGrid? ContractsDataGrid { get; set; }
+    // DataGrid reference for column operations - delegated to ColumnLayoutManager
+    public DataGrid? ContractsDataGrid
+    {
+        get => _columnLayoutManager.TargetDataGrid;
+        set => _columnLayoutManager.TargetDataGrid = value;
+    }
 
     public ContractsViewModel(IContractService contractService, IServiceProvider serviceProvider)
     {
         _contractService = contractService ?? throw new ArgumentNullException(nameof(contractService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
+        _columnLayoutManager = serviceProvider.GetRequiredService<IColumnLayoutManager>();
 
         // Initialize filter debounce timer (200ms delay)
-        _filterDebounceTimer = new System.Timers.Timer(200);
-        _filterDebounceTimer.AutoReset = false;
-        _filterDebounceTimer.Elapsed += OnFilterDebounceTimerElapsed;
+        _filterDebounceTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(200)
+        };
+        _filterDebounceTimer.Tick += OnFilterDebounceTimerElapsed;
 
-        // Initialize column visibility from preferences or defaults
-        InitializeColumnVisibility();
+        // NOTE: Column visibility is initialized in InitializeAsync(), not here.
+        // This prevents saving default values before preferences are loaded.
     }
 
     // Status filter properties with mutual exclusivity
@@ -184,13 +202,11 @@ public partial class ContractsViewModel : ObservableObject
         }
     }
 
-    private void OnFilterDebounceTimerElapsed(object? sender, ElapsedEventArgs e)
+    private void OnFilterDebounceTimerElapsed(object? sender, EventArgs e)
     {
-        // Dispatch to UI thread
-        Application.Current?.Dispatcher.Invoke(() =>
-        {
-            ApplyFilters();
-        });
+        // DispatcherTimer already runs on UI thread, no need for Dispatcher.Invoke
+        _filterDebounceTimer.Stop();
+        ApplyFilters();
     }
 
     /// <summary>
@@ -201,33 +217,22 @@ public partial class ContractsViewModel : ObservableObject
     {
         if (_isInitializing)
         {
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] InitializeAsync already in progress, skipping");
             return;
         }
 
-        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
         _isInitializing = true;
 
         try
         {
-            var cacheCheckStopwatch = System.Diagnostics.Stopwatch.StartNew();
+            // Load saved column visibility preferences FIRST
+            InitializeColumnVisibility();
 
             // Check if cache needs initialization
             var cacheMetadata = await _contractService.GetCacheMetadataAsync();
-            cacheCheckStopwatch.Stop();
-
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Cache metadata check: {cacheCheckStopwatch.ElapsedMilliseconds}ms");
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Cache row count: {cacheMetadata.RowCount}");
 
             if (cacheMetadata.RowCount == 0)
             {
-                var rebuildStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                System.Diagnostics.Debug.WriteLine("[ContractsViewModel] Cache is empty. Building initial cache...");
-
                 await _contractService.RebuildCacheAsync();
-
-                rebuildStopwatch.Stop();
-                System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Cache rebuild completed in {rebuildStopwatch.ElapsedMilliseconds}ms");
             }
 
             await LoadAllContractsAsync();
@@ -235,20 +240,13 @@ public partial class ContractsViewModel : ObservableObject
             // Auto-hide empty columns after import (only on first load after import)
             if (!_userPreferencesService.ContractsColumnVisibilityInitialized)
             {
-                var columnVisStopwatch = System.Diagnostics.Stopwatch.StartNew();
                 UpdateEmptyColumnVisibility();
-                columnVisStopwatch.Stop();
-                System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Column visibility update: {columnVisStopwatch.ElapsedMilliseconds}ms");
                 _userPreferencesService.ContractsColumnVisibilityInitialized = true;
             }
-
-            totalStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] TOTAL InitializeAsync: {totalStopwatch.ElapsedMilliseconds}ms");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Error rebuilding cache: {ex.Message}");
-            MessageBox.Show($"Error rebuilding contract cache: {ex.Message}", "Cache Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _dialogService.ShowWarning($"Error rebuilding contract cache: {ex.Message}", "Cache Error");
         }
         finally
         {
@@ -265,8 +263,6 @@ public partial class ContractsViewModel : ObservableObject
     {
         if (IsLoading) return;
 
-        var loadStopwatch = System.Diagnostics.Stopwatch.StartNew();
-
         try
         {
             IsLoading = true;
@@ -277,52 +273,37 @@ public partial class ContractsViewModel : ObservableObject
             LoadingProgress = 10;
 
             // Load from cache (fast, ~100ms)
-            var fetchStopwatch = System.Diagnostics.Stopwatch.StartNew();
             var allData = await _contractService.GetAllFromCacheAsync();
-            fetchStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Fetch from cache: {fetchStopwatch.ElapsedMilliseconds}ms ({allData.Count()} rows)");
 
             LoadingProgress = 50;
             LoadingMessage = "Processing data...";
 
-            var processStopwatch = System.Diagnostics.Stopwatch.StartNew();
             _allContracts = allData.ToList();
             TotalCount = _allContracts.Count;
-            processStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Process to list: {processStopwatch.ElapsedMilliseconds}ms");
 
             LoadingProgress = 75;
             LoadingMessage = "Applying filters...";
 
-            var filterStopwatch = System.Diagnostics.Stopwatch.StartNew();
             ApplyFilters();
-            filterStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Apply filters: {filterStopwatch.ElapsedMilliseconds}ms");
 
             LoadingProgress = 90;
             LoadingMessage = "Restoring state...";
 
             // Restore persisted state (search, filters, selection)
-            var stateStopwatch = System.Diagnostics.Stopwatch.StartNew();
             LoadPersistedState();
-            stateStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Restore state: {stateStopwatch.ElapsedMilliseconds}ms");
 
             LoadingProgress = 100;
             LoadingMessage = "Complete!";
-            
+
             // Signal view that data is ready for column creation
             DataLoaded?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading contracts: {ex.Message}");
-            MessageBox.Show($"Error loading contracts: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error loading contracts: {ex.Message}", "Error");
         }
         finally
         {
-            loadStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] TOTAL LoadAllContractsAsync: {loadStopwatch.ElapsedMilliseconds}ms");
             IsLoading = false;
             IsBusy = false;
         }
@@ -358,10 +339,8 @@ public partial class ContractsViewModel : ObservableObject
         {
             var searchTerm = SearchText.Trim();
 
-            // Get all string properties for comprehensive search
-            var stringProperties = typeof(ContractDetailDto).GetProperties()
-                .Where(p => p.PropertyType == typeof(string) && p.CanRead)
-                .ToList();
+            // Use cached string properties for better performance
+            var stringProperties = _stringProperties.Value;
 
             filtered = filtered.Where(c =>
                 stringProperties.Any(prop =>
@@ -372,11 +351,13 @@ public partial class ContractsViewModel : ObservableObject
             );
         }
 
-        // Update display collection - replace entire collection for performance
+        // Update display collection efficiently
         var results = filtered.ToList();
         FilteredCount = results.Count;
 
-        Contracts = new ObservableCollection<ContractDetailDto>(results);
+        Contracts.Clear();
+        foreach (var item in results)
+            Contracts.Add(item);
     }
 
     /// <summary>
@@ -587,10 +568,7 @@ public partial class ContractsViewModel : ObservableObject
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] RefreshAsync START");
         if (IsLoading) return;
-
-        var loadStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         try
         {
@@ -602,55 +580,39 @@ public partial class ContractsViewModel : ObservableObject
             LoadingProgress = 10;
 
             // Load from cache (fast, ~100ms)
-            var fetchStopwatch = System.Diagnostics.Stopwatch.StartNew();
             var allData = await _contractService.GetAllFromCacheAsync();
-            fetchStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Fetch from cache: {fetchStopwatch.ElapsedMilliseconds}ms ({allData.Count()} rows)");
 
             LoadingProgress = 50;
             LoadingMessage = "Processing data...";
 
-            var processStopwatch = System.Diagnostics.Stopwatch.StartNew();
             _allContracts = allData.ToList();
             TotalCount = _allContracts.Count;
-            processStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Process to list: {processStopwatch.ElapsedMilliseconds}ms");
 
             LoadingProgress = 75;
             LoadingMessage = "Applying filters...";
 
-            var filterStopwatch = System.Diagnostics.Stopwatch.StartNew();
             ApplyFilters();
-            filterStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Apply filters: {filterStopwatch.ElapsedMilliseconds}ms");
 
             LoadingProgress = 90;
             LoadingMessage = "Restoring state...";
 
             // Restore persisted state (search, filters, selection)
-            var stateStopwatch = System.Diagnostics.Stopwatch.StartNew();
             LoadPersistedState();
-            stateStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] Restore state: {stateStopwatch.ElapsedMilliseconds}ms");
 
             LoadingProgress = 100;
             LoadingMessage = "Complete!";
 
             // Signal view that data is ready for column creation
             DataLoaded?.Invoke(this, EventArgs.Empty);
-
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] RefreshAsync COMPLETE - loaded {_allContracts.Count} contracts");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] RefreshAsync error: {ex}");
+            _dialogService.ShowError($"Error refreshing contracts: {ex.Message}", "Error");
         }
         finally
         {
             IsLoading = false;
             IsBusy = false;
-            loadStopwatch.Stop();
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] RefreshAsync total time: {loadStopwatch.ElapsedMilliseconds}ms");
         }
     }
 
@@ -660,11 +622,9 @@ public partial class ContractsViewModel : ObservableObject
     [RelayCommand]
     private void AddContract()
     {
-        MessageBox.Show(
+        _dialogService.ShowInfo(
             "To add a contract, please navigate to a person's detail view.",
-            "Add Contract",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+            "Add Contract");
     }
 
     /// <summary>
@@ -680,7 +640,7 @@ public partial class ContractsViewModel : ObservableObject
             var contract = await _contractService.GetByIdAsync(SelectedContract.ContractId);
             if (contract == null)
             {
-                MessageBox.Show("Contract not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _dialogService.ShowError("Contract not found.", "Error");
                 return;
             }
 
@@ -699,7 +659,7 @@ public partial class ContractsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error opening contract window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error opening contract window: {ex.Message}", "Error");
         }
     }
 
@@ -716,7 +676,7 @@ public partial class ContractsViewModel : ObservableObject
             var contractJson = await _contractService.GetContractJsonByIdAsync(SelectedContract.ContractId);
             if (contractJson == null)
             {
-                MessageBox.Show("Contract not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _dialogService.ShowError("Contract not found.", "Error");
                 return;
             }
 
@@ -728,7 +688,7 @@ public partial class ContractsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error opening contract window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error opening contract window: {ex.Message}", "Error");
         }
     }
 
@@ -740,13 +700,11 @@ public partial class ContractsViewModel : ObservableObject
     {
         if (SelectedContract == null) return;
 
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"Are you sure you want to delete contract {SelectedContract.ContractId}?",
-            "Delete Contract",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            "Delete Contract");
 
-        if (result == MessageBoxResult.Yes)
+        if (result)
         {
             try
             {
@@ -755,11 +713,9 @@ public partial class ContractsViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                _dialogService.ShowError(
                     $"Error deleting contract: {ex.Message}",
-                    "Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                    "Error");
             }
         }
     }
@@ -807,29 +763,21 @@ public partial class ContractsViewModel : ObservableObject
 
     /// <summary>
     /// Initializes column visibility from preferences or defaults.
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     private void InitializeColumnVisibility()
     {
-        var saved = _userPreferencesService.ContractsColumnVisibility;
-        if (saved != null)
-        {
-            // Merge saved visibility with defaults (handles new columns added later)
-            ColumnVisibility = saved;
-        }
-        else
-        {
-            // Use defaults (all visible)
-            ColumnVisibility = new ContractsColumnVisibility();
-        }
+        _columnLayoutManager.InitializeColumnVisibility();
     }
 
     /// <summary>
     /// Opens the column picker dialog.
     /// </summary>
     [RelayCommand]
-    private void ShowColumnPicker()
+    private async Task ShowColumnPickerAsync()
     {
-        System.Diagnostics.Debug.WriteLine($"[ShowColumnPicker] Opening dialog, initial ShowContractId={ColumnVisibility.ShowContractId}");
+        Debug.WriteLine($"[ContractsViewModel] ShowColumnPickerAsync called");
+        Debug.WriteLine($"[ContractsViewModel] this type: {GetType().Name}");
 
         var dialog = new ColumnPickerDialog
         {
@@ -838,73 +786,50 @@ public partial class ContractsViewModel : ObservableObject
             TargetDataGrid = ContractsDataGrid
         };
 
+        Debug.WriteLine($"[ContractsViewModel] Dialog DataContext type: {dialog.DataContext?.GetType().Name}");
+
         if (dialog.ShowDialog() == true)
         {
-            System.Diagnostics.Debug.WriteLine($"[ShowColumnPicker] Dialog closed with OK, ShowContractId={ColumnVisibility.ShowContractId}");
-            // Save to preferences
+            // Save to preferences - await to ensure file is written before continuing
             _userPreferencesService.ContractsColumnVisibility = ColumnVisibility;
-            System.Diagnostics.Debug.WriteLine($"[ShowColumnPicker] Saved to preferences");
+            await _userPreferencesService.SaveAsync();
         }
     }
 
     /// <summary>
     /// Detects and hides columns that have no data after import.
     /// Called after data import to automatically hide empty columns.
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     public void UpdateEmptyColumnVisibility()
     {
-        if (_allContracts.Count == 0) return;
-
-        foreach (var (columnName, _, _) in ContractsColumnVisibility.AllColumns)
-        {
-            // Check if any contract has non-null/empty value for this column
-            var hasData = _allContracts.Any(c =>
-            {
-                var property = typeof(ContractDetailDto).GetProperty(columnName);
-                if (property == null) return false;
-
-                var value = property.GetValue(c);
-                if (value == null) return false;
-
-                // For strings, check if not whitespace
-                if (value is string str)
-                    return !string.IsNullOrWhiteSpace(str);
-
-                // For other types, any non-null value counts as data
-                return true;
-            });
-
-            // Only hide if completely empty - don't auto-show columns that were hidden
-            if (!hasData && ColumnVisibility.GetColumnVisibility(columnName))
-            {
-                ColumnVisibility.SetColumnVisibility(columnName, false);
-            }
-        }
-
-        // Save updated visibility
-        _userPreferencesService.ContractsColumnVisibility = ColumnVisibility;
+        _columnLayoutManager.UpdateEmptyColumnVisibility(_allContracts);
     }
 
     /// <summary>
     /// Hides columns that have no data (command version for UI binding).
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     [RelayCommand]
     private void HideEmptyColumns()
     {
-        UpdateEmptyColumnVisibility();
+        _columnLayoutManager.HideEmptyColumns(_allContracts);
     }
 
     /// <summary>
     /// Shows all columns.
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     [RelayCommand]
-    private void ShowAllColumns()
+    public async Task ShowAllColumnsAsync()
     {
-        foreach (var (columnName, _, _) in ContractsColumnVisibility.AllColumns)
-        {
-            ColumnVisibility.SetColumnVisibility(columnName, true);
-        }
-        _userPreferencesService.ContractsColumnVisibility = ColumnVisibility;
+        Debug.WriteLine("[ContractsViewModel] ========== ShowAllColumnsAsync START ==========");
+        Debug.WriteLine($"[ContractsViewModel] Thread: {Thread.CurrentThread.ManagedThreadId}");
+        Debug.WriteLine($"[ContractsViewModel] _columnLayoutManager is null: {_columnLayoutManager == null}");
+
+        await _columnLayoutManager.ShowAllColumnsAsync();
+
+        Debug.WriteLine("[ContractsViewModel] ========== ShowAllColumnsAsync END ==========");
     }
 
     /// <summary>
@@ -1009,87 +934,69 @@ public partial class ContractsViewModel : ObservableObject
     /// <summary>
     /// Saves the current column order to preferences.
     /// Called from view when columns are reordered.
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
-        _userPreferencesService.ContractsColumnOrder = columnNames;
+        _columnLayoutManager.SaveColumnOrder(columnNames);
     }
 
     /// <summary>
     /// Gets the saved column order from preferences.
     /// Called from view to restore column order.
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     public List<string>? GetSavedColumnOrder()
     {
-        var order = _userPreferencesService.ContractsColumnOrder;
-        if (order == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[ContractsViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
-        }
-        return order;
+        return _columnLayoutManager.GetSavedColumnOrder();
     }
 
     /// <summary>
     /// Resets the saved column order to default (XAML order).
     /// Called from ColumnPickerDialog.
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     public void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[ContractsViewModel] ResetColumnOrder() - Clearing saved column order");
-        _userPreferencesService.ContractsColumnOrder = null;
+        _columnLayoutManager.ResetColumnOrder();
     }
 
     /// <summary>
     /// Saves the current column widths to preferences.
     /// Called from view when column widths are changed.
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
-        _userPreferencesService.ContractsColumnWidths = columnWidths;
+        _columnLayoutManager.SaveColumnWidths(columnWidths);
     }
 
     /// <summary>
     /// Gets the saved column widths from preferences.
     /// Called from view to restore column widths.
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     public Dictionary<string, double>? GetSavedColumnWidths()
     {
-        var widths = _userPreferencesService.ContractsColumnWidths;
-        if (widths == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[ContractsViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[ContractsViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
-        }
-        return widths;
+        return _columnLayoutManager.GetSavedColumnWidths();
     }
 
     /// <summary>
     /// Resets the saved column widths to default (XAML widths).
+    /// Delegates to ColumnLayoutManager.
     /// </summary>
     public void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[ContractsViewModel] ResetColumnWidths() - Clearing saved column widths");
-        _userPreferencesService.ContractsColumnWidths = null;
+        _columnLayoutManager.ResetColumnWidths();
     }
 
     /// <summary>
-    /// Resets all settings except column order.
-    /// Clears search text, status filter, advanced filters, and selection.
+    /// Resets all settings including column order.
+    /// Clears search text, status filter, advanced filters, selection, and column order.
     /// </summary>
     [RelayCommand]
     private void ResetSettings()
     {
-        System.Diagnostics.Debug.WriteLine("[ContractsViewModel] ResetSettings() - Clearing all settings except column order");
-
         // Clear search text
         SearchText = string.Empty;
 
@@ -1111,10 +1018,31 @@ public partial class ContractsViewModel : ObservableObject
         // Clear selection
         SelectedContract = null;
 
-        // Clear saved preferences (except column order)
+        // Clear saved preferences
         _userPreferencesService.LastSelectedContractId = null;
         _userPreferencesService.LastContractSearchText = null;
         _userPreferencesService.LastContractStatusFilter = null;
         _userPreferencesService.LastContractAdvancedFilters = null;
+
+        // Reset column order and widths to default
+        ResetColumnOrder();
+        ResetColumnWidths();
+
+        // Physically reset column DisplayIndex to match default order
+        if (ContractsDataGrid != null)
+        {
+            for (int i = 0; i < ContractsDataGrid.Columns.Count; i++)
+            {
+                ContractsDataGrid.Columns[i].DisplayIndex = i;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Disposes of resources including the debounce timer.
+    /// </summary>
+    public void Dispose()
+    {
+        _filterDebounceTimer?.Stop();
     }
 }

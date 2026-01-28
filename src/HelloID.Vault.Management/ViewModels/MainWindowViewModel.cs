@@ -5,9 +5,8 @@ using HelloID.Vault.Management.ViewModels.Persons;
 using HelloID.Vault.Management.ViewModels.Contracts;
 using HelloID.Vault.Management.ViewModels.Import;
 using HelloID.Vault.Management.ViewModels.ReferenceData;
+using HelloID.Vault.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
-using System.Diagnostics;
-using System.Windows;
 
 namespace HelloID.Vault.Management.ViewModels;
 
@@ -18,6 +17,7 @@ public partial class MainWindowViewModel : ObservableObject
 {
     private readonly INavigationService _navigationService;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IDialogService _dialogService;
 
     [ObservableProperty]
     private ObservableObject? _currentViewModel;
@@ -29,15 +29,13 @@ public partial class MainWindowViewModel : ObservableObject
     {
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _navigationService.NavigationChanged += OnNavigationChanged;
     }
 
     private void OnNavigationChanged(object? sender, ObservableObject viewModel)
     {
-        var viewName = viewModel?.GetType().Name.Replace("ViewModel", "") ?? "null";
-        Debug.WriteLine($"[NAV-CHANGE] CurrentViewModel changing to {viewName}");
         CurrentViewModel = viewModel;
-        Debug.WriteLine($"[NAV-CHANGE] CurrentViewModel changed to {viewName}");
     }
 
     /// <summary>
@@ -46,27 +44,17 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void NavigateToPersons()
     {
-        var stopwatch = Stopwatch.StartNew();
-        Debug.WriteLine($"[NAV-TIMER] Persons navigation START");
-
         var viewModel = _serviceProvider.GetRequiredService<PersonsViewModel>();
         CurrentViewModel = viewModel;
         _ = viewModel.InitializeAsync();
-
-        Debug.WriteLine($"[NAV-TIMER] Persons navigation END: {stopwatch.ElapsedMilliseconds}ms");
     }
 
     [RelayCommand]
     private void NavigateToContracts()
     {
-        var stopwatch = Stopwatch.StartNew();
-        Debug.WriteLine($"[NAV-TIMER] Contracts navigation START");
-
         var viewModel = _serviceProvider.GetRequiredService<ContractsViewModel>();
         CurrentViewModel = viewModel;
         _ = viewModel.InitializeAsync();
-
-        Debug.WriteLine($"[NAV-TIMER] Contracts navigation END: {stopwatch.ElapsedMilliseconds}ms");
     }
 
     /// <summary>
@@ -225,9 +213,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to open Primary Contract Configuration: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            // Log the full exception details for debugging
-            System.Diagnostics.Debug.WriteLine($"PrimaryContractConfig navigation failed: {ex}");
+            _dialogService.ShowError($"Failed to open Primary Contract Configuration: {ex.Message}", "Error");
         }
     }
 
@@ -245,8 +231,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Failed to open Primary Manager Administration: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            System.Diagnostics.Debug.WriteLine($"PrimaryManagerAdmin navigation failed: {ex}");
+            _dialogService.ShowError($"Failed to open Primary Manager Administration: {ex.Message}", "Error");
         }
     }
 }

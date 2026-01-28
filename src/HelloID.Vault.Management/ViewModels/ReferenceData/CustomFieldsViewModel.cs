@@ -18,6 +18,7 @@ public partial class CustomFieldsViewModel : ObservableObject
     private readonly ICustomFieldRepository _customFieldRepository;
     private readonly IServiceProvider _serviceProvider;
     private readonly IUserPreferencesService _userPreferencesService;
+    private readonly IDialogService _dialogService;
     private List<CustomFieldSchema> _allCustomFields = new();
 
     [ObservableProperty]
@@ -57,6 +58,7 @@ public partial class CustomFieldsViewModel : ObservableObject
         _customFieldRepository = customFieldRepository ?? throw new ArgumentNullException(nameof(customFieldRepository));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
     }
 
     public async Task InitializeAsync()
@@ -90,7 +92,7 @@ public partial class CustomFieldsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading custom fields: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error loading custom fields: {ex.Message}", "Error");
         }
         finally
         {
@@ -165,13 +167,11 @@ public partial class CustomFieldsViewModel : ObservableObject
     {
         if (SelectedCustomField == null) return;
 
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"Are you sure you want to delete custom field '{SelectedCustomField.DisplayName}' ({SelectedCustomField.FieldKey})?\n\nThis will not delete existing field values, but the field will no longer appear in edit forms.",
-            "Confirm Delete",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+            "Confirm Delete");
 
-        if (result == MessageBoxResult.Yes)
+        if (result)
         {
             try
             {
@@ -180,7 +180,7 @@ public partial class CustomFieldsViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error deleting custom field: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _dialogService.ShowError($"Error deleting custom field: {ex.Message}", "Error");
             }
         }
     }
@@ -289,7 +289,6 @@ public partial class CustomFieldsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[CustomFieldsViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.CustomFieldsColumnOrder = columnNames;
     }
 
@@ -302,11 +301,9 @@ public partial class CustomFieldsViewModel : ObservableObject
         var order = _userPreferencesService.CustomFieldsColumnOrder;
         if (order == null)
         {
-            System.Diagnostics.Debug.WriteLine("[CustomFieldsViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[CustomFieldsViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
         }
         return order;
     }
@@ -317,7 +314,6 @@ public partial class CustomFieldsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[CustomFieldsViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.CustomFieldsColumnWidths = columnWidths;
     }
 
@@ -330,11 +326,9 @@ public partial class CustomFieldsViewModel : ObservableObject
         var widths = _userPreferencesService.CustomFieldsColumnWidths;
         if (widths == null)
         {
-            System.Diagnostics.Debug.WriteLine("[CustomFieldsViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[CustomFieldsViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
         }
         return widths;
     }
@@ -345,7 +339,6 @@ public partial class CustomFieldsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[CustomFieldsViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.CustomFieldsColumnOrder = null;
     }
 
@@ -355,7 +348,6 @@ public partial class CustomFieldsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[CustomFieldsViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.CustomFieldsColumnWidths = null;
     }
 }

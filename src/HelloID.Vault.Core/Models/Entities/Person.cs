@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace HelloID.Vault.Core.Models.Entities;
 
 /// <summary>
@@ -6,7 +8,11 @@ namespace HelloID.Vault.Core.Models.Entities;
 public class Person
 {
     public string PersonId { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Display name is required.")]
+    [StringLength(200, ErrorMessage = "Display name cannot exceed 200 characters.")]
     public string DisplayName { get; set; } = string.Empty;
+
     public string? ExternalId { get; set; }
     public string? UserName { get; set; }
     public string? Gender { get; set; }
@@ -28,9 +34,13 @@ public class Person
     public bool Excluded { get; set; }
     public bool HrExcluded { get; set; }
     public bool ManualExcluded { get; set; }
+
+    [Required(ErrorMessage = "Source is required.")]
+    [StringLength(50, ErrorMessage = "Source cannot exceed 50 characters.")]
     public string? Source { get; set; }
 
     // Primary Manager fields
     public string? PrimaryManagerPersonId { get; set; }
+    public string? PrimaryManagerSource { get; set; }
     public string? PrimaryManagerUpdatedAt { get; set; }
 }

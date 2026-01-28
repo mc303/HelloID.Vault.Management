@@ -12,12 +12,13 @@ namespace HelloID.Vault.Management.ViewModels.ReferenceData;
 
 /// <summary>
 /// ViewModel for Source Systems reference data management.
-/// Provides enhanced view of source systems with hash prefixes and usage statistics.
+/// Provides enhanced view of source systems with usage statistics.
 /// </summary>
 public partial class SourceSystemsViewModel : ObservableObject
 {
     private readonly ISourceSystemRepository _sourceSystemRepository;
     private readonly IUserPreferencesService _userPreferencesService;
+    private readonly IDialogService _dialogService;
 
     [ObservableProperty]
     private ObservableCollection<SourceSystemDto> _sourceSystems = new();
@@ -41,6 +42,7 @@ public partial class SourceSystemsViewModel : ObservableObject
     {
         _sourceSystemRepository = sourceSystemRepository ?? throw new ArgumentNullException(nameof(sourceSystemRepository));
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
     }
 
     public async Task InitializeAsync()
@@ -69,7 +71,6 @@ public partial class SourceSystemsViewModel : ObservableObject
                 filteredItems = _allItems
                     .Where(item =>
                         item.DisplayName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                        item.HashPrefix.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
                         item.IdentificationKey.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
                     .ToList();
             }
@@ -85,8 +86,7 @@ public partial class SourceSystemsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading source systems: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error loading source systems: {ex.Message}", "Error");
         }
         finally
         {
@@ -111,7 +111,6 @@ public partial class SourceSystemsViewModel : ObservableObject
             filteredItems = _allItems
                 .Where(item =>
                     item.DisplayName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                    item.HashPrefix.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
                     item.IdentificationKey.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
@@ -140,13 +139,12 @@ public partial class SourceSystemsViewModel : ObservableObject
             var message = string.Join(Environment.NewLine,
                 statistics.Select(x => $"{x.Key}: {x.Value} references"));
 
-            MessageBox.Show($"Source System Usage Statistics:{Environment.NewLine}{Environment.NewLine}{message}",
-                "Usage Statistics", MessageBoxButton.OK, MessageBoxImage.Information);
+            _dialogService.ShowInfo($"Source System Usage Statistics:{Environment.NewLine}{Environment.NewLine}{message}",
+                "Usage Statistics");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading usage statistics: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error loading usage statistics: {ex.Message}", "Error");
         }
     }
 
@@ -162,21 +160,19 @@ public partial class SourceSystemsViewModel : ObservableObject
             if (unusedSystems.Any())
             {
                 var message = string.Join(Environment.NewLine,
-                    unusedSystems.Select(x => $"{x.DisplayName} ({x.HashPrefix})"));
+                    unusedSystems.Select(x => $"{x.DisplayName} ({x.SystemId})"));
 
-                MessageBox.Show($"Unused Source Systems ({unusedSystems.Count()}):{Environment.NewLine}{Environment.NewLine}{message}",
-                    "Unused Source Systems", MessageBoxButton.OK, MessageBoxImage.Information);
+                _dialogService.ShowInfo($"Unused Source Systems ({unusedSystems.Count()}):{Environment.NewLine}{Environment.NewLine}{message}",
+                    "Unused Source Systems");
             }
             else
             {
-                MessageBox.Show("All source systems are in use.", "Unused Source Systems",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                _dialogService.ShowInfo("All source systems are in use.", "Unused Source Systems");
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading unused source systems: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error loading unused source systems: {ex.Message}", "Error");
         }
         finally
         {
@@ -257,8 +253,7 @@ public partial class SourceSystemsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error opening add source system dialog: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error opening add source system dialog: {ex.Message}", "Error");
         }
     }
 
@@ -269,8 +264,7 @@ public partial class SourceSystemsViewModel : ObservableObject
         {
             if (SelectedSourceSystem == null)
             {
-                MessageBox.Show("Please select a source system to edit.", "No Selection",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                _dialogService.ShowWarning("Please select a source system to edit.", "No Selection");
                 return;
             }
 
@@ -285,8 +279,7 @@ public partial class SourceSystemsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error opening edit source system dialog: {ex.Message}", "Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error opening edit source system dialog: {ex.Message}", "Error");
         }
     }
 
@@ -298,7 +291,6 @@ public partial class SourceSystemsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[SourceSystemsViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.SourceSystemsColumnOrder = columnNames;
     }
 
@@ -311,11 +303,9 @@ public partial class SourceSystemsViewModel : ObservableObject
         var order = _userPreferencesService.SourceSystemsColumnOrder;
         if (order == null)
         {
-            System.Diagnostics.Debug.WriteLine("[SourceSystemsViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[SourceSystemsViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
         }
         return order;
     }
@@ -326,7 +316,6 @@ public partial class SourceSystemsViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[SourceSystemsViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.SourceSystemsColumnWidths = columnWidths;
     }
 
@@ -339,11 +328,9 @@ public partial class SourceSystemsViewModel : ObservableObject
         var widths = _userPreferencesService.SourceSystemsColumnWidths;
         if (widths == null)
         {
-            System.Diagnostics.Debug.WriteLine("[SourceSystemsViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine($"[SourceSystemsViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
         }
         return widths;
     }
@@ -354,7 +341,6 @@ public partial class SourceSystemsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[SourceSystemsViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.SourceSystemsColumnOrder = null;
     }
 
@@ -364,7 +350,6 @@ public partial class SourceSystemsViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[SourceSystemsViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.SourceSystemsColumnWidths = null;
     }
 }

@@ -3,11 +3,24 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.modernwpf.com/2019"
         Title="{Binding WindowTitle}"
-        Height="290"
+        SizeToContent="Height"
         Width="420"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ui:WindowHelper.UseModernWindowStyle="True">
+
+    <Window.Resources>
+        <!-- Validation Error Template -->
+        <ControlTemplate x:Key="ValidationErrorTemplate">
+            <StackPanel>
+                <AdornedElementPlaceholder x:Name="adorner"/>
+                <TextBlock Text="{Binding AdornedElement.(Validation.Errors)[0].ErrorContent, ElementName=adorner}"
+                           Foreground="Red"
+                           FontSize="10"
+                           Margin="0,2,0,0"/>
+            </StackPanel>
+        </ControlTemplate>
+    </Window.Resources>
 
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -59,10 +72,11 @@
                        VerticalAlignment="Center"
                        Margin="0,0,0,6"/>
             <TextBox Grid.Row="0" Grid.Column="1"
-                     Text="{Binding ExternalId, UpdateSourceTrigger=PropertyChanged}"
+                     Text="{Binding ExternalId, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
                      IsReadOnly="{Binding IsExternalIdReadOnly}"
                      FontSize="12"
                      Margin="0,0,0,6"
+                     Validation.ErrorTemplate="{StaticResource ValidationErrorTemplate}"
                      ui:ControlHelper.PlaceholderText="Enter external ID"/>
 
             <!-- Code -->
@@ -96,11 +110,12 @@
                        VerticalAlignment="Center"/>
             <ComboBox Grid.Row="3" Grid.Column="1"
                       ItemsSource="{Binding SourceSystems}"
-                      SelectedItem="{Binding SelectedSourceSystem}"
+                      SelectedItem="{Binding SelectedSourceSystem, ValidatesOnDataErrors=True}"
                       SelectedValuePath="SystemId"
                       DisplayMemberPath="DisplayName"
-                      SelectedValue="{Binding Source}"
-                      FontSize="12"/>
+                      SelectedValue="{Binding Source, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
+                      FontSize="12"
+                      Validation.ErrorTemplate="{StaticResource ValidationErrorTemplate}"/>
         </Grid>
 
         <!-- Buttons -->

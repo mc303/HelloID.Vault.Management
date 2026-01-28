@@ -19,7 +19,6 @@ public partial class CostBearersView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[CostBearersView] ===== CostBearersView_Loaded START =====");
 
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null)
@@ -33,12 +32,10 @@ public partial class CostBearersView : UserControl
             }
         }
 
-        System.Diagnostics.Debug.WriteLine("[CostBearersView] ===== CostBearersView_Loaded END =====");
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[CostBearersView] ===== CostBearersView_Unloaded START =====");
 
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null && _viewModel != null)
@@ -48,14 +45,12 @@ public partial class CostBearersView : UserControl
 
         _viewModel = null;
 
-        System.Diagnostics.Debug.WriteLine("[CostBearersView] ===== CostBearersView_Unloaded END =====");
     }
 
     private void ApplyColumnOrderAndWidths(DataGrid dataGrid)
     {
         if (_viewModel == null) return;
 
-        System.Diagnostics.Debug.WriteLine("[CostBearersView] ApplyColumnOrderAndWidths() START");
 
         var savedOrder = _viewModel.GetSavedColumnOrder();
         if (savedOrder != null && savedOrder.Count > 0)
@@ -88,14 +83,12 @@ public partial class CostBearersView : UserControl
             }
         }
 
-        System.Diagnostics.Debug.WriteLine("[CostBearersView] ApplyColumnOrderAndWidths() END");
     }
 
     private void SaveColumnOrderAndWidths(DataGrid dataGrid)
     {
         if (_viewModel == null) return;
 
-        System.Diagnostics.Debug.WriteLine("[CostBearersView] SaveColumnOrderAndWidths() START");
 
         var columnOrder = dataGrid.Columns
             .OrderBy(c => c.DisplayIndex)
@@ -122,7 +115,6 @@ public partial class CostBearersView : UserControl
             _viewModel.SaveColumnWidths(columnWidths);
         }
 
-        System.Diagnostics.Debug.WriteLine("[CostBearersView] SaveColumnOrderAndWidths() END");
     }
 
     private void OnCopyPreviewExecuted(object sender, ExecutedRoutedEventArgs e)

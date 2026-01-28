@@ -1,7 +1,4 @@
-using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Diagnostics;
 using HelloID.Vault.Management.ViewModels.Persons;
 using ModernWpf.Controls;
 
@@ -22,11 +19,8 @@ public partial class PersonsView : UserControl
     /// Called when view is loaded. Attaches scroll event for infinite scrolling.
     /// Note: ViewModel is already initialized by navigation command.
     /// </summary>
-    private async void PersonsView_Loaded(object sender, RoutedEventArgs e)
+    private async void PersonsView_Loaded(object sender, System.Windows.RoutedEventArgs e)
     {
-        var stopwatch = Stopwatch.StartNew();
-        Debug.WriteLine($"[VIEW-LOAD] PersonsView Loaded START");
-
         if (DataContext is PersonsViewModel viewModel)
         {
             // Attach scroll event handler for infinite scrolling
@@ -39,8 +33,6 @@ public partial class PersonsView : UserControl
                 }
             }
         }
-
-        Debug.WriteLine($"[VIEW-LOAD] PersonsView Loaded END: {stopwatch.ElapsedMilliseconds}ms");
     }
 
     /// <summary>
@@ -68,7 +60,7 @@ public partial class PersonsView : UserControl
     /// <summary>
     /// Helper method to find the ScrollViewer inside a ListBox.
     /// </summary>
-    private ScrollViewer? GetScrollViewer(DependencyObject element)
+    private ScrollViewer? GetScrollViewer(System.Windows.DependencyObject element)
     {
         if (element is ScrollViewer scrollViewer)
         {
@@ -97,7 +89,5 @@ public partial class PersonsView : UserControl
         // Force the binding to update the source (ViewModel property)
         var bindingExpression = sender.GetBindingExpression(ModernWpf.Controls.AutoSuggestBox.TextProperty);
         bindingExpression?.UpdateSource();
-
-        System.Diagnostics.Debug.WriteLine($"[PersonsView] AutoSuggestBox_TextChanged called, Text='{sender.Text}'");
     }
 }

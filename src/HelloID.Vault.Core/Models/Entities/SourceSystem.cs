@@ -25,12 +25,6 @@ public class SourceSystem
     public string IdentificationKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// Computed: The 5-character hash prefix used for namespace isolation
-    /// Examples: "YSjln", "u5r5g" (derived from SystemId using SourceHashProvider)
-    /// </summary>
-    public string HashPrefix { get; set; } = string.Empty;
-
-    /// <summary>
     /// Computed: Number of records that reference this source system
     /// Used for data usage statistics and cleanup decisions
     /// </summary>

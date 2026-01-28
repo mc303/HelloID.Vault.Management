@@ -35,7 +35,7 @@ public class CustomFieldRepository : ICustomFieldRepository
             WHERE table_name = @TableName
             ORDER BY sort_order, display_name";
 
-        return await connection.QueryAsync<CustomFieldSchema>(sql, new { TableName = tableName });
+        return await connection.QueryAsync<CustomFieldSchema>(sql, new { TableName = tableName }).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<CustomFieldValue>> GetValuesAsync(string entityId, string tableName)
@@ -50,7 +50,7 @@ public class CustomFieldRepository : ICustomFieldRepository
             FROM {tableNameColumn}
             WHERE external_id = @EntityId";
 
-        var customFieldsJson = await connection.QueryFirstOrDefaultAsync<string?>(sql, new { EntityId = entityId });
+        var customFieldsJson = await connection.QueryFirstOrDefaultAsync<string?>(sql, new { EntityId = entityId }).ConfigureAwait(false);
 
         if (string.IsNullOrEmpty(customFieldsJson))
         {
@@ -109,7 +109,7 @@ public class CustomFieldRepository : ICustomFieldRepository
             ValidationRegex = schema.ValidationRegex,
             SortOrder = schema.SortOrder,
             HelpText = schema.HelpText
-        });
+        }).ConfigureAwait(false);
 
         // Backfill: Add the new field to all existing records with null value
         var tableName = schema.TableName == "persons" ? "persons" : "contracts";
@@ -122,7 +122,7 @@ public class CustomFieldRepository : ICustomFieldRepository
             )
             WHERE custom_fields IS NOT NULL";
 
-        await connection.ExecuteAsync(backfillSql, new { Value = (object?)null });
+        await connection.ExecuteAsync(backfillSql, new { Value = (object?)null }).ConfigureAwait(false);
 
         return result;
     }
@@ -147,7 +147,7 @@ public class CustomFieldRepository : ICustomFieldRepository
             ValidationRegex = schema.ValidationRegex,
             SortOrder = schema.SortOrder,
             HelpText = schema.HelpText
-        });
+        }).ConfigureAwait(false);
     }
 
     public async Task<int> DeleteSchemaAsync(string id)
@@ -156,7 +156,7 @@ public class CustomFieldRepository : ICustomFieldRepository
 
         var sql = "DELETE FROM custom_field_schemas WHERE field_key = @FieldKey";
 
-        return await connection.ExecuteAsync(sql, new { FieldKey = id });
+        return await connection.ExecuteAsync(sql, new { FieldKey = id }).ConfigureAwait(false);
     }
 
     public async Task<int> UpsertValueAsync(CustomFieldValue value)
@@ -177,7 +177,7 @@ public class CustomFieldRepository : ICustomFieldRepository
                 )
                 WHERE external_id = @EntityId";
 
-            return await connection.ExecuteAsync(sql, new { EntityId = value.EntityId, Value = (object?)null });
+            return await connection.ExecuteAsync(sql, new { EntityId = value.EntityId, Value = (object?)null }).ConfigureAwait(false);
         }
         else
         {
@@ -190,7 +190,7 @@ public class CustomFieldRepository : ICustomFieldRepository
                 )
                 WHERE external_id = @EntityId";
 
-            return await connection.ExecuteAsync(sql, new { EntityId = value.EntityId, Value = value.TextValue });
+            return await connection.ExecuteAsync(sql, new { EntityId = value.EntityId, Value = value.TextValue }).ConfigureAwait(false);
         }
     }
 
@@ -203,6 +203,6 @@ public class CustomFieldRepository : ICustomFieldRepository
             SET custom_fields = NULL
             WHERE external_id = @EntityId";
 
-        return await connection.ExecuteAsync(sql, new { EntityId = entityId });
+        return await connection.ExecuteAsync(sql, new { EntityId = entityId }).ConfigureAwait(false);
     }
 }

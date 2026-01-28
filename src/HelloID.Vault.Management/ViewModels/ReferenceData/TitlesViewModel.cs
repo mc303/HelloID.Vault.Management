@@ -16,6 +16,7 @@ public partial class TitlesViewModel : ObservableObject
     private readonly IServiceProvider _serviceProvider;
     private readonly ISourceSystemRepository _sourceSystemRepository;
     private readonly IUserPreferencesService _userPreferencesService;
+    private readonly IDialogService _dialogService;
     private List<Title> _allTitles = new();
 
     [ObservableProperty]
@@ -38,6 +39,7 @@ public partial class TitlesViewModel : ObservableObject
         _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _userPreferencesService = serviceProvider.GetRequiredService<IUserPreferencesService>();
+        _dialogService = serviceProvider.GetRequiredService<IDialogService>();
         _sourceSystemRepository = serviceProvider.GetService(typeof(ISourceSystemRepository)) as ISourceSystemRepository ?? throw new InvalidOperationException("ISourceSystemRepository not registered");
     }
 
@@ -59,7 +61,7 @@ public partial class TitlesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error loading titles: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError($"Error loading titles: {ex.Message}", "Error");
         }
         finally
         {
@@ -84,10 +86,15 @@ public partial class TitlesViewModel : ObservableObject
     private async Task EditItemAsync()
     {
         if (SelectedTitle == null) return;
+        if (SelectedTitle.Source == null)
+        {
+            _dialogService.ShowError("Title has no source system.", "Error");
+            return;
+        }
         var title = await _referenceDataService.GetTitleByIdAsync(SelectedTitle.ExternalId, SelectedTitle.Source);
         if (title == null)
         {
-            MessageBox.Show("Title not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            _dialogService.ShowError("Title not found.", "Error");
             return;
         }
         var viewModel = new ReferenceDataEditViewModel(_referenceDataService, _sourceSystemRepository, "Titles", title.ExternalId, title.Code, title.Name, title.Source);
@@ -101,8 +108,13 @@ public partial class TitlesViewModel : ObservableObject
     private async Task DeleteItemAsync()
     {
         if (SelectedTitle == null) return;
-        var result = MessageBox.Show($"Are you sure you want to delete title '{SelectedTitle.ExternalId}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (result == MessageBoxResult.Yes)
+        if (SelectedTitle.Source == null)
+        {
+            _dialogService.ShowError("Title has no source system.", "Error");
+            return;
+        }
+        var result = _dialogService.ShowConfirm($"Are you sure you want to delete title '{SelectedTitle.ExternalId}'?", "Confirm Delete");
+        if (result)
         {
             try
             {
@@ -111,7 +123,7 @@ public partial class TitlesViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error deleting title: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _dialogService.ShowError($"Error deleting title: {ex.Message}", "Error");
             }
         }
     }
@@ -192,7 +204,6 @@ public partial class TitlesViewModel : ObservableObject
     /// </summary>
     public void SaveColumnOrder(List<string> columnNames)
     {
-        System.Diagnostics.Debug.WriteLine($"[TitlesViewModel] SaveColumnOrder() - Saving {columnNames.Count} columns: [{string.Join(", ", columnNames)}]");
         _userPreferencesService.TitlesColumnOrder = columnNames;
     }
 
@@ -203,14 +214,6 @@ public partial class TitlesViewModel : ObservableObject
     public List<string>? GetSavedColumnOrder()
     {
         var order = _userPreferencesService.TitlesColumnOrder;
-        if (order == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[TitlesViewModel] GetSavedColumnOrder() - Returning null (no saved order)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[TitlesViewModel] GetSavedColumnOrder() - Returning {order.Count} columns: [{string.Join(", ", order)}]");
-        }
         return order;
     }
 
@@ -220,7 +223,6 @@ public partial class TitlesViewModel : ObservableObject
     /// </summary>
     public void SaveColumnWidths(Dictionary<string, double> columnWidths)
     {
-        System.Diagnostics.Debug.WriteLine($"[TitlesViewModel] SaveColumnWidths() - Saving {columnWidths.Count} column widths");
         _userPreferencesService.TitlesColumnWidths = columnWidths;
     }
 
@@ -231,14 +233,6 @@ public partial class TitlesViewModel : ObservableObject
     public Dictionary<string, double>? GetSavedColumnWidths()
     {
         var widths = _userPreferencesService.TitlesColumnWidths;
-        if (widths == null)
-        {
-            System.Diagnostics.Debug.WriteLine("[TitlesViewModel] GetSavedColumnWidths() - Returning null (no saved widths)");
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine($"[TitlesViewModel] GetSavedColumnWidths() - Returning {widths.Count} column widths");
-        }
         return widths;
     }
 
@@ -248,7 +242,6 @@ public partial class TitlesViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnOrder()
     {
-        System.Diagnostics.Debug.WriteLine("[TitlesViewModel] ResetColumnOrder() - Clearing saved column order");
         _userPreferencesService.TitlesColumnOrder = null;
     }
 
@@ -258,7 +251,6 @@ public partial class TitlesViewModel : ObservableObject
     [RelayCommand]
     private void ResetColumnWidths()
     {
-        System.Diagnostics.Debug.WriteLine("[TitlesViewModel] ResetColumnWidths() - Clearing saved column widths");
         _userPreferencesService.TitlesColumnWidths = null;
     }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using HelloID.Vault.Management.ViewModels.Contracts;
@@ -14,6 +15,30 @@ public partial class ColumnPickerDialog : Window
     public ColumnPickerDialog()
     {
         InitializeComponent();
+        Debug.WriteLine("[ColumnPickerDialog] Constructor called");
+        this.Loaded += (s, e) => Debug.WriteLine($"[ColumnPickerDialog] Loaded event - DataContext type: {DataContext?.GetType().Name}");
+    }
+
+    private async void OnSelectAllClick(object sender, RoutedEventArgs e)
+    {
+        Debug.WriteLine("[ColumnPickerDialog] OnSelectAllClick called");
+        if (DataContext is ContractsViewModel viewModel)
+        {
+            Debug.WriteLine($"[ColumnPickerDialog] Got ContractsViewModel, calling ShowAllColumnsAsync");
+            await viewModel.ShowAllColumnsAsync();
+        }
+        else
+        {
+            Debug.WriteLine($"[ColumnPickerDialog] ERROR: DataContext is {DataContext?.GetType().Name}, not ContractsViewModel");
+        }
+    }
+
+    private void OnHideEmptyColumnsClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ContractsViewModel viewModel)
+        {
+            viewModel.HideEmptyColumnsCommand.Execute(null);
+        }
     }
 
     private void OnOkClick(object sender, RoutedEventArgs e)
@@ -31,7 +56,6 @@ public partial class ColumnPickerDialog : Window
             {
                 TargetDataGrid.Columns[i].DisplayIndex = i;
             }
-            System.Diagnostics.Debug.WriteLine("[ColumnPickerDialog] Reset column order to default");
         }
 
         // Clear the saved preference

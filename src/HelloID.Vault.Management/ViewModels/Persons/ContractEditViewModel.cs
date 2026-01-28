@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel.DataAnnotations;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,7 +10,7 @@ using SourceSystemDto = HelloID.Vault.Core.Models.DTOs.SourceSystemDto;
 
 namespace HelloID.Vault.Management.ViewModels.Persons;
 
-public partial class ContractEditViewModel : ObservableObject
+public partial class ContractEditViewModel : ObservableValidator
 {
     private readonly IContractService _contractService;
     private readonly IReferenceDataService _referenceDataService;
@@ -19,6 +20,36 @@ public partial class ContractEditViewModel : ObservableObject
 
     [ObservableProperty]
     private Contract _contract;
+
+    // Wrapper property for Contract.Source to enable validation
+    [Required(ErrorMessage = "Source is required.")]
+    [StringLength(50, ErrorMessage = "Source cannot exceed 50 characters.")]
+    private string? _contractSource;
+
+    // Expose Contract.Source for binding with validation
+    public string? ContractSource
+    {
+        get => _contractSource ?? Contract?.Source;
+        set
+        {
+            if (Contract != null)
+            {
+                Contract.Source = value;
+                _contractSource = value;
+                ValidateProperty(value, nameof(ContractSource));
+                OnPropertyChanged(nameof(ContractSource));
+            }
+        }
+    }
+
+    partial void OnContractChanged(Contract? value)
+    {
+        if (value != null)
+        {
+            _contractSource = value.Source;
+            OnPropertyChanged(nameof(ContractSource));
+        }
+    }
 
     [ObservableProperty]
     private bool _isEditing;
@@ -45,17 +76,6 @@ public partial class ContractEditViewModel : ObservableObject
     public ObservableCollection<CostBearer> CostBearers { get; } = new();
     public ObservableCollection<Person> Managers { get; } = new();
     public ObservableCollection<SourceSystemDto> SourceSystems { get; } = new();
-
-    // Helper methods for debug logging
-    private string LocationExternalIdToString() => Locations.FirstOrDefault(l => l.ExternalId == Contract.LocationExternalId)?.Name ?? Contract.LocationExternalId ?? "NULL";
-    private string DepartmentExternalIdToString() => Departments.FirstOrDefault(d => d.ExternalId == Contract.DepartmentExternalId)?.DisplayName ?? Contract.DepartmentExternalId ?? "NULL";
-    private string TitleExternalIdToString() => Titles.FirstOrDefault(t => t.ExternalId == Contract.TitleExternalId)?.Name ?? Contract.TitleExternalId ?? "NULL";
-    private string DivisionExternalIdToString() => Divisions.FirstOrDefault(d => d.ExternalId == Contract.DivisionExternalId)?.Name ?? Contract.DivisionExternalId ?? "NULL";
-    private string TeamExternalIdToString() => Teams.FirstOrDefault(t => t.ExternalId == Contract.TeamExternalId)?.Name ?? Contract.TeamExternalId ?? "NULL";
-    private string OrganizationExternalIdToString() => Organizations.FirstOrDefault(o => o.ExternalId == Contract.OrganizationExternalId)?.Name ?? Contract.OrganizationExternalId ?? "NULL";
-    private string EmployerExternalIdToString() => Employers.FirstOrDefault(e => e.ExternalId == Contract.EmployerExternalId)?.Name ?? Contract.EmployerExternalId ?? "NULL";
-    private string CostCenterExternalIdToString() => CostCenters.FirstOrDefault(c => c.ExternalId == Contract.CostCenterExternalId)?.Name ?? Contract.CostCenterExternalId ?? "NULL";
-    private string CostBearerExternalIdToString() => CostBearers.FirstOrDefault(c => c.ExternalId == Contract.CostBearerExternalId)?.Name ?? Contract.CostBearerExternalId ?? "NULL";
 
     [ObservableProperty]
     private SourceSystemDto? _selectedSourceSystem;
@@ -183,11 +203,7 @@ public partial class ContractEditViewModel : ObservableObject
 
         var costBearer = string.IsNullOrWhiteSpace(Contract.CostBearerExternalId) ? null : CostBearers.FirstOrDefault(c => c.ExternalId == Contract.CostBearerExternalId);
         Contract.CostBearerSource = costBearer?.Source;
-
-        System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] PopulateSourceFields - LocationSource: '{Contract.LocationSource}', DepartmentSource: '{Contract.DepartmentSource}', TitleSource: '{Contract.TitleSource}'");
     }
-
-    // Mapping for Contract Type (hardcoded for now or fetch from DB if table exists? Schema says TypeCode/TypeDescription in Contracts table, no separate table. Plan didn't specify TypeRepository. I'll use a simple list or free text for now, or assumed Reference Data. Let's make it an editable combo or text box as per schema `type_code`. Actually existing data likely has standard types. For now I'll leave it as TextBox to be safe, or check if I missed a repository. Schema said `type_code TEXT` and no FK. So TextBox it is.)
 
     // Constructor for "Add Contract" (no existing contract)
     public ContractEditViewModel(
@@ -217,11 +233,7 @@ public partial class ContractEditViewModel : ObservableObject
 
         if (existingContract != null)
         {
-            Contract = existingContract; // In a real app we might clone this to avoid editing the list object directly before save. Assuming simple edit for now.
-            // Actually, better to clone it, but Contract is a class. 
-            // Let's rely on simple reference for MVP or create a copy if we want cancel to work perfectly without reloading parent.
-            // Given "Lead Developer" persona: I should clone it.
-            // I'll manually copy properties or use JSON serialization for deep copy.
+            // Clone existing contract
             Contract = new Contract
             {
                 ContractId = existingContract.ContractId,
@@ -252,8 +264,8 @@ public partial class ContractEditViewModel : ObservableObject
         }
         else
         {
-            Contract = new Contract 
-            { 
+            Contract = new Contract
+            {
                 PersonId = _personId,
                 StartDate = DateTime.Today.ToString("yyyy-MM-dd")
             };
@@ -264,7 +276,6 @@ public partial class ContractEditViewModel : ObservableObject
 
     public async Task LoadAsync()
     {
-        System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] LoadAsync START - IsEditing: {IsEditing}");
         if (IsLoading) return;
         IsLoading = true;
         ErrorMessage = null;
@@ -285,8 +296,6 @@ public partial class ContractEditViewModel : ObservableObject
                 LoadSourceSystemsAsync()
             );
 
-            System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Loaded all lookups");
-
             // Set selected references after loading (for existing contracts)
             if (IsEditing)
             {
@@ -299,42 +308,27 @@ public partial class ContractEditViewModel : ObservableObject
                 SelectedEmployer = Employers.FirstOrDefault(e => e.ExternalId == Contract.EmployerExternalId);
                 SelectedCostCenter = CostCenters.FirstOrDefault(c => c.ExternalId == Contract.CostCenterExternalId);
                 SelectedCostBearer = CostBearers.FirstOrDefault(c => c.ExternalId == Contract.CostBearerExternalId);
-
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Set all selected references from existing contract");
             }
 
             // Set selected manager after loading
             if (!string.IsNullOrWhiteSpace(Contract.ManagerPersonExternalId))
             {
                 SelectedManager = Managers.FirstOrDefault(m => m.PersonId == Contract.ManagerPersonExternalId);
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Set SelectedManager: {(SelectedManager?.PersonId ?? "NULL")} based on ManagerPersonExternalId: {Contract.ManagerPersonExternalId}");
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] ManagerPersonExternalId is empty, skipping manager selection");
             }
 
             // Set selected source system after loading
             if (!string.IsNullOrWhiteSpace(Contract.Source))
             {
                 SelectedSourceSystem = SourceSystems.FirstOrDefault(s => s.SystemId == Contract.Source);
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Set SelectedSourceSystem: {(SelectedSourceSystem?.SystemId ?? "NULL")} based on Contract.Source: {Contract.Source}");
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Contract.Source is empty, skipping SelectedSourceSystem");
             }
 
             // Load custom fields
             if (IsEditing && !string.IsNullOrWhiteSpace(Contract.ExternalId))
             {
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Loading custom fields for existing contract: ExternalId='{Contract.ExternalId}'");
                 await LoadCustomFieldsAsync(Contract.ExternalId);
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Loaded {CustomFields.Count} custom fields");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Skipping custom field load (IsEditing={IsEditing}, ExternalId='{Contract.ExternalId}')");
                 await LoadCustomFieldSchemasAsync();
             }
         }
@@ -370,13 +364,12 @@ public partial class ContractEditViewModel : ObservableObject
 
     partial void OnSelectedSourceSystemChanged(SourceSystemDto? value)
     {
-        Contract.Source = value?.SystemId;
+        ContractSource = value?.SystemId;
     }
 
     [RelayCommand]
     private async Task SaveAsync(Window window)
     {
-        System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] SaveAsync START");
         if (IsLoading) return;
 
         try
@@ -384,11 +377,18 @@ public partial class ContractEditViewModel : ObservableObject
             IsLoading = true;
             ErrorMessage = null;
 
-            // Validate required fields
-            if (string.IsNullOrWhiteSpace(Contract.Source))
+            // Validate all properties using ObservableValidator
+            ValidateAllProperties();
+            if (HasErrors)
             {
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Validation failed: Source is empty");
-                ErrorMessage = "Source is required.";
+                // Get all errors and display the first one
+                var allErrors = GetErrors(null);
+                if (allErrors != null)
+                {
+                    // ObservableValidator returns ValidationResult objects
+                    var firstResult = allErrors.OfType<ValidationResult>().FirstOrDefault();
+                    ErrorMessage = firstResult?.ErrorMessage ?? "Please fix validation errors before saving.";
+                }
                 return;
             }
 
@@ -399,22 +399,12 @@ public partial class ContractEditViewModel : ObservableObject
             if (string.IsNullOrWhiteSpace(Contract.ExternalId) && hasCustomFieldValues)
             {
                 Contract.ExternalId = Guid.NewGuid().ToString();
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Generated new ExternalId: {Contract.ExternalId}");
-            }
-            else if (!string.IsNullOrWhiteSpace(Contract.ExternalId))
-            {
-                System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Using existing External ID: {Contract.ExternalId}");
             }
 
             // Ensure all source fields are populated before save
             PopulateSourceFields();
 
-            System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] About to save Contract - ContractId: {Contract.ContractId}, ExternalId: '{Contract.ExternalId}', LocationExternalId: '{Contract.LocationExternalId}', LocationSource: '{Contract.Source}', StartDate: '{Contract.StartDate}', EndDate: '{Contract.EndDate}'");
-            System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Reference fields - Location: '{LocationExternalIdToString()}', Department: '{DepartmentExternalIdToString()}', Title: '{TitleExternalIdToString()}', Division: '{DivisionExternalIdToString()}', Team: '{TeamExternalIdToString()}', Organization: '{OrganizationExternalIdToString()}', Employer: '{EmployerExternalIdToString()}', CostCenter: '{CostCenterExternalIdToString()}', CostBearer: '{CostBearerExternalIdToString()}'");
-            System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] All source fields - LocationSource: '{Contract.LocationSource}', DepartmentSource: '{Contract.DepartmentSource}', TitleSource: '{Contract.TitleSource}', DivisionSource: '{Contract.DivisionSource}', TeamSource: '{Contract.TeamSource}', OrganizationSource: '{Contract.OrganizationSource}', EmployerSource: '{Contract.EmployerSource}', CostCenterSource: '{Contract.CostCenterSource}', CostBearerSource: '{Contract.CostBearerSource}'");
-
             await _contractService.SaveAsync(Contract);
-            System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] SaveAsync completed successfully");
 
             // Save custom fields if external ID is provided
             if (!string.IsNullOrWhiteSpace(Contract.ExternalId))
@@ -464,7 +454,7 @@ public partial class ContractEditViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading custom field schemas: {ex}");
+            ErrorMessage = $"Error loading custom field schemas: {ex.Message}";
         }
     }
 
@@ -473,18 +463,15 @@ public partial class ContractEditViewModel : ObservableObject
     /// </summary>
     private async Task LoadCustomFieldsAsync(string externalId)
     {
-        System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] LoadCustomFieldsAsync START - ExternalId: '{externalId}'");
         try
         {
             var schemas = await _customFieldRepository.GetSchemasAsync("contracts");
             var values = await _customFieldRepository.GetValuesAsync(externalId, "contracts");
             var valuesDict = values.ToDictionary(v => v.FieldKey);
-            System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Found {schemas.Count()} schemas and {values.Count()} values");
 
             CustomFields.Clear();
             foreach (var schema in schemas.OrderBy(s => s.SortOrder))
             {
-                string? value = null;
                 if (valuesDict.TryGetValue(schema.FieldKey, out var fieldValue))
                 {
                     CustomFields.Add(new CustomFieldEditDto
@@ -496,11 +483,10 @@ public partial class ContractEditViewModel : ObservableObject
                 }
             }
             OnPropertyChanged(nameof(HasCustomFields));
-            System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Loaded {CustomFields.Count} custom fields for ExternalId: {externalId}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading custom fields: {ex}");
+            ErrorMessage = $"Error loading custom fields: {ex.Message}";
         }
     }
 
@@ -523,14 +509,12 @@ public partial class ContractEditViewModel : ObservableObject
                         TextValue = customField.Value
                     };
 
-                    System.Diagnostics.Debug.WriteLine($"[ContractEditViewModel] Saving custom field '{customField.FieldKey}' as text: {customField.Value}");
                     await _customFieldRepository.UpsertValueAsync(fieldValue);
                 }
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error saving custom fields: {ex}");
             ErrorMessage = $"Error saving custom fields: {ex.Message}";
             throw;
         }

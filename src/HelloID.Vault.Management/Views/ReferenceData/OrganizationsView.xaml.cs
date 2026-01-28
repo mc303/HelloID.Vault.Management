@@ -19,7 +19,6 @@ public partial class OrganizationsView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[OrganizationsView] ===== OrganizationsView_Loaded START =====");
 
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null)
@@ -33,12 +32,10 @@ public partial class OrganizationsView : UserControl
             }
         }
 
-        System.Diagnostics.Debug.WriteLine("[OrganizationsView] ===== OrganizationsView_Loaded END =====");
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine("[OrganizationsView] ===== OrganizationsView_Unloaded START =====");
 
         var dataGrid = FindFirstChild<DataGrid>(this);
         if (dataGrid != null && _viewModel != null)
@@ -48,7 +45,6 @@ public partial class OrganizationsView : UserControl
 
         _viewModel = null;
 
-        System.Diagnostics.Debug.WriteLine("[OrganizationsView] ===== OrganizationsView_Unloaded END =====");
     }
 
     private void ApplyColumnOrderAndWidths(DataGrid dataGrid)

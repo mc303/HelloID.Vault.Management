@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,7 +12,7 @@ namespace HelloID.Vault.Management.ViewModels.Persons;
 /// <summary>
 /// ViewModel for editing or creating a Contact.
 /// </summary>
-public partial class ContactEditViewModel : ObservableObject
+public partial class ContactEditViewModel : ObservableValidator
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IContactRepository _contactRepository;
@@ -27,6 +28,8 @@ public partial class ContactEditViewModel : ObservableObject
     private string? _errorMessage;
 
     [ObservableProperty]
+    [Required(ErrorMessage = "Contact type is required.")]
+    [StringLength(50, ErrorMessage = "Contact type cannot exceed 50 characters.")]
     private string _type = "Personal";
 
     [ObservableProperty]
@@ -92,9 +95,6 @@ public partial class ContactEditViewModel : ObservableObject
 
         Contact = existingContact;
 
-        // DEBUG: Log initialization
-        System.Diagnostics.Debug.WriteLine($"ContactEditViewModel initialized - IsEditMode: {existingContact != null}, PersonId: {_personId}");
-
         if (existingContact != null)
         {
             // EDIT MODE - hide contact type selection
@@ -112,15 +112,6 @@ public partial class ContactEditViewModel : ObservableObject
             AddressPostal = existingContact.AddressPostal;
             AddressLocality = existingContact.AddressLocality;
             AddressCountry = existingContact.AddressCountry;
-
-            // DEBUG: Log loaded data
-            System.Diagnostics.Debug.WriteLine($"Loaded existing contact - Type: {Type}, Email: {Email}, PhoneMobile: {PhoneMobile}");
-        }
-        else
-        {
-            // DEBUG: Log new contact mode
-            System.Diagnostics.Debug.WriteLine("Creating new contact - Type: Personal (default)");
-            // Note: InitializeAsync() must be called after construction to load existing contact types
         }
     }
 
@@ -152,21 +143,15 @@ public partial class ContactEditViewModel : ObservableObject
             if (hasPersonal && !hasBusiness)
             {
                 Type = "Business";
-                System.Diagnostics.Debug.WriteLine("Auto-selected Business (Personal already exists)");
             }
             else if (hasBusiness && !hasPersonal)
             {
                 Type = "Personal";
-                System.Diagnostics.Debug.WriteLine("Auto-selected Personal (Business already exists)");
             }
-            // else both enabled, keep default "Personal"
-
-            System.Diagnostics.Debug.WriteLine($"Contact type availability - Personal: {IsPersonalEnabled}, Business: {IsBusinessEnabled}");
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Error loading contact types: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"Error in InitializeAsync: {ex}");
         }
         finally
         {
@@ -187,10 +172,18 @@ public partial class ContactEditViewModel : ObservableObject
             IsLoading = true;
             ErrorMessage = null;
 
-            // Validate required fields
-            if (string.IsNullOrWhiteSpace(Type))
+            // Validate all properties using ObservableValidator
+            ValidateAllProperties();
+            if (HasErrors)
             {
-                ErrorMessage = "Contact type is required.";
+                // Get all errors and display the first one
+                var allErrors = GetErrors(null);
+                if (allErrors != null)
+                {
+                    // ObservableValidator returns ValidationResult objects
+                    var firstResult = allErrors.OfType<ValidationResult>().FirstOrDefault();
+                    ErrorMessage = firstResult?.ErrorMessage ?? "Please fix validation errors before saving.";
+                }
                 return;
             }
 
@@ -243,7 +236,6 @@ public partial class ContactEditViewModel : ObservableObject
         catch (Exception ex)
         {
             ErrorMessage = $"Error saving contact: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"Error saving contact: {ex}");
         }
         finally
         {

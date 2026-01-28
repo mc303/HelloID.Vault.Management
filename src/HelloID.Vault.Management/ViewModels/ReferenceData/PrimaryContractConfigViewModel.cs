@@ -24,6 +24,8 @@ public partial class PrimaryContractConfigViewModel : ObservableObject
     private readonly ICustomFieldRepository _customFieldRepository;
     private readonly INavigationService _navigationService;
     private readonly IPersonService _personService;
+    private readonly IDialogService _dialogService;
+    private readonly IContractService _contractService;
     private List<PrimaryContractConfig> _originalConfig = new();
     private int _currentPreviewIndex = 0;
 
@@ -48,16 +50,26 @@ public partial class PrimaryContractConfigViewModel : ObservableObject
     [ObservableProperty]
     private string? _selectedFieldToAdd;
 
+    [ObservableProperty]
+    private bool _isUpdatingCache;
+
+    [ObservableProperty]
+    private string? _cacheUpdateStatusMessage;
+
     public PrimaryContractConfigViewModel(
         IPrimaryContractConfigRepository configRepository,
         ICustomFieldRepository customFieldRepository,
         INavigationService navigationService,
-        IPersonService personService)
+        IPersonService personService,
+        IDialogService dialogService,
+        IContractService contractService)
     {
         _configRepository = configRepository ?? throw new ArgumentNullException(nameof(configRepository));
         _customFieldRepository = customFieldRepository ?? throw new ArgumentNullException(nameof(customFieldRepository));
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
         _personService = personService ?? throw new ArgumentNullException(nameof(personService));
+        _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+        _contractService = contractService ?? throw new ArgumentNullException(nameof(contractService));
     }
 
     public async Task LoadAsync()
@@ -241,13 +253,11 @@ public partial class PrimaryContractConfigViewModel : ObservableObject
             ErrorMessage = null;
             SuccessMessage = null;
 
-            var result = MessageBox.Show(
+            var result = _dialogService.ShowConfirm(
                 "Are you sure you want to reset to default configuration? This will restore the original priority ordering.",
-                "Reset Configuration",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
+                "Reset Configuration");
 
-            if (result == MessageBoxResult.Yes)
+            if (result)
             {
                 await _configRepository.ResetToDefaultAsync();
                 await LoadAsync();
@@ -503,13 +513,11 @@ public partial class PrimaryContractConfigViewModel : ObservableObject
             return;
         }
 
-        var result = MessageBox.Show(
+        var result = _dialogService.ShowConfirm(
             $"Are you sure you want to delete '{itemToDelete.DisplayName}'?",
-            "Confirm Delete",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+            "Confirm Delete");
 
-        if (result == MessageBoxResult.Yes)
+        if (result)
         {
             var deletedField = itemToDelete;
 
@@ -586,6 +594,42 @@ public partial class PrimaryContractConfigViewModel : ObservableObject
         catch (Exception ex)
         {
             ErrorMessage = $"Failed to run preview: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Updates the contract cache to recalculate contract_status based on current dates.
+    /// </summary>
+    [RelayCommand]
+    private async Task UpdateContractCacheAsync()
+    {
+        try
+        {
+            IsUpdatingCache = true;
+            CacheUpdateStatusMessage = null;
+
+            // Force UI to update before starting heavy operation
+            await Task.Delay(1).ConfigureAwait(true);
+
+            // Run heavy work on background thread to keep UI responsive
+            await Task.Run(async () =>
+            {
+                await _contractService.RebuildCacheAsync();
+            }).ConfigureAwait(true);
+
+            CacheUpdateStatusMessage = $"Contract cache updated successfully. Status values recalculated based on current dates.";
+
+            // Auto-clear after delay
+            await Task.Delay(5000);
+            CacheUpdateStatusMessage = null;
+        }
+        catch (Exception ex)
+        {
+            CacheUpdateStatusMessage = $"Failed to update contract cache: {ex.Message}";
+        }
+        finally
+        {
+            IsUpdatingCache = false;
         }
     }
 
