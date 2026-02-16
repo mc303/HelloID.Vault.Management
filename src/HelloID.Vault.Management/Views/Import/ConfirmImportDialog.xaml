@@ -37,7 +37,7 @@
 
             <TextBlock TextWrapping="Wrap" FontSize="13" Margin="0,0,0,8">
                 <Run FontWeight="SemiBold">• Overwrite Without Backup:</Run>
-                <Run>Delete existing data without creating a backup</Run>
+                <Run x:Name="OverwriteMessage">Delete existing data without creating a backup</Run>
             </TextBlock>
 
             <TextBlock TextWrapping="Wrap" FontSize="13">
@@ -48,7 +48,8 @@
 
         <!-- Buttons -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Backup and Overwrite"
+            <Button x:Name="BackupAndOverwriteButton"
+                    Content="Backup and Overwrite"
                     Width="160"
                     Height="32"
                     Margin="0,0,10,0"

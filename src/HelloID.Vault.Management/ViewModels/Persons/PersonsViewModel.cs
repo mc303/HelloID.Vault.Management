@@ -254,9 +254,42 @@ public partial class PersonsViewModel : ObservableObject
                 await LoadNextBatchAsync();
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // TODO: Add error handling/logging
+            // Detailed error logging for diagnostics
+            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] LoadDataAsync FAILED");
+            System.Diagnostics.Debug.WriteLine($"  Exception Type: {ex.GetType().FullName}");
+            System.Diagnostics.Debug.WriteLine($"  Message: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"  StackTrace: {ex.StackTrace}");
+
+            // Log Npgsql-specific details
+            if (ex is Npgsql.NpgsqlException npgsqlEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"  SQL State: {npgsqlEx.SqlState}");
+            }
+
+            // Log inner exceptions
+            var innerEx = ex.InnerException;
+            int innerLevel = 1;
+            while (innerEx != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"  Inner Exception #{innerLevel}: {innerEx.GetType().Name} - {innerEx.Message}");
+                innerEx = innerEx.InnerException;
+                innerLevel++;
+            }
+
+            // Show error to user if this is initial load (no data yet)
+            if (Persons.Count == 0)
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    System.Windows.MessageBox.Show(
+                        $"Error loading persons data:\n\n{ex.Message}\n\nSee Debug output for details.",
+                        "Data Load Error",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Error);
+                });
+            }
         }
         finally
         {
@@ -280,6 +313,8 @@ public partial class PersonsViewModel : ObservableObject
     /// </summary>
     private async Task LoadNextBatchAsync()
     {
+        System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] LoadNextBatchAsync called (offset={_currentOffset}, batchSize={BatchSize})");
+
         try
         {
             var filter = new PersonFilter
@@ -291,7 +326,9 @@ public partial class PersonsViewModel : ObservableObject
             // Calculate page number from offset
             int pageNumber = (_currentOffset / BatchSize) + 1;
 
+            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Calling GetPagedAsync (page={pageNumber}, size={BatchSize})");
             var (items, totalCount) = await _personService.GetPagedAsync(filter, pageNumber, BatchSize);
+            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] GetPagedAsync returned: items={items.Count()}, totalCount={totalCount}");
 
             // Update total count
             TotalCount = totalCount;
@@ -304,13 +341,27 @@ public partial class PersonsViewModel : ObservableObject
                 itemsAdded++;
             }
 
+            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Added {itemsAdded} items to collection");
+
             // Update offset and check if more data available
             _currentOffset += itemsAdded;
             _hasMoreData = _currentOffset < totalCount;
+
+            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] New offset={_currentOffset}, hasMoreData={_hasMoreData}");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // TODO: Add error handling/logging
+            System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] LoadNextBatchAsync FAILED");
+            System.Diagnostics.Debug.WriteLine($"  Exception Type: {ex.GetType().FullName}");
+            System.Diagnostics.Debug.WriteLine($"  Message: {ex.Message}");
+
+            // Log Npgsql-specific details
+            if (ex is Npgsql.NpgsqlException npgsqlEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"  SQL State: {npgsqlEx.SqlState}");
+            }
+
+            // Don't re-throw - this prevents cascading failures
         }
     }
 

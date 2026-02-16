@@ -13,12 +13,12 @@ namespace HelloID.Vault.Services;
 /// </summary>
 public class PrimaryManagerService : IPrimaryManagerService
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly IPersonRepository _personRepository;
     private readonly IPrimaryContractConfigRepository _primaryContractConfigRepository;
 
     public PrimaryManagerService(
-        ISqliteConnectionFactory connectionFactory,
+        IDatabaseConnectionFactory connectionFactory,
         IPersonRepository personRepository,
         IPrimaryContractConfigRepository primaryContractConfigRepository)
     {
@@ -162,13 +162,17 @@ public class PrimaryManagerService : IPrimaryManagerService
     }
 
     /// <summary>
-    /// Gets all contracts for a person with the primary contract marked.
+    /// Gets all contracts for a person with primary contract marked.
     /// </summary>
     private async Task<List<ContractDto>> GetContractsWithPrimaryAsync(string personId)
     {
         using var connection = _connectionFactory.CreateConnection();
 
-        var sql = @"
+        var isPostgres = _connectionFactory.DatabaseType == DatabaseType.PostgreSql;
+        var currentDateSql = isPostgres ? "CURRENT_DATE" : "date('now')";
+        var dateCast = isPostgres ? "::date" : "";
+
+        var sql = $@"
             SELECT
                 contract_id AS ContractId,
                 external_id AS ExternalId,
@@ -184,8 +188,8 @@ public class PrimaryManagerService : IPrimaryManagerService
                 department_manager_person_id AS DepartmentManagerPersonId,
                 CASE
                     WHEN start_date IS NULL THEN 'No Dates'
-                    WHEN start_date > date('now') THEN 'Future'
-                    WHEN end_date IS NOT NULL AND end_date < date('now') THEN 'Past'
+                    WHEN start_date{dateCast} > {currentDateSql} THEN 'Future'
+                    WHEN end_date{dateCast} IS NOT NULL AND end_date{dateCast} < {currentDateSql} THEN 'Past'
                     ELSE 'Active'
                 END AS ContractStatus
             FROM contract_details_view
@@ -193,8 +197,8 @@ public class PrimaryManagerService : IPrimaryManagerService
             ORDER BY
                 CASE
                     WHEN start_date IS NULL THEN 1
-                    WHEN start_date > date('now') THEN 2
-                    WHEN end_date IS NOT NULL AND end_date < date('now') THEN 3
+                    WHEN start_date{dateCast} > {currentDateSql} THEN 2
+                    WHEN end_date{dateCast} IS NOT NULL AND end_date{dateCast} < {currentDateSql} THEN 3
                     ELSE 0
                 END,
                 sequence DESC,

@@ -12,9 +12,9 @@ namespace HelloID.Vault.Data.Repositories;
 /// </summary>
 public class PersonRepository : IPersonRepository
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
 
-    public PersonRepository(ISqliteConnectionFactory connectionFactory)
+    public PersonRepository(IDatabaseConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }
@@ -73,9 +73,6 @@ public class PersonRepository : IPersonRepository
             {whereClause}
             ORDER BY display_name
             LIMIT @Limit OFFSET @Offset";
-
-        System.Diagnostics.Debug.WriteLine($"[PersonRepository] Executing SQL: {sql}");
-        System.Diagnostics.Debug.WriteLine($"[PersonRepository] Parameters: Limit={pageSize}, Offset={(page - 1) * pageSize}");
 
         return await connection.QueryAsync<PersonListDto>(sql, parameters).ConfigureAwait(false);
     }
@@ -395,17 +392,38 @@ public class PersonRepository : IPersonRepository
     {
         using var connection = _connectionFactory.CreateConnection();
 
-        var sql = @"
-            SELECT
-                s.field_key AS FieldKey,
-                s.display_name AS DisplayName,
-                'text' AS DataType,
-                json_extract(p.custom_fields, '$.' || s.field_key) AS Value
-            FROM custom_field_schemas s
-            INNER JOIN persons p ON 1=1
-            WHERE s.table_name = 'persons'
-                AND p.person_id = @PersonId
-            ORDER BY s.sort_order, s.display_name";
+        // Database-specific SQL for JSON extraction
+        string sql;
+        if (_connectionFactory.DatabaseType == DatabaseType.PostgreSql)
+        {
+            // PostgreSQL: Use jsonb_extract_path_text or ->> operator
+            sql = @"
+                SELECT
+                    s.field_key AS FieldKey,
+                    s.display_name AS DisplayName,
+                    'text' AS DataType,
+                    jsonb_extract_path_text(p.custom_fields::jsonb, s.field_key) AS Value
+                FROM custom_field_schemas s
+                INNER JOIN persons p ON 1=1
+                WHERE s.table_name = 'persons'
+                    AND p.person_id = @PersonId
+                ORDER BY s.sort_order, s.display_name";
+        }
+        else
+        {
+            // SQLite: Use json_extract
+            sql = @"
+                SELECT
+                    s.field_key AS FieldKey,
+                    s.display_name AS DisplayName,
+                    'text' AS DataType,
+                    json_extract(p.custom_fields, '$.' || s.field_key) AS Value
+                FROM custom_field_schemas s
+                INNER JOIN persons p ON 1=1
+                WHERE s.table_name = 'persons'
+                    AND p.person_id = @PersonId
+                ORDER BY s.sort_order, s.display_name";
+        }
 
         return await connection.QueryAsync<CustomFieldDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
     }

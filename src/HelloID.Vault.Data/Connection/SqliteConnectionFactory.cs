@@ -7,7 +7,7 @@ namespace HelloID.Vault.Data.Connection;
 /// <summary>
 /// Factory for creating and configuring SQLite database connections.
 /// </summary>
-public class SqliteConnectionFactory : ISqliteConnectionFactory
+public class SqliteConnectionFactory : ISqliteConnectionFactory, IDatabaseConnectionFactory
 {
     private readonly string _connectionString;
 
@@ -23,7 +23,11 @@ public class SqliteConnectionFactory : ISqliteConnectionFactory
         }
 
         _connectionString = $"Data Source={databasePath};";
+        System.Diagnostics.Debug.WriteLine($"[SqliteConnectionFactory] Created with database path: {databasePath}");
     }
+
+    /// <inheritdoc />
+    public DatabaseType DatabaseType => DatabaseType.Sqlite;
 
     /// <inheritdoc />
     public IDbConnection CreateConnection()
@@ -38,18 +42,37 @@ public class SqliteConnectionFactory : ISqliteConnectionFactory
     /// <returns>An open database connection.</returns>
     public IDbConnection CreateConnection(bool enforceForeignKeys = true)
     {
-        var connection = new SqliteConnection(_connectionString);
-        connection.Open();
+        System.Diagnostics.Debug.WriteLine($"[SqliteConnectionFactory] CreateConnection called (enforceForeignKeys={enforceForeignKeys})");
 
-        // Configure WAL mode for optimal performance and concurrency
-        connection.Execute("PRAGMA journal_mode = WAL;");
-        connection.Execute("PRAGMA synchronous = NORMAL;");
-        connection.Execute("PRAGMA journal_size_limit = 6144000;");
+        try
+        {
+            var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+            System.Diagnostics.Debug.WriteLine($"[SqliteConnectionFactory] Connection opened successfully");
 
-        // FK enforcement enabled by default for data integrity
-        // Disable for import operations to handle missing references gracefully
-        connection.Execute($"PRAGMA foreign_keys = {(enforceForeignKeys ? "ON" : "OFF")};");
+            // Configure WAL mode for optimal performance and concurrency
+            connection.Execute("PRAGMA journal_mode = WAL;");
+            connection.Execute("PRAGMA synchronous = NORMAL;");
+            connection.Execute("PRAGMA journal_size_limit = 6144000;");
 
-        return connection;
+            // FK enforcement enabled by default for data integrity
+            // Disable for import operations to handle missing references gracefully
+            connection.Execute($"PRAGMA foreign_keys = {(enforceForeignKeys ? "ON" : "OFF")};");
+
+            System.Diagnostics.Debug.WriteLine($"[SqliteConnectionFactory] PRAGMA configured successfully");
+            return connection;
+        }
+        catch (SqliteException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SqliteConnectionFactory] SqliteException: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"  SQLite Code: {ex.SqliteErrorCode}");
+            System.Diagnostics.Debug.WriteLine($"  ErrorCode: {ex.ErrorCode}");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SqliteConnectionFactory] Unexpected error: {ex.GetType().Name} - {ex.Message}");
+            throw;
+        }
     }
 }

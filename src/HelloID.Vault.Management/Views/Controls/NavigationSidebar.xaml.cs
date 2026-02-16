@@ -91,6 +91,9 @@ public partial class NavigationSidebar : UserControl
                     case "PrimaryManagerAdmin":
                         viewModel.NavigateToPrimaryManagerAdminCommand.Execute(null);
                         break;
+                    case "AppSettings":
+                        viewModel.NavigateToSettingsCommand.Execute(null);
+                        break;
                 }
 
                 // Ensure selection persists after navigation

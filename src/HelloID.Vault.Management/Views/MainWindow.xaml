@@ -13,6 +13,8 @@
         xmlns:contractsVM="clr-namespace:HelloID.Vault.Management.ViewModels.Contracts"
         xmlns:importVM="clr-namespace:HelloID.Vault.Management.ViewModels.Import"
         xmlns:referenceDataVM="clr-namespace:HelloID.Vault.Management.ViewModels.ReferenceData"
+        xmlns:viewModels="clr-namespace:HelloID.Vault.Management.ViewModels"
+        xmlns:views="clr-namespace:HelloID.Vault.Management.Views"
         mc:Ignorable="d"
         ui:WindowHelper.UseModernWindowStyle="True"
         Title="{Binding Title}"
@@ -90,6 +92,11 @@
                 </DataTemplate>
                 <DataTemplate DataType="{x:Type referenceDataVM:PrimaryManagerAdminViewModel}">
                     <referenceData:PrimaryManagerAdminView />
+                </DataTemplate>
+
+                <!-- Application Settings -->
+                <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
+                    <views:SettingsView />
                 </DataTemplate>
 
             </ContentControl.Resources>

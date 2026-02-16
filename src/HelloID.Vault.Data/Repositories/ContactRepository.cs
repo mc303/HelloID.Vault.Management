@@ -11,9 +11,9 @@ namespace HelloID.Vault.Data.Repositories;
 /// </summary>
 public class ContactRepository : IContactRepository
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
 
-    public ContactRepository(ISqliteConnectionFactory connectionFactory)
+    public ContactRepository(IDatabaseConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }

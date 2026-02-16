@@ -234,4 +234,14 @@ public partial class MainWindowViewModel : ObservableObject
             _dialogService.ShowError($"Failed to open Primary Manager Administration: {ex.Message}", "Error");
         }
     }
+
+    /// <summary>
+    /// Navigates to the Settings view.
+    /// </summary>
+    [RelayCommand]
+    private void NavigateToSettings()
+    {
+        var viewModel = _serviceProvider.GetRequiredService<SettingsViewModel>();
+        CurrentViewModel = viewModel;
+    }
 }

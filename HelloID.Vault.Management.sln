@@ -13,6 +13,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HelloID.Vault.Services", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HelloID.Vault.Management", "src\HelloID.Vault.Management\HelloID.Vault.Management.csproj", "{0AF52130-B216-4BD9-A79A-6A7C402B7AD1}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{94EBD8C2-7DDD-43F5-B664-1FCE69644E62}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VaultImportTestRunner", "tests\VaultImportTestRunner\VaultImportTestRunner.csproj", "{B2791A8E-D131-4903-B009-2DFA90BB9175}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -71,6 +75,18 @@ Global
 		{0AF52130-B216-4BD9-A79A-6A7C402B7AD1}.Release|x64.Build.0 = Release|Any CPU
 		{0AF52130-B216-4BD9-A79A-6A7C402B7AD1}.Release|x86.ActiveCfg = Release|Any CPU
 		{0AF52130-B216-4BD9-A79A-6A7C402B7AD1}.Release|x86.Build.0 = Release|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Debug|x64.Build.0 = Debug|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Debug|x86.Build.0 = Debug|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Release|x64.ActiveCfg = Release|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Release|x64.Build.0 = Release|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Release|x86.ActiveCfg = Release|Any CPU
+		{B2791A8E-D131-4903-B009-2DFA90BB9175}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -83,5 +99,6 @@ Global
 		{FED20EEF-582D-4C0F-A6F8-960826F02F58} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{3B62D43E-6A6E-4579-ACE3-0D999E6E1254} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{0AF52130-B216-4BD9-A79A-6A7C402B7AD1} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{B2791A8E-D131-4903-B009-2DFA90BB9175} = {94EBD8C2-7DDD-43F5-B664-1FCE69644E62}
 	EndGlobalSection
 EndGlobal

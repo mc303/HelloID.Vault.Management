@@ -1,3 +1,5 @@
+using HelloID.Vault.Data.Connection;
+
 namespace HelloID.Vault.Services.Interfaces;
 
 /// <summary>
@@ -5,6 +7,11 @@ namespace HelloID.Vault.Services.Interfaces;
 /// </summary>
 public interface IVaultImportService
 {
+    /// <summary>
+    /// Gets the database type (SQLite or PostgreSQL).
+    /// </summary>
+    DatabaseType DatabaseType { get; }
+
     /// <summary>
     /// Checks if the database contains any data.
     /// </summary>
@@ -87,4 +94,6 @@ public class ImportResult
 
     // Data quality tracking
     public int EmptyManagerGuidsReplaced { get; set; }
+    public int InvalidManagerReferences { get; set; }
+    public int InvalidDepartmentParents { get; set; }
 }

@@ -1,3 +1,4 @@
+using System.Data;
 using System.Diagnostics;
 using System.Text.Json;
 using Dapper;
@@ -8,12 +9,15 @@ using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Data.Repositories.Interfaces;
 using HelloID.Vault.Services.Database;
 using HelloID.Vault.Services.Import.Collectors;
+using HelloID.Vault.Services.Import.Detection;
 using HelloID.Vault.Services.Import.Mappers;
 using HelloID.Vault.Services.Import.Models;
+using HelloID.Vault.Services.Import.Strategies;
 using HelloID.Vault.Services.Import.Utilities;
 using HelloID.Vault.Services.Import.Validators;
 using HelloID.Vault.Services.Interfaces;
 using Microsoft.Data.Sqlite;
+using Npgsql;
 
 namespace HelloID.Vault.Services;
 
@@ -23,7 +27,7 @@ namespace HelloID.Vault.Services;
 /// </summary>
 public class VaultImportService : IVaultImportService
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly DatabaseInitializer _databaseInitializer;
     private readonly IDatabaseManager _databaseManager;
     private readonly IPersonRepository _personRepository;
@@ -34,10 +38,10 @@ public class VaultImportService : IVaultImportService
     private readonly IPrimaryManagerService _primaryManagerService;
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly IReferenceDataService _referenceDataService;
-    private int _contractDebugCounter = 0;
+    private readonly PrimaryManagerDetector _primaryManagerDetector;
 
     public VaultImportService(
-        ISqliteConnectionFactory connectionFactory,
+        IDatabaseConnectionFactory connectionFactory,
         DatabaseInitializer databaseInitializer,
         IDatabaseManager databaseManager,
         IPersonRepository personRepository,
@@ -60,7 +64,14 @@ public class VaultImportService : IVaultImportService
         _primaryManagerService = primaryManagerService ?? throw new ArgumentNullException(nameof(primaryManagerService));
         _userPreferencesService = userPreferencesService ?? throw new ArgumentNullException(nameof(userPreferencesService));
         _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
+
+        _primaryManagerDetector = new PrimaryManagerDetector(
+            connectionFactory,
+            primaryManagerService,
+            userPreferencesService);
     }
+
+    public DatabaseType DatabaseType => _connectionFactory.DatabaseType;
 
     public async Task<bool> HasDataAsync()
     {
@@ -230,8 +241,8 @@ public class VaultImportService : IVaultImportService
             {
                 foreach (var (systemId, (displayName, identificationKey)) in sourceSystems)
                 {
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO source_system (system_id, display_name, identification_key) VALUES (@SystemId, @DisplayName, @IdentificationKey)",
+                    var sql = GetInsertIgnoreSql("source_system", "system_id, display_name, identification_key", "@SystemId, @DisplayName, @IdentificationKey");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { SystemId = systemId, DisplayName = displayName, IdentificationKey = identificationKey });
                     result.SourceSystemsImported += rowsAffected;
                 }
@@ -255,8 +266,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var org in context.Organizations)
                 {
                     var source = context.OrganizationSources.TryGetValue(org.ExternalId ?? string.Empty, out var orgSource) ? orgSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO organizations (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("organizations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { org.ExternalId, org.Code, org.Name, Source = source });
                     result.OrganizationsImported += rowsAffected;
                 }
@@ -265,8 +276,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var loc in context.Locations)
                 {
                     var source = context.LocationSources.TryGetValue(loc.ExternalId ?? string.Empty, out var locSource) ? locSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO locations (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("locations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { loc.ExternalId, loc.Code, loc.Name, Source = source });
                     result.LocationsImported += rowsAffected;
                 }
@@ -286,8 +297,8 @@ public class VaultImportService : IVaultImportService
                     context.EmployerNameToSourceMap.TryGetValue(employerNameKey, out var source);
 
                     Debug.WriteLine($"[Import] Normal Import - Inserting employer: {emp.ExternalId} ({emp.Code}) {emp.Name} - Source: {source}");
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO employers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("employers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { emp.ExternalId, emp.Code, emp.Name, Source = source });
                     result.EmployersImported += rowsAffected;
                     Debug.WriteLine($"[Import] Normal Import - Employer insert result: {rowsAffected} rows affected");
@@ -298,8 +309,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var cc in context.CostCenters)
                 {
                     var source = context.CostCenterSources.TryGetValue(cc.ExternalId ?? string.Empty, out var ccSource) ? ccSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO cost_centers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("cost_centers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { cc.ExternalId, cc.Code, cc.Name, Source = source });
                     result.CostCentersImported += rowsAffected;
                 }
@@ -308,8 +319,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var cb in context.CostBearers)
                 {
                     var source = context.CostBearerSources.TryGetValue(cb.ExternalId ?? string.Empty, out var cbSource) ? cbSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO cost_bearers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("cost_bearers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { cb.ExternalId, cb.Code, cb.Name, Source = source });
                     result.CostBearersImported += rowsAffected;
                 }
@@ -318,8 +329,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var team in context.Teams)
                 {
                     var source = context.TeamSources.TryGetValue(team.ExternalId ?? string.Empty, out var teamSource) ? teamSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO teams (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("teams", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { team.ExternalId, team.Code, team.Name, Source = source });
                     result.TeamsImported += rowsAffected;
                 }
@@ -328,8 +339,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var div in context.Divisions)
                 {
                     var source = context.DivisionSources.TryGetValue(div.ExternalId ?? string.Empty, out var divSource) ? divSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO divisions (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("divisions", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { div.ExternalId, div.Code, div.Name, Source = source });
                     result.DivisionsImported += rowsAffected;
                 }
@@ -338,8 +349,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var title in context.Titles)
                 {
                     var source = context.TitleSources.TryGetValue(title.ExternalId ?? string.Empty, out var titleSource) ? titleSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO titles (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("titles", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { title.ExternalId, title.Code, title.Name, Source = source });
                     result.TitlesImported += rowsAffected;
                 }
@@ -377,157 +388,132 @@ public class VaultImportService : IVaultImportService
                 Debug.WriteLine($"[Import] WARNING: {duplicatePersons.Count} duplicate persons will be skipped");
             }
 
-            // Import persons in transaction for atomicity
+            // Create a separate set for manager validation (personExternalIds is modified during import loop)
+            var validPersonIds = new HashSet<string>(personExternalIds, StringComparer.OrdinalIgnoreCase);
+
+            // Import persons using strategy pattern
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
-                connection.Open();
+                var strategy = await ImportStrategyFactory.CreateAsync(_connectionFactory, connection);
+                Debug.WriteLine($"[Import] Using strategy for persons: {strategy.StrategyName}");
+
+                await strategy.PrepareForImportAsync(connection);
+
                 using (var transaction = connection.BeginTransaction())
                 {
                     try
                     {
-                        int processedCount = 0;
-                        const int progressBatchSize = 100; // Report progress every 100 persons
-
+                        // Map persons to entities
+                        var persons = new List<Person>();
                         foreach (var vaultPerson in vaultData.Persons)
                         {
-                            processedCount++;
-
-                            // Skip duplicates within vault data
                             if (string.IsNullOrWhiteSpace(vaultPerson.PersonId) || !personExternalIds.Contains(vaultPerson.PersonId))
                             {
                                 continue;
                             }
-                            personExternalIds.Remove(vaultPerson.PersonId); // Mark as processed
-
-                            // Log original vault person for debugging
-                            Debug.WriteLine($"[Import] Processing vault person: {vaultPerson.PersonId} - {vaultPerson.DisplayName}");
-
-                            // Map and insert person
-                            var person = MapPerson(vaultPerson, sourceLookup, primaryManagerLogic);
-
-                            // Log mapped person for debugging
-                            Debug.WriteLine($"[Import] Mapped person: {person.ExternalId} - {person.DisplayName} (Source: {person.Source})");
-
-                            await _personRepository.InsertAsync(person, connection, transaction);
-
-                            Debug.WriteLine($"[Import] Person inserted: {person.ExternalId} - {person.DisplayName}");
-                            result.PersonsImported++;
-
-                            // Report progress in batches to avoid UI flooding
-                            if (processedCount % progressBatchSize == 0 || processedCount == totalPersons)
-                            {
-                                progress?.Report(new ImportProgress
-                                {
-                                    CurrentOperation = $"Importing persons... ({processedCount}/{totalPersons})",
-                                    TotalItems = totalPersons,
-                                    ProcessedItems = processedCount
-                                });
-                                // Yield to UI thread
-                                await Task.Yield();
-                            }
+                            personExternalIds.Remove(vaultPerson.PersonId);
+                            persons.Add(MapPerson(vaultPerson, sourceLookup, primaryManagerLogic));
                         }
+
+                        result.PersonsImported = await strategy.ImportPersonsAsync(
+                            persons,
+                            validPersonIds,
+                            _personRepository,
+                            connection,
+                            transaction,
+                            (processed, total) => progress?.Report(new ImportProgress
+                            {
+                                CurrentOperation = $"Importing persons... ({processed}/{total})",
+                                TotalItems = total,
+                                ProcessedItems = processed
+                            }));
+
+                        // Track invalid manager references from strategy
+                        result.InvalidManagerReferences += strategy.InvalidManagerReferences;
 
                         transaction.Commit();
                     }
                     catch (Exception ex)
                     {
-                        transaction.Rollback();
+                        try
+                        {
+                            if (transaction.Connection != null)
+                            {
+                                transaction.Rollback();
+                            }
+                        }
+                        catch (Exception rollbackEx)
+                        {
+                            Debug.WriteLine($"[Import] Warning: Could not rollback transaction: {rollbackEx.Message}");
+                        }
                         throw;
                     }
                 }
+
+                await strategy.CleanupAfterImportAsync(connection);
             }
 
             // Step 5: Import departments (depends on persons for manager_person_id)
             progress?.Report(new ImportProgress { CurrentOperation = "Importing departments..." });
 
-            // Perform topological sort to ensure parents are inserted before children
-            List<Department> sortedDepartments;
-            try
-            {
-                sortedDepartments = TopologicalSortDepartments(context.Departments.ToList());
-            }
-            catch (InvalidOperationException ex)
-            {
-                throw new Exception($"Department hierarchy error: {ex.Message}", ex);
-            }
+            // Build set of valid department keys (external_id + source) for parent validation
+            var validDepartmentKeys = new HashSet<string>(
+                context.Departments.Select(d => $"{d.ExternalId}|{d.Source}"),
+                StringComparer.OrdinalIgnoreCase);
 
-            // Import departments in transaction for atomicity
+            // Import departments using strategy pattern
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
-                connection.Open();
+                // Create appropriate strategy based on database type and capabilities
+                var strategy = await ImportStrategyFactory.CreateAsync(_connectionFactory, connection);
+                Debug.WriteLine($"[Import] Using strategy: {strategy.StrategyName}");
+
+                // Prepare connection for import (disable FK constraints if possible)
+                await strategy.PrepareForImportAsync(connection);
+
                 using (var transaction = connection.BeginTransaction())
                 {
                     try
                     {
-                        foreach (var dept in sortedDepartments)
-                        {
-                            await _departmentRepository.InsertAsync(dept, connection, transaction);
-                            result.DepartmentsImported++;
-                        }
+                        result.DepartmentsImported = await strategy.ImportDepartmentsAsync(
+                            context.Departments,
+                            validDepartmentKeys,
+                            _departmentRepository,
+                            connection,
+                            transaction,
+                            count => progress?.Report(new ImportProgress
+                            {
+                                CurrentOperation = $"Importing departments... ({count}/{context.Departments.Count()})"
+                            }));
 
-                        // Validate and auto-fix orphaned departments and invalid manager references
+                        // Track invalid references from strategy
+                        result.InvalidDepartmentParents = strategy.InvalidDepartmentParents;
+                        result.InvalidManagerReferences = strategy.InvalidManagerReferences;
+
                         progress?.Report(new ImportProgress { CurrentOperation = "Validating department data..." });
-
-                        // Check for orphaned departments (parent doesn't exist)
-                        var orphanedDepts = await connection.QueryAsync<(string ExternalId, string DisplayName, string ParentExternalId)>(@"
-                            SELECT d.external_id as ExternalId, d.display_name as DisplayName, d.parent_external_id as ParentExternalId
-                            FROM departments d
-                            LEFT JOIN departments p ON d.parent_external_id = p.external_id
-                            WHERE d.parent_external_id IS NOT NULL
-                              AND d.parent_external_id != ''
-                              AND p.external_id IS NULL", transaction: transaction);
-
-                        if (orphanedDepts.Any())
-                        {
-                            Console.WriteLine($"WARNING: Found {orphanedDepts.Count()} orphaned departments. Auto-fixing by setting parent to NULL:");
-                            foreach (var orphan in orphanedDepts)
-                            {
-                                Console.WriteLine($"  - {orphan.DisplayName} ({orphan.ExternalId}) has non-existent parent: {orphan.ParentExternalId}");
-
-                                // Auto-fix: Set parent to NULL
-                                await connection.ExecuteAsync(@"
-                                    UPDATE departments
-                                    SET parent_external_id = NULL
-                                    WHERE external_id = @ExternalId",
-                                    new { ExternalId = orphan.ExternalId },
-                                    transaction);
-                            }
-                        }
-
-                        // Check for invalid manager references
-                        var invalidManagers = await connection.QueryAsync<(string ExternalId, string DisplayName, string ManagerPersonId)>(@"
-                            SELECT d.external_id as ExternalId, d.display_name as DisplayName, d.manager_person_id as ManagerPersonId
-                            FROM departments d
-                            LEFT JOIN persons p ON d.manager_person_id = p.person_id
-                            WHERE d.manager_person_id IS NOT NULL
-                              AND d.manager_person_id != ''
-                              AND p.person_id IS NULL", transaction: transaction);
-
-                        if (invalidManagers.Any())
-                        {
-                            Console.WriteLine($"WARNING: Found {invalidManagers.Count()} departments with invalid manager references. Auto-fixing by setting manager to NULL:");
-                            foreach (var invalid in invalidManagers)
-                            {
-                                Console.WriteLine($"  - {invalid.DisplayName} ({invalid.ExternalId}) has non-existent manager: {invalid.ManagerPersonId}");
-
-                                // Auto-fix: Set manager to NULL
-                                await connection.ExecuteAsync(@"
-                                    UPDATE departments
-                                    SET manager_person_id = NULL
-                                    WHERE external_id = @ExternalId",
-                                    new { ExternalId = invalid.ExternalId },
-                                    transaction);
-                            }
-                        }
 
                         transaction.Commit();
                     }
                     catch (Exception ex)
                     {
-                        transaction.Rollback();
+                        // Safe rollback - check if transaction is still active
+                        try
+                        {
+                            if (transaction.Connection != null)
+                            {
+                                transaction.Rollback();
+                            }
+                        }
+                        catch (Exception rollbackEx)
+                        {
+                            Debug.WriteLine($"[Import] Warning: Could not rollback transaction: {rollbackEx.Message}");
+                        }
                         throw new Exception($"Department import failed and was rolled back. Error: {ex.Message}", ex);
                     }
                 }
+
+                // Cleanup after import (re-enable FK constraints)
+                await strategy.CleanupAfterImportAsync(connection);
             }
 
             // Step 5.5: Auto-create departments referenced by contracts but missing from root Departments array
@@ -555,14 +541,17 @@ public class VaultImportService : IVaultImportService
                 }
             }
 
-            // Check which departments exist in database
+            // Check which departments exist in database (both external_id AND source for FK constraint)
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
-                var existingDeptIds = (await connection.QueryAsync<string>("SELECT external_id FROM departments")).ToHashSet();
+                var existingDeptKeys = (await connection.QueryAsync<(string ExternalId, string? Source)>(
+                    "SELECT external_id, source FROM departments"))
+                    .Select(d => $"{d.ExternalId}|{d.Source ?? ""}")
+                    .ToHashSet();
 
-                // Find missing departments (using hash-transformed IDs)
+                // Find missing departments (check both external_id AND source)
                 var missingDepts = contractDepartmentRefs
-                    .Where(kvp => !existingDeptIds.Contains(kvp.Key))
+                    .Where(kvp => !existingDeptKeys.Contains($"{kvp.Key}|{kvp.Value.Source}"))
                     .Select(kvp => (ExternalId: kvp.Key, DisplayName: kvp.Value.DisplayName, Source: kvp.Value.Source))
                     .ToList();
 
@@ -571,7 +560,9 @@ public class VaultImportService : IVaultImportService
                     Console.WriteLine($"WARNING: Found {missingDepts.Count} department(s) referenced by contracts but missing from root Departments array.");
                     Console.WriteLine("         Auto-creating departments with minimal data (Code, ParentExternalId, Manager will be NULL):");
 
-                    connection.Open();
+                    var strategy = await ImportStrategyFactory.CreateAsync(_connectionFactory, connection);
+                    await strategy.PrepareForImportAsync(connection);
+
                     using (var transaction = connection.BeginTransaction())
                     {
                         try
@@ -582,12 +573,12 @@ public class VaultImportService : IVaultImportService
 
                                 var missingDept = new Department
                                 {
-                                    ExternalId = externalId, // Already hash-transformed
+                                    ExternalId = externalId,
                                     DisplayName = displayName,
                                     Code = null,
                                     ParentExternalId = null,
                                     ManagerPersonId = null,
-                                    Source = source // Proper source inheritance
+                                    Source = source
                                 };
 
                                 await _departmentRepository.InsertAsync(missingDept, connection, transaction);
@@ -596,12 +587,24 @@ public class VaultImportService : IVaultImportService
 
                             transaction.Commit();
                         }
-                    catch (Exception)
-                    {
-                        transaction.Rollback();
-                        throw;
+                        catch
+                        {
+                            try
+                            {
+                                if (transaction.Connection != null)
+                                {
+                                    transaction.Rollback();
+                                }
+                            }
+                            catch (Exception rollbackEx)
+                            {
+                                Debug.WriteLine($"[Import] Warning: Could not rollback transaction: {rollbackEx.Message}");
+                            }
+                            throw;
+                        }
                     }
-                    }
+
+                    await strategy.CleanupAfterImportAsync(connection);
                 }
             }
 
@@ -610,7 +613,6 @@ public class VaultImportService : IVaultImportService
 
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
-                connection.Open();
                 using (var transaction = connection.BeginTransaction())
                 {
                     try
@@ -693,7 +695,9 @@ public class VaultImportService : IVaultImportService
 
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
-                connection.Open();
+                var strategy = await ImportStrategyFactory.CreateAsync(_connectionFactory, connection);
+                await strategy.PrepareForImportAsync(connection);
+
                 using (var transaction = connection.BeginTransaction())
                 {
                     try
@@ -729,7 +733,11 @@ public class VaultImportService : IVaultImportService
                                     SeenOrganizations = context.SeenOrganizations
                                 };
 
-                                var contract = MapContract(vaultPerson.PersonId, vaultContract, contractContext);
+                                var contract = ContractMapper.Map(vaultPerson.PersonId, vaultContract, contractContext);
+
+                                // Validate FK references and set invalid ones to NULL
+                                // This is needed for managed PostgreSQL where FK constraints can't be disabled
+                                await ValidateContractFkReferencesAsync(contract, connection, transaction);
 
                                 // Debug: Log first few insert attempts
                                 if (result.ContractsImported < 10)
@@ -756,38 +764,94 @@ public class VaultImportService : IVaultImportService
 
                         transaction.Commit();
                     }
-                    catch (Exception)
+                    catch
                     {
-                        transaction.Rollback();
+                        try
+                        {
+                            if (transaction.Connection != null)
+                            {
+                                transaction.Rollback();
+                            }
+                        }
+                        catch (Exception rollbackEx)
+                        {
+                            Debug.WriteLine($"[Import] Warning: Could not rollback transaction: {rollbackEx.Message}");
+                        }
                         throw;
                     }
                 }
+
+                await strategy.CleanupAfterImportAsync(connection);
             }
 
             // Step 7.5: Validate contract references (Phase 2: Source-aware validation)
             progress?.Report(new ImportProgress { CurrentOperation = "Validating contract references..." });
-            await ValidateContractReferencesAsync(result);
+            try
+            {
+                await ValidateContractReferencesAsync(result);
+                Debug.WriteLine($"[Import] Contract references validation completed successfully.");
+            }
+            catch (Exception ex)
+            {
+                ImportErrorLogger.LogDatabaseException(ex, "ValidateContractReferencesAsync", "Step 7.5 of import process");
+                
+                result.Success = false;
+                result.ErrorMessage = ImportErrorLogger.CreateUserErrorMessage(ex, "Validating contract references");
+                
+                Debug.WriteLine($"[Import] Failed to validate contract references. Import will be rolled back if possible.");
+                throw new Exception($"Contract reference validation failed: {ImportErrorLogger.CreateUserErrorMessage(ex, "Validation")}", ex);
+            }
 
             // Step 7.6: Calculate Primary Managers for ContractBased/DepartmentBased logic
             if (primaryManagerLogic == PrimaryManagerLogic.ContractBased || primaryManagerLogic == PrimaryManagerLogic.DepartmentBased)
             {
                 progress?.Report(new ImportProgress { CurrentOperation = $"Calculating Primary Managers ({primaryManagerLogic})..." });
-                int updatedCount = await _primaryManagerService.RefreshAllPrimaryManagersAsync(primaryManagerLogic);
-                Console.WriteLine($"Updated primary managers for {updatedCount} persons using {primaryManagerLogic} logic.");
+                try
+                {
+                    int updatedCount = await _primaryManagerService.RefreshAllPrimaryManagersAsync(primaryManagerLogic);
+                    Console.WriteLine($"Updated primary managers for {updatedCount} persons using {primaryManagerLogic} logic.");
+                    Debug.WriteLine($"[Import] Successfully updated primary managers for {updatedCount} persons using {primaryManagerLogic} logic.");
+                }
+                catch (Exception ex)
+                {
+                    ImportErrorLogger.LogDatabaseException(ex, $"RefreshAllPrimaryManagersAsync({primaryManagerLogic})", $"Step 7.6 of import process");
+                    
+                    result.Success = false;
+                    result.ErrorMessage = ImportErrorLogger.CreateUserErrorMessage(ex, $"Calculating Primary Managers ({primaryManagerLogic})");
+                    
+                    Debug.WriteLine($"[Import] Failed to calculate primary managers. Import will be rolled back if possible.");
+                    throw new Exception($"Primary Manager calculation failed: {ImportErrorLogger.CreateUserErrorMessage(ex, $"Primary Manager ({primaryManagerLogic})")}", ex);
+                }
             }
             // Step 7.7: Auto-detect Primary Manager logic from imported data (From JSON)
             else if (primaryManagerLogic == PrimaryManagerLogic.FromJson)
             {
                 progress?.Report(new ImportProgress { CurrentOperation = "Detecting Primary Manager logic from imported data..." });
-                var detectedLogic = await DetectPrimaryManagerLogicAsync();
-                if (detectedLogic != null)
+                try
                 {
-                    Console.WriteLine($"Auto-detected Primary Manager logic: {detectedLogic}");
+                    var detectedLogic = await _primaryManagerDetector.DetectAsync();
+                    if (detectedLogic != null)
+                    {
+                        Console.WriteLine($"Auto-detected Primary Manager logic: {detectedLogic}");
+                        Debug.WriteLine($"[Import] Auto-detected Primary Manager logic: {detectedLogic}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ImportErrorLogger.LogDatabaseException(ex, "DetectPrimaryManagerLogicAsync", "Step 7.7 of import process");
+                    
+                    result.Success = false;
+                    result.ErrorMessage = ImportErrorLogger.CreateUserErrorMessage(ex, "Detecting Primary Manager logic from imported data");
+                    
+                    Debug.WriteLine($"[Import] Failed to detect primary manager logic. This is not a critical error, import will continue.");
+                    
+                    Console.WriteLine($"WARNING: Could not auto-detect Primary Manager logic: {ex.Message}");
                 }
             }
 
             // Step 8: Collect and create custom field schemas
             progress?.Report(new ImportProgress { CurrentOperation = "Creating custom field schemas..." });
+            Debug.WriteLine($"[Import] Step 8: Starting custom field schema creation...");
 
             var customFieldSchemas = new Dictionary<(string TableName, string FieldKey), (string DataType, HashSet<object> SampleValues)>();
 
@@ -834,80 +898,134 @@ public class VaultImportService : IVaultImportService
                 }
             }
 
+            Debug.WriteLine($"[Import] Found {customFieldSchemas.Count} unique custom field schemas");
+
             // Insert custom field schemas
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
                 int sortOrder = 1;
+                int schemaCount = 0;
                 foreach (var ((tableName, fieldKey), (_, sampleValues)) in customFieldSchemas)
                 {
-                    var dataType = DetectDataType(sampleValues);
-                    var displayName = FormatDisplayName(fieldKey);
+                    try
+                    {
+                        var dataType = DetectDataType(sampleValues);
+                        var displayName = FormatDisplayName(fieldKey);
 
-                    var rowsAffected = await connection.ExecuteAsync(@"
-                        INSERT OR IGNORE INTO custom_field_schemas (table_name, field_key, display_name, sort_order)
-                        VALUES (@TableName, @FieldKey, @DisplayName, @SortOrder)",
-                        new
+                        var sql = GetInsertIgnoreSql("custom_field_schemas", "table_name, field_key, display_name, sort_order", "@TableName, @FieldKey, @DisplayName, @SortOrder");
+                        var rowsAffected = await connection.ExecuteAsync(sql,
+                            new
+                            {
+                                TableName = tableName,
+                                FieldKey = fieldKey,
+                                DisplayName = displayName,
+                                SortOrder = sortOrder++
+                            });
+
+                        schemaCount++;
+                        Debug.WriteLine($"[Import] Custom field schema #{schemaCount}: {tableName}.{fieldKey} ({rowsAffected} rows affected)");
+
+                        // Track separately by table name
+                        if (tableName == "persons")
                         {
-                            TableName = tableName,
-                            FieldKey = fieldKey,
-                            DisplayName = displayName,
-                            SortOrder = sortOrder++
-                        });
-
-                    // Track separately by table name
-                    if (tableName == "persons")
-                    {
-                        result.CustomFieldPersonsImported += rowsAffected;
+                            result.CustomFieldPersonsImported += rowsAffected;
+                        }
+                        else if (tableName == "contracts")
+                        {
+                            result.CustomFieldContractsImported += rowsAffected;
+                        }
                     }
-                    else if (tableName == "contracts")
+                    catch (Exception ex)
                     {
-                        result.CustomFieldContractsImported += rowsAffected;
+                        Debug.WriteLine($"[Import] ERROR inserting custom field schema {tableName}.{fieldKey}: {ex.Message}");
+                        Debug.WriteLine($"[Import] Exception Type: {ex.GetType().Name}");
+                        throw;
                     }
                 }
+                Debug.WriteLine($"[Import] Custom field schemas inserted: {schemaCount} total");
             }
 
             // Step 9: Import custom field values (depends on persons.external_id and contracts.external_id)
             progress?.Report(new ImportProgress { CurrentOperation = "Importing custom field values..." });
+            Debug.WriteLine($"[Import] Step 9: Starting custom field value import...");
 
-            foreach (var vaultPerson in vaultData.Persons)
+            int personCustomFields = 0;
+            int contractCustomFields = 0;
+            int cfPersonCount = 0;
+            int cfTotalPersons = vaultData.Persons.Count();
+
+            // Batch custom field imports - collect all fields per entity, then do ONE update per entity
+            using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
-                // Person custom fields - use external_id as entity_id (per schema triggers)
-                if (vaultPerson.Custom != null && !string.IsNullOrWhiteSpace(vaultPerson.ExternalId))
+                using (var transaction = connection.BeginTransaction())
                 {
-                    foreach (var (key, value) in vaultPerson.Custom)
+                    try
                     {
-                        var textValue = value?.ToString() ?? "null";
-                        var customFieldValue = new CustomFieldValue
+                        foreach (var vaultPerson in vaultData.Persons)
                         {
-                            EntityId = vaultPerson.ExternalId, // Use external_id, not person_id!
-                            TableName = "persons",
-                            FieldKey = key,
-                            TextValue = textValue
-                        };
-                        await _customFieldRepository.UpsertValueAsync(customFieldValue);
-                    }
-                }
+                            cfPersonCount++;
 
-                // Contract custom fields - use external_id as entity_id
-                foreach (var vaultContract in vaultPerson.Contracts)
-                {
-                    if (vaultContract.Custom != null && !string.IsNullOrWhiteSpace(vaultContract.ExternalId))
-                    {
-                        foreach (var (key, value) in vaultContract.Custom)
-                        {
-                            var textValue = value?.ToString() ?? "null";
-                            var customFieldValue = new CustomFieldValue
+                            // Person custom fields - batch update with entire JSON
+                            if (vaultPerson.Custom != null && vaultPerson.Custom.Count > 0 && !string.IsNullOrWhiteSpace(vaultPerson.ExternalId))
                             {
-                                EntityId = vaultContract.ExternalId, // Use external_id!
-                                TableName = "contracts",
-                                FieldKey = key,
-                                TextValue = textValue
-                            };
-                            await _customFieldRepository.UpsertValueAsync(customFieldValue);
+                                var customFieldsJson = System.Text.Json.JsonSerializer.Serialize(vaultPerson.Custom);
+                                var sql = _connectionFactory.DatabaseType == DatabaseType.PostgreSql
+                                    ? "UPDATE persons SET custom_fields = @Json::jsonb WHERE external_id = @ExternalId"
+                                    : "UPDATE persons SET custom_fields = json(@Json) WHERE external_id = @ExternalId";
+
+                                await connection.ExecuteAsync(sql, new { Json = customFieldsJson, ExternalId = vaultPerson.ExternalId }, transaction);
+                                personCustomFields += vaultPerson.Custom.Count;
+                            }
+
+                            // Contract custom fields - batch update with entire JSON
+                            foreach (var vaultContract in vaultPerson.Contracts)
+                            {
+                                if (vaultContract.Custom != null && vaultContract.Custom.Count > 0 && !string.IsNullOrWhiteSpace(vaultContract.ExternalId))
+                                {
+                                    var customFieldsJson = System.Text.Json.JsonSerializer.Serialize(vaultContract.Custom);
+                                    var sql = _connectionFactory.DatabaseType == DatabaseType.PostgreSql
+                                        ? "UPDATE contracts SET custom_fields = @Json::jsonb WHERE external_id = @ExternalId"
+                                        : "UPDATE contracts SET custom_fields = json(@Json) WHERE external_id = @ExternalId";
+
+                                    await connection.ExecuteAsync(sql, new { Json = customFieldsJson, ExternalId = vaultContract.ExternalId }, transaction);
+                                    contractCustomFields += vaultContract.Custom.Count;
+                                }
+                            }
+
+                            // Report progress every 100 persons
+                            if (cfPersonCount % 100 == 0)
+                            {
+                                progress?.Report(new ImportProgress
+                                {
+                                    CurrentOperation = $"Importing custom fields... ({cfPersonCount}/{cfTotalPersons})",
+                                    TotalItems = cfTotalPersons,
+                                    ProcessedItems = cfPersonCount
+                                });
+                            }
                         }
+
+                        transaction.Commit();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[Import] ERROR importing custom fields: {ex.Message}");
+                        try
+                        {
+                            if (transaction.Connection != null)
+                            {
+                                transaction.Rollback();
+                            }
+                        }
+                        catch (Exception rollbackEx)
+                        {
+                            Debug.WriteLine($"[Import] Warning: Could not rollback transaction: {rollbackEx.Message}");
+                        }
+                        throw;
                     }
                 }
             }
+
+            Debug.WriteLine($"[Import] Custom field values imported: {personCustomFields} person fields, {contractCustomFields} contract fields");
 
             progress?.Report(new ImportProgress
             {
@@ -919,7 +1037,15 @@ public class VaultImportService : IVaultImportService
         catch (Exception ex)
         {
             result.Success = false;
-            result.ErrorMessage = $"Import failed: {ex.Message}";
+            result.ErrorMessage = ImportErrorLogger.CreateUserErrorMessage(ex, "Import process");
+            
+            ImportErrorLogger.LogDatabaseException(ex, "ImportAsync - Main import loop");
+            
+            progress?.Report(new ImportProgress
+            {
+                CurrentOperation = $"Import failed: {ex.Message}",
+                ProcessedItems = result.PersonsImported
+            });
         }
         finally
         {
@@ -944,6 +1070,17 @@ public class VaultImportService : IVaultImportService
         // Log data quality summary
         System.Diagnostics.Debug.WriteLine($"[Import] Data Quality Summary:");
         System.Diagnostics.Debug.WriteLine($"  Persons imported: {result.PersonsImported}");
+        System.Diagnostics.Debug.WriteLine($"  Invalid manager references set to NULL: {result.InvalidManagerReferences}");
+        if (result.InvalidManagerReferences > 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"  → These persons had manager references to persons not in import data");
+        }
+        System.Diagnostics.Debug.WriteLine($"  Departments imported: {result.DepartmentsImported}");
+        System.Diagnostics.Debug.WriteLine($"  Invalid department parents set to NULL: {result.InvalidDepartmentParents}");
+        if (result.InvalidDepartmentParents > 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"  → These departments had parent references to departments not in import data");
+        }
         System.Diagnostics.Debug.WriteLine($"  Empty manager GUIDs replaced: {result.EmptyManagerGuidsReplaced}");
         if (result.EmptyManagerGuidsReplaced > 0)
         {
@@ -1092,8 +1229,8 @@ public class VaultImportService : IVaultImportService
             {
                 foreach (var (systemId, (displayName, identificationKey)) in sourceSystems)
                 {
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO source_system (system_id, display_name, identification_key) VALUES (@SystemId, @DisplayName, @IdentificationKey)",
+                    var sql = GetInsertIgnoreSql("source_system", "system_id, display_name, identification_key", "@SystemId, @DisplayName, @IdentificationKey");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { SystemId = systemId, DisplayName = displayName, IdentificationKey = identificationKey });
                     result.SourceSystemsImported += rowsAffected;
                 }
@@ -1116,8 +1253,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var org in context.Organizations)
                 {
                     var source = context.OrganizationSources.TryGetValue(org.ExternalId ?? string.Empty, out var orgSource) ? orgSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO organizations (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("organizations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { org.ExternalId, org.Code, org.Name, Source = source });
                     result.OrganizationsImported += rowsAffected;
                 }
@@ -1126,8 +1263,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var loc in context.Locations)
                 {
                     var source = context.LocationSources.TryGetValue(loc.ExternalId ?? string.Empty, out var locSource) ? locSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO locations (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("locations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { loc.ExternalId, loc.Code, loc.Name, Source = source });
                     result.LocationsImported += rowsAffected;
                 }
@@ -1138,8 +1275,8 @@ public class VaultImportService : IVaultImportService
                 {
                     var source = context.EmployerSources.TryGetValue(emp.ExternalId ?? string.Empty, out var empSource) ? empSource : null;
                     Debug.WriteLine($"[Import CompanyOnly] Inserting employer: {emp.ExternalId} ({emp.Code}) {emp.Name} - Source: {source}");
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO employers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("employers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { emp.ExternalId, emp.Code, emp.Name, Source = source });
                     result.EmployersImported += rowsAffected;
                     Debug.WriteLine($"[Import CompanyOnly] Employer insert result: {rowsAffected} rows affected");
@@ -1150,8 +1287,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var cc in context.CostCenters)
                 {
                     var source = context.CostCenterSources.TryGetValue(cc.ExternalId ?? string.Empty, out var ccSource) ? ccSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO cost_centers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("cost_centers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { cc.ExternalId, cc.Code, cc.Name, Source = source });
                     result.CostCentersImported += rowsAffected;
                 }
@@ -1160,8 +1297,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var cb in context.CostBearers)
                 {
                     var source = context.CostBearerSources.TryGetValue(cb.ExternalId ?? string.Empty, out var cbSource) ? cbSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO cost_bearers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("cost_bearers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { cb.ExternalId, cb.Code, cb.Name, Source = source });
                     result.CostBearersImported += rowsAffected;
                 }
@@ -1170,8 +1307,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var team in context.Teams)
                 {
                     var source = context.TeamSources.TryGetValue(team.ExternalId ?? string.Empty, out var teamSource) ? teamSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO teams (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("teams", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { team.ExternalId, team.Code, team.Name, Source = source });
                     result.TeamsImported += rowsAffected;
                 }
@@ -1180,8 +1317,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var div in context.Divisions)
                 {
                     var source = context.DivisionSources.TryGetValue(div.ExternalId ?? string.Empty, out var divSource) ? divSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO divisions (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("divisions", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { div.ExternalId, div.Code, div.Name, Source = source });
                     result.DivisionsImported += rowsAffected;
                 }
@@ -1190,8 +1327,8 @@ public class VaultImportService : IVaultImportService
                 foreach (var title in context.Titles)
                 {
                     var source = context.TitleSources.TryGetValue(title.ExternalId ?? string.Empty, out var titleSource) ? titleSource : null;
-                    var rowsAffected = await connection.ExecuteAsync(
-                        "INSERT OR IGNORE INTO titles (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)",
+                    var sql = GetInsertIgnoreSql("titles", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                    var rowsAffected = await connection.ExecuteAsync(sql,
                         new { title.ExternalId, title.Code, title.Name, Source = source });
                     result.TitlesImported += rowsAffected;
                 }
@@ -1200,59 +1337,41 @@ public class VaultImportService : IVaultImportService
             // Step 5: Import departments (skip persons since we're not importing them)
             progress?.Report(new ImportProgress { CurrentOperation = "Importing departments..." });
 
-            // Perform topological sort to ensure parents are inserted before children
-            List<Department> sortedDepartments;
-            try
-            {
-                sortedDepartments = TopologicalSortDepartments(context.Departments.ToList());
-            }
-            catch (InvalidOperationException ex)
-            {
-                throw new Exception($"Department hierarchy error: {ex.Message}", ex);
-            }
+            // Build set of valid department keys for parent validation
+            var validDepartmentKeys = new HashSet<string>(
+                context.Departments.Select(d => $"{d.ExternalId}|{d.Source}"),
+                StringComparer.OrdinalIgnoreCase);
 
-            // Import departments in transaction for atomicity
+            // Import departments using strategy pattern
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
-                connection.Open();
+                // Create appropriate strategy based on database type and capabilities
+                var strategy = await ImportStrategyFactory.CreateAsync(_connectionFactory, connection);
+                Debug.WriteLine($"[ImportCompanyOnly] Using strategy: {strategy.StrategyName}");
+
+                // Prepare connection for import (disable FK constraints if possible)
+                await strategy.PrepareForImportAsync(connection);
+
                 using (var transaction = connection.BeginTransaction())
                 {
                     try
                     {
-                        foreach (var dept in sortedDepartments)
-                        {
-                            await _departmentRepository.InsertAsync(dept, connection, transaction);
-                            result.DepartmentsImported++;
-                        }
-
-                        // Validate and auto-fix orphaned departments (manager references will be ignored since no persons)
-                        progress?.Report(new ImportProgress { CurrentOperation = "Validating department data..." });
-
-                        // Check for orphaned departments (parent doesn't exist)
-                        var orphanedDepts = await connection.QueryAsync<(string ExternalId, string DisplayName, string ParentExternalId)>(@"
-                            SELECT d.external_id as ExternalId, d.display_name as DisplayName, d.parent_external_id as ParentExternalId
-                            FROM departments d
-                            LEFT JOIN departments p ON d.parent_external_id = p.external_id
-                            WHERE d.parent_external_id IS NOT NULL
-                              AND d.parent_external_id != ''
-                              AND p.external_id IS NULL", transaction: transaction);
-
-                        if (orphanedDepts.Any())
-                        {
-                            Console.WriteLine($"WARNING: Found {orphanedDepts.Count()} orphaned departments. Auto-fixing by setting parent to NULL:");
-                            foreach (var orphan in orphanedDepts)
+                        result.DepartmentsImported = await strategy.ImportDepartmentsAsync(
+                            context.Departments,
+                            validDepartmentKeys,
+                            _departmentRepository,
+                            connection,
+                            transaction,
+                            count => progress?.Report(new ImportProgress
                             {
-                                Console.WriteLine($"  - {orphan.DisplayName} ({orphan.ExternalId}) has non-existent parent: {orphan.ParentExternalId}");
+                                CurrentOperation = $"Importing departments... ({count}/{context.Departments.Count()})"
+                            }));
 
-                                // Auto-fix: Set parent to NULL
-                                await connection.ExecuteAsync(@"
-                                    UPDATE departments
-                                    SET parent_external_id = NULL
-                                    WHERE external_id = @ExternalId",
-                                    new { ExternalId = orphan.ExternalId },
-                                    transaction);
-                            }
-                        }
+                        // Track invalid references from strategy
+                        result.InvalidDepartmentParents = strategy.InvalidDepartmentParents;
+                        result.InvalidManagerReferences = strategy.InvalidManagerReferences;
+
+                        progress?.Report(new ImportProgress { CurrentOperation = "Validating department data..." });
 
                         // Clear all manager references since we're not importing persons
                         await connection.ExecuteAsync(@"
@@ -1264,10 +1383,24 @@ public class VaultImportService : IVaultImportService
                     }
                     catch (Exception ex)
                     {
-                        transaction.Rollback();
+                        // Safe rollback - check if transaction is still active
+                        try
+                        {
+                            if (transaction.Connection != null)
+                            {
+                                transaction.Rollback();
+                            }
+                        }
+                        catch (Exception rollbackEx)
+                        {
+                            Debug.WriteLine($"[ImportCompanyOnly] Warning: Could not rollback transaction: {rollbackEx.Message}");
+                        }
                         throw new Exception($"Department import failed and was rolled back. Error: {ex.Message}", ex);
                     }
                 }
+
+                // Cleanup after import (re-enable FK constraints)
+                await strategy.CleanupAfterImportAsync(connection);
             }
 
             progress?.Report(new ImportProgress
@@ -1328,86 +1461,6 @@ public class VaultImportService : IVaultImportService
         return ReferenceResolver.ResolveReferenceExternalId(reference, contractSource, seenDictionary);
     }
 
-    private Contract MapContract(string personId, VaultContract vaultContract, ContractMappingContext context)
-    {
-        // Get source from lookup, or null if not found
-        string? sourceId = null;
-        if (vaultContract.Source?.SystemId != null && context.SourceLookup.TryGetValue(vaultContract.Source.SystemId, out var mappedSourceId))
-        {
-            sourceId = mappedSourceId;
-        }
-
-        // Debug: Log first few contracts to see ExternalId values
-        if (_contractDebugCounter++ < 5)
-        {
-            Debug.WriteLine($"[MapContract] Contract {_contractDebugCounter}: ExternalId={vaultContract.ExternalId}, " +
-                         $"Location={vaultContract.Location?.ExternalId ?? "NULL"}, " +
-                         $"Department={vaultContract.Department?.ExternalId ?? "NULL"}, " +
-                         $"Employer={vaultContract.Employer?.ExternalId ?? "NULL"}, " +
-                         $"CostCenter={vaultContract.CostCenter?.ExternalId ?? "NULL"}, " +
-                         $"CostBearer={vaultContract.CostBearer?.ExternalId ?? "NULL"}, " +
-                         $"Team={vaultContract.Team?.ExternalId ?? "NULL"}, " +
-                         $"Division={vaultContract.Division?.ExternalId ?? "NULL"}, " +
-                         $"Title={vaultContract.Title?.ExternalId ?? "NULL"}, " +
-                         $"Organization={vaultContract.Organization?.ExternalId ?? "NULL"}, " +
-                         $"sourceId={sourceId ?? "NULL"}");
-        }
-
-        // Resolve manager reference
-        var managerPersonId = ResolveManagerReference(vaultContract.Manager?.PersonId, context, vaultContract.ExternalId, personId);
-
-        return new Contract
-        {
-            PersonId = personId,
-            ExternalId = vaultContract.ExternalId,
-            StartDate = vaultContract.StartDate?.ToString("yyyy-MM-dd"),
-            EndDate = vaultContract.EndDate?.ToString("yyyy-MM-dd"),
-            Fte = (double?)vaultContract.Details?.Fte,
-            HoursPerWeek = (double?)vaultContract.Details?.HoursPerWeek,
-            Percentage = (double?)vaultContract.Details?.Percentage,
-            Sequence = vaultContract.Details?.Sequence,
-            TypeCode = vaultContract.Type?.Code,
-            TypeDescription = vaultContract.Type?.Description,
-            LocationExternalId = ResolveReferenceExternalId(vaultContract.Location, sourceId, context.SeenLocations),
-            LocationSource = sourceId,
-            DepartmentExternalId = !string.IsNullOrWhiteSpace(vaultContract.Department?.ExternalId) && sourceId != null ?
-                vaultContract.Department.ExternalId : null,
-            DepartmentSource = sourceId,
-            CostCenterExternalId = ResolveReferenceExternalId(vaultContract.CostCenter, sourceId, context.SeenCostCenters),
-            CostCenterSource = sourceId,
-            CostBearerExternalId = ResolveReferenceExternalId(vaultContract.CostBearer, sourceId, context.SeenCostBearers),
-            CostBearerSource = sourceId,
-            EmployerExternalId = ResolveReferenceExternalId(vaultContract.Employer, sourceId, context.SeenEmployers),
-            EmployerSource = sourceId,
-            TitleExternalId = ResolveReferenceExternalId(vaultContract.Title, sourceId, context.SeenTitles),
-            TitleSource = sourceId,
-            TeamExternalId = ResolveReferenceExternalId(vaultContract.Team, sourceId, context.SeenTeams),
-            TeamSource = sourceId,
-            DivisionExternalId = ResolveReferenceExternalId(vaultContract.Division, sourceId, context.SeenDivisions),
-            DivisionSource = sourceId,
-            OrganizationExternalId = ResolveReferenceExternalId(vaultContract.Organization, sourceId, context.SeenOrganizations),
-            OrganizationSource = sourceId,
-            ManagerPersonExternalId = managerPersonId,
-            Source = sourceId
-        };
-    }
-
-    /// <summary>
-    /// Resolves the manager reference for a contract, handling empty GUIDs.
-    /// </summary>
-    private string? ResolveManagerReference(string? managerPersonId, ContractMappingContext context, string contractExternalId, string personId)
-    {
-        // Check if manager GUID is empty/blank - count and replace with null
-        if (managerPersonId == "00000000-0000-0000-0000-000000000000" || string.IsNullOrWhiteSpace(managerPersonId))
-        {
-            context.Result.EmptyManagerGuidsReplaced++;
-            System.Diagnostics.Debug.WriteLine($"[MapContract] Empty manager GUID replaced for contract {contractExternalId} (person {personId})");
-            return null;
-        }
-
-        return managerPersonId;
-    }
-
     private Contact MapContact(string personId, string type, VaultContactInfo contactInfo)
     {
         return ContactMapper.Map(personId, type, contactInfo);
@@ -1433,6 +1486,158 @@ public class VaultImportService : IVaultImportService
     }
 
     /// <summary>
+    /// Validates and fixes FK references for a contract before insert.
+    /// Sets invalid references to NULL to avoid FK constraint violations.
+    /// This is needed for managed PostgreSQL where FK constraints can't be disabled.
+    /// </summary>
+    private async Task ValidateContractFkReferencesAsync(Contract contract, IDbConnection connection, IDbTransaction transaction)
+    {
+        // Check title reference
+        if (!string.IsNullOrWhiteSpace(contract.TitleExternalId))
+        {
+            var titleExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM titles WHERE external_id = @ExternalId AND source = @Source)",
+                new { ExternalId = contract.TitleExternalId, Source = contract.TitleSource },
+                transaction);
+
+            if (!titleExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid title reference ({contract.TitleExternalId}, {contract.TitleSource}) - setting to NULL");
+                contract.TitleExternalId = null;
+                contract.TitleSource = null;
+            }
+        }
+
+        // Check location reference
+        if (!string.IsNullOrWhiteSpace(contract.LocationExternalId))
+        {
+            var locationExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM locations WHERE external_id = @ExternalId AND source = @Source)",
+                new { ExternalId = contract.LocationExternalId, Source = contract.LocationSource },
+                transaction);
+
+            if (!locationExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid location reference ({contract.LocationExternalId}, {contract.LocationSource}) - setting to NULL");
+                contract.LocationExternalId = null;
+                contract.LocationSource = null;
+            }
+        }
+
+        // Check employer reference
+        if (!string.IsNullOrWhiteSpace(contract.EmployerExternalId))
+        {
+            var employerExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM employers WHERE external_id = @ExternalId AND source = @Source)",
+                new { ExternalId = contract.EmployerExternalId, Source = contract.EmployerSource },
+                transaction);
+
+            if (!employerExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid employer reference ({contract.EmployerExternalId}, {contract.EmployerSource}) - setting to NULL");
+                contract.EmployerExternalId = null;
+                contract.EmployerSource = null;
+            }
+        }
+
+        // Check department reference
+        if (!string.IsNullOrWhiteSpace(contract.DepartmentExternalId))
+        {
+            var deptExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM departments WHERE external_id = @ExternalId AND source = @Source)",
+                new { ExternalId = contract.DepartmentExternalId, Source = contract.DepartmentSource },
+                transaction);
+
+            if (!deptExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid department reference ({contract.DepartmentExternalId}, {contract.DepartmentSource}) - setting to NULL");
+                contract.DepartmentExternalId = null;
+                contract.DepartmentSource = null;
+            }
+        }
+
+        // Check cost center reference
+        if (!string.IsNullOrWhiteSpace(contract.CostCenterExternalId))
+        {
+            var ccExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM cost_centers WHERE external_id = @ExternalId AND source = @Source)",
+                new { ExternalId = contract.CostCenterExternalId, Source = contract.CostCenterSource },
+                transaction);
+
+            if (!ccExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid cost center reference ({contract.CostCenterExternalId}, {contract.CostCenterSource}) - setting to NULL");
+                contract.CostCenterExternalId = null;
+                contract.CostCenterSource = null;
+            }
+        }
+
+        // Check cost bearer reference
+        if (!string.IsNullOrWhiteSpace(contract.CostBearerExternalId))
+        {
+            var cbExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM cost_bearers WHERE external_id = @ExternalId AND source = @Source)",
+                new { ExternalId = contract.CostBearerExternalId, Source = contract.CostBearerSource },
+                transaction);
+
+            if (!cbExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid cost bearer reference ({contract.CostBearerExternalId}, {contract.CostBearerSource}) - setting to NULL");
+                contract.CostBearerExternalId = null;
+                contract.CostBearerSource = null;
+            }
+        }
+
+        // Check team reference
+        if (!string.IsNullOrWhiteSpace(contract.TeamExternalId))
+        {
+            var teamExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM teams WHERE external_id = @ExternalId AND source = @Source)",
+                new { ExternalId = contract.TeamExternalId, Source = contract.TeamSource },
+                transaction);
+
+            if (!teamExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid team reference ({contract.TeamExternalId}, {contract.TeamSource}) - setting to NULL");
+                contract.TeamExternalId = null;
+                contract.TeamSource = null;
+            }
+        }
+
+        // Check division reference
+        if (!string.IsNullOrWhiteSpace(contract.DivisionExternalId))
+        {
+            var divExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM divisions WHERE external_id = @ExternalId AND source = @Source)",
+                new { ExternalId = contract.DivisionExternalId, Source = contract.DivisionSource },
+                transaction);
+
+            if (!divExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid division reference ({contract.DivisionExternalId}, {contract.DivisionSource}) - setting to NULL");
+                contract.DivisionExternalId = null;
+                contract.DivisionSource = null;
+            }
+        }
+
+        // Check organization reference
+        if (!string.IsNullOrWhiteSpace(contract.OrganizationExternalId))
+        {
+            var orgExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM organizations WHERE external_id = @ExternalId AND source = @Source)",
+                new { ExternalId = contract.OrganizationExternalId, Source = contract.OrganizationSource },
+                transaction);
+
+            if (!orgExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid organization reference ({contract.OrganizationExternalId}, {contract.OrganizationSource}) - setting to NULL");
+                contract.OrganizationExternalId = null;
+                contract.OrganizationSource = null;
+            }
+        }
+    }
+
+    /// <summary>
     /// Performs topological sort on departments to ensure parents are inserted before children.
     /// Uses depth-first traversal with cycle detection.
     /// </summary>
@@ -1454,106 +1659,19 @@ public class VaultImportService : IVaultImportService
     }
 
     /// <summary>
-    /// Auto-detects which Primary Manager logic was used based on imported data.
-    /// Samples persons and compares their imported primary manager with calculated values.
+    /// Generates database-agnostic INSERT IGNORE SQL.
+    /// SQLite uses INSERT OR IGNORE, PostgreSQL uses INSERT ... ON CONFLICT DO NOTHING.
+    /// For PostgreSQL, uses ON CONFLICT DO NOTHING without specifying columns (implicitly uses primary key).
     /// </summary>
-    private async Task<PrimaryManagerLogic?> DetectPrimaryManagerLogicAsync()
+    private string GetInsertIgnoreSql(string tableName, string columns, string valuesPlaceholder)
     {
-        using var connection = _connectionFactory.CreateConnection();
-
-        // Get persons who have a primary manager set from import
-        var personsWithManager = await connection.QueryAsync<PersonWithManagerDto>(@"
-            SELECT person_id AS PersonId, primary_manager_person_id AS ImportedManagerId
-            FROM persons
-            WHERE primary_manager_person_id IS NOT NULL
-            LIMIT 100");  // Sample up to 100 persons for performance
-
-        var personsList = personsWithManager.ToList();
-        if (!personsList.Any())
+        if (_connectionFactory.DatabaseType == DatabaseType.PostgreSql)
         {
-            Console.WriteLine("No persons with primary managers found to detect logic.");
-            return null;
-        }
-
-        int contractBasedMatches = 0;
-        int departmentBasedMatches = 0;
-
-        foreach (var person in personsList)
-        {
-            // Calculate what the primary manager would be using each logic
-            var contractBasedManager = await _primaryManagerService.CalculatePrimaryManagerAsync(person.PersonId, PrimaryManagerLogic.ContractBased);
-            var departmentBasedManager = await _primaryManagerService.CalculatePrimaryManagerAsync(person.PersonId, PrimaryManagerLogic.DepartmentBased);
-
-            // Count matches
-            if (contractBasedManager == person.ImportedManagerId)
-                contractBasedMatches++;
-            if (departmentBasedManager == person.ImportedManagerId)
-                departmentBasedMatches++;
-        }
-
-        Console.WriteLine($"Logic detection results: Contract-Based={contractBasedMatches} matches, Department-Based={departmentBasedMatches} matches (out of {personsList.Count} sampled)");
-
-        // Determine which logic matches better
-        PrimaryManagerLogic? detectedLogic;
-        if (contractBasedMatches > departmentBasedMatches)
-        {
-            detectedLogic = PrimaryManagerLogic.ContractBased;
-        }
-        else if (departmentBasedMatches > contractBasedMatches)
-        {
-            detectedLogic = PrimaryManagerLogic.DepartmentBased;
-        }
-        else if (contractBasedMatches == 0 && departmentBasedMatches == 0)
-        {
-            // No matches - couldn't detect
-            return null;
+            return $"INSERT INTO {tableName} ({columns}) VALUES ({valuesPlaceholder}) ON CONFLICT DO NOTHING";
         }
         else
         {
-            // Equal matches - default to Department-Based
-            detectedLogic = PrimaryManagerLogic.DepartmentBased;
-        }
-
-        // Save the detected logic to user preferences
-        _userPreferencesService.LastPrimaryManagerLogic = detectedLogic.Value;
-
-        return detectedLogic;
-    }
-
-    private class PersonWithManagerDto
-    {
-        public string PersonId { get; set; } = string.Empty;
-        public string? ImportedManagerId { get; set; }
-    }
-
-    private class DepartmentComparer : IEqualityComparer<Department>
-    {
-        public bool Equals(Department? x, Department? y)
-        {
-            if (x == null || y == null) return false;
-            return x.ExternalId == y.ExternalId;
-        }
-
-        public int GetHashCode(Department obj)
-        {
-            return obj.ExternalId?.GetHashCode() ?? 0;
-        }
-    }
-
-    private class ReferenceComparer : IEqualityComparer<VaultReference>
-    {
-        public bool Equals(VaultReference? x, VaultReference? y)
-        {
-            if (x == null || y == null) return false;
-            return x.ExternalId == y.ExternalId && x.Name == y.Name;
-        }
-
-        public int GetHashCode(VaultReference obj)
-        {
-            var hash = obj.ExternalId?.GetHashCode() ?? 0;
-            if (obj.Name != null)
-                hash = HashCode.Combine(hash, obj.Name.GetHashCode());
-            return hash;
+            return $"INSERT OR IGNORE INTO {tableName} ({columns}) VALUES ({valuesPlaceholder})";
         }
     }
 }

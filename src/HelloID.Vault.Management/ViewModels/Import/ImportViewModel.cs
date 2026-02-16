@@ -94,7 +94,7 @@ public partial class ImportViewModel : ObservableObject
             if (hasData)
             {
                 // Show custom 3-option dialog
-                var dialog = new ConfirmImportDialog
+                var dialog = new ConfirmImportDialog(_importService.DatabaseType)
                 {
                     Owner = Application.Current.MainWindow
                 };
@@ -197,7 +197,7 @@ public partial class ImportViewModel : ObservableObject
             if (hasData)
             {
                 // Show company import dialog
-                var dialog = new CompanyImportDialog
+                var dialog = new CompanyImportDialog(_importService.DatabaseType)
                 {
                     Owner = Application.Current.MainWindow
                 };

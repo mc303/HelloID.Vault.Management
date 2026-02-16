@@ -15,7 +15,7 @@ public static class ContractReferenceValidator
     /// Validates all contract references using source-aware lookups.
     /// Detects orphaned references (contract references entity that doesn't exist in master table with matching source).
     /// </summary>
-    public static async Task ValidateAsync(ISqliteConnectionFactory connectionFactory, ImportResult result)
+    public static async Task ValidateAsync(IDatabaseConnectionFactory connectionFactory, ImportResult result)
     {
         using var connection = connectionFactory.CreateConnection();
 

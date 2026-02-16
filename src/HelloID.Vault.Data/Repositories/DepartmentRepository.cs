@@ -11,9 +11,9 @@ namespace HelloID.Vault.Data.Repositories;
 /// </summary>
 public class DepartmentRepository : IDepartmentRepository
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
 
-    public DepartmentRepository(ISqliteConnectionFactory connectionFactory)
+    public DepartmentRepository(IDatabaseConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }

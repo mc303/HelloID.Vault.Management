@@ -1,5 +1,6 @@
 using HelloID.Vault.Core.Models;
 using HelloID.Vault.Services;
+using HelloID.Vault.Data.Connection;
 
 namespace HelloID.Vault.Services.Interfaces;
 
@@ -325,6 +326,26 @@ public interface IUserPreferencesService
     /// Saves preferences to disk asynchronously.
     /// </summary>
     Task SaveAsync();
+
+    /// <summary>
+    /// Gets or sets custom database path. If null or empty, uses default path.
+    /// </summary>
+    string? DatabasePath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the database type (SQLite or PostgreSQL).
+    /// </summary>
+    DatabaseType DatabaseType { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Supabase connection string (encrypted).
+    /// </summary>
+    string? SupabaseConnectionString { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Supabase project URL.
+    /// </summary>
+    string? SupabaseUrl { get; set; }
 
     /// <summary>
     /// Loads preferences from disk asynchronously.

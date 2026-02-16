@@ -7,7 +7,10 @@ using Microsoft.Extensions.Caching.Memory;
 using HelloID.Vault.Data;
 using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Data.Repositories;
+using HelloID.Vault.Data.Repositories.Base;
 using HelloID.Vault.Data.Repositories.Interfaces;
+using HelloID.Vault.Data.Repositories.Postgres;
+using HelloID.Vault.Data.Repositories.Sqlite;
 using HelloID.Vault.Management.Views;
 using HelloID.Vault.Management.Views.ReferenceData;
 using HelloID.Vault.Management.ViewModels;
@@ -20,6 +23,7 @@ using HelloID.Vault.Management.Services;
 using HelloID.Vault.Services;
 using HelloID.Vault.Services.Database;
 using HelloID.Vault.Services.Interfaces;
+using HelloID.Vault.Services.Security;
 
 namespace HelloID.Vault.Management;
 
@@ -122,21 +126,107 @@ public partial class App : Application
     {
         // Database configuration
         var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        var dbPath = Path.Combine(baseDirectory, "db", "vault.db");
-        var schemaPath = Path.Combine(baseDirectory, "db", "sqlite_schema.sql");
+        var sqliteSchemaPath = Path.Combine(baseDirectory, "db", "sqlite_schema.sql");
+        var postgresSchemaPath = Path.Combine(baseDirectory, "db", "postgres_schema.sql");
+
+        // Default to LocalAppData for database (writable without admin)
+        var appDataPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "HelloID.Vault.Management");
+
+        // Load preferences to check for custom database path and type
+        var preferencesService = new UserPreferencesService();
+        preferencesService.LoadAsync().GetAwaiter().GetResult();
+
+        var dbType = preferencesService.DatabaseType;
+        var customDbPath = preferencesService.DatabasePath;
+
+        // Register encryption service
+        services.AddSingleton<IEncryptionService, WindowsDpapiEncryptionService>();
+
+        // Register appropriate connection factory based on database type
+        // Use DatabaseType enum directly to determine factory
+        
+        // Case-insensitive check for SupabaseConnectionString
+        bool isPostgres = string.Equals(dbType.ToString(), DatabaseType.PostgreSql.ToString(), StringComparison.OrdinalIgnoreCase);
+        
+        if (isPostgres)
+        {
+            // PostgreSQL connection (Supabase)
+            var connectionString = preferencesService.SupabaseConnectionString;
+            services.AddSingleton<IDatabaseConnectionFactory>(new PostgreSqlConnectionFactory(connectionString));
+            services.AddSingleton(sp => new DatabaseInitializer(
+                sp.GetRequiredService<IDatabaseConnectionFactory>(),
+                postgresSchemaPath));
+            System.Diagnostics.Debug.WriteLine($"Using PostgreSQL database (Supabase)");
+        }
+        else
+        {
+            // SQLite connection (default)
+            var dbPath = !string.IsNullOrWhiteSpace(customDbPath)
+                ? Path.IsPathRooted(customDbPath)
+                    ? customDbPath
+                    : Path.Combine(appDataPath, customDbPath)
+                : Path.Combine(appDataPath, "db", "vault.db");
+
+            try
+            {
+                var dbDirectory = Path.GetDirectoryName(dbPath);
+                if (!string.IsNullOrEmpty(dbDirectory) && !Directory.Exists(dbDirectory))
+                {
+                    Directory.CreateDirectory(dbDirectory);
+                }
+
+                // Register SQLite factory
+                services.AddSingleton<IDatabaseConnectionFactory>(new SqliteConnectionFactory(dbPath));
+                services.AddSingleton(sp => new DatabaseInitializer(
+                    sp.GetRequiredService<IDatabaseConnectionFactory>(),
+                    dbPath,
+                    sqliteSchemaPath));
+                System.Diagnostics.Debug.WriteLine($"Using SQLite database at: {dbPath}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[App.xaml.cs] Database configuration error: {ex.GetType().Name} - {ex.Message}");
+                throw;
+            }
+        }
+
+        // CustomFieldRepository - database-specific implementation
+        if (isPostgres)
+        {
+            services.AddSingleton<ICustomFieldRepository, PostgresCustomFieldRepository>();
+        }
+        else
+        {
+            services.AddSingleton<ICustomFieldRepository, SqliteCustomFieldRepository>();
+        }
+
+        // ContractRepository - database-specific implementation
+        if (isPostgres)
+        {
+            services.AddSingleton<IContractRepository, PostgresContractRepository>();
+        }
+        else
+        {
+            services.AddSingleton<IContractRepository, SqliteContractRepository>();
+        }
+
+        // SourceSystemRepository - database-specific implementation
+        if (isPostgres)
+        {
+            services.AddSingleton<ISourceSystemRepository, PostgresSourceSystemRepository>();
+        }
+        else
+        {
+            services.AddSingleton<ISourceSystemRepository, SqliteSourceSystemRepository>();
+        }
 
         // Memory Cache
         services.AddSingleton<IMemoryCache, MemoryCache>();
 
-        services.AddSingleton<ISqliteConnectionFactory>(new SqliteConnectionFactory(dbPath));
-        services.AddSingleton(sp => new DatabaseInitializer(
-            sp.GetRequiredService<ISqliteConnectionFactory>(),
-            dbPath,
-            schemaPath));
-
         // Repositories
         services.AddSingleton<IPersonRepository, PersonRepository>();
-        services.AddSingleton<IContractRepository, ContractRepository>();
         services.AddSingleton<IContactRepository, ContactRepository>();
         services.AddSingleton<IDepartmentRepository, DepartmentRepository>();
         services.AddSingleton<ILocationRepository, LocationRepository>();
@@ -147,9 +237,7 @@ public partial class App : Application
         services.AddSingleton<IEmployerRepository, EmployerRepository>();
         services.AddSingleton<ICostCenterRepository, CostCenterRepository>();
         services.AddSingleton<ICostBearerRepository, CostBearerRepository>();
-        services.AddSingleton<ICustomFieldRepository, CustomFieldRepository>();
         services.AddSingleton<IPrimaryContractConfigRepository, PrimaryContractConfigRepository>();
-        services.AddSingleton<ISourceSystemRepository, SourceSystemRepository>();
 
         // Services
         services.AddSingleton<INavigationService, NavigationService>();
@@ -157,7 +245,11 @@ public partial class App : Application
         services.AddSingleton<IVaultImportService, VaultImportService>();
         services.AddSingleton<IReferenceDataService, ReferenceDataService>();
         services.AddSingleton<IContractService, ContractService>();
-        services.AddSingleton<IUserPreferencesService, UserPreferencesService>();
+        services.AddSingleton<IUserPreferencesService>(sp =>
+        {
+            var service = new UserPreferencesService();
+            return service;
+        });
         services.AddSingleton<IPrimaryManagerService, PrimaryManagerService>();
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IColumnLayoutManager, ColumnLayoutManager>();
@@ -185,6 +277,7 @@ public partial class App : Application
         services.AddTransient<PrimaryContractConfigViewModel>();
         services.AddTransient<SourceSystemsViewModel>();
         services.AddTransient<PrimaryManagerAdminViewModel>();
+        services.AddTransient<SettingsViewModel>();
 
         // Views
         services.AddSingleton<MainWindow>();

@@ -7,9 +7,9 @@ namespace HelloID.Vault.Data.Repositories;
 
 public class TeamRepository : ITeamRepository
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
 
-    public TeamRepository(ISqliteConnectionFactory connectionFactory)
+    public TeamRepository(IDatabaseConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }

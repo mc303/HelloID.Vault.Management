@@ -15,7 +15,7 @@ public class PersonService : IPersonService
 {
     private readonly IPersonRepository _personRepository;
     private readonly ICustomFieldRepository _customFieldRepository;
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly IPrimaryContractConfigRepository _primaryContractConfigRepository;
     private readonly IContactRepository _contactRepository;
     private readonly PrimaryContractFieldResolver _fieldResolver;
@@ -23,7 +23,7 @@ public class PersonService : IPersonService
     public PersonService(
         IPersonRepository personRepository,
         ICustomFieldRepository customFieldRepository,
-        ISqliteConnectionFactory connectionFactory,
+        IDatabaseConnectionFactory connectionFactory,
         IPrimaryContractConfigRepository primaryContractConfigRepository,
         IContactRepository contactRepository)
     {
@@ -144,68 +144,68 @@ public class PersonService : IPersonService
             throw new ArgumentException("Person ID cannot be null or empty.", nameof(personId));
         }
 
-        System.Diagnostics.Debug.WriteLine($"[PersonService] GetContractsByPersonIdAsync START - PersonId: {personId}");
+        System.Diagnostics.Debug.WriteLine($"[PersonService] GetContractsByPersonIdAsync START - PersonId: '{personId}' (Length: {personId.Length})");
 
         using var connection = _connectionFactory.CreateConnection();
 
         // Query contract_details_view for all contracts of this person
+        // Note: The view already includes source_display_name from the source_system join
         var sql = @"
             SELECT
-                c.contract_id AS ContractId,
-                c.external_id AS ExternalId,
-                c.person_id AS PersonId,
-                c.start_date AS StartDate,
-                c.end_date AS EndDate,
-                c.type_code AS TypeCode,
-                c.type_description AS TypeDescription,
-                c.fte AS Fte,
-                c.hours_per_week AS HoursPerWeek,
-                c.percentage AS Percentage,
-                c.sequence AS Sequence,
-                c.person_name AS PersonName,
-                c.person_external_id AS PersonExternalId,
-                c.manager_person_external_id AS ManagerPersonId,
-                c.manager_person_name AS ManagerPersonName,
-                c.location_external_id AS LocationExternalId,
-                c.location_code AS LocationCode,
-                c.location_name AS LocationName,
-                c.cost_center_external_id AS CostCenterExternalId,
-                c.cost_center_code AS CostCenterCode,
-                c.cost_center_name AS CostCenterName,
-                c.cost_bearer_external_id AS CostBearerExternalId,
-                c.cost_bearer_code AS CostBearerCode,
-                c.cost_bearer_name AS CostBearerName,
-                c.employer_external_id AS EmployerExternalId,
-                c.employer_code AS EmployerCode,
-                c.employer_name AS EmployerName,
-                c.team_external_id AS TeamExternalId,
-                c.team_code AS TeamCode,
-                c.team_name AS TeamName,
-                c.department_external_id AS DepartmentExternalId,
-                c.department_name AS DepartmentName,
-                c.department_code AS DepartmentCode,
-                c.department_parent_external_id AS DepartmentParentExternalId,
-                c.department_manager_person_id AS DepartmentManagerPersonId,
-                c.department_manager_name AS DepartmentManagerName,
-                c.department_parent_department_name AS DepartmentParentDepartmentName,
-                c.division_external_id AS DivisionExternalId,
-                c.division_code AS DivisionCode,
-                c.division_name AS DivisionName,
-                c.title_external_id AS TitleExternalId,
-                c.title_code AS TitleCode,
-                c.title_name AS TitleName,
-                c.organization_external_id AS OrganizationExternalId,
-                c.organization_code AS OrganizationCode,
-                c.organization_name AS OrganizationName,
-                c.contract_status AS ContractStatus,
-                c.contract_date_range AS ContractDateRange,
-                c.source AS Source,
-                ss.display_name AS SourceDisplayName
-            FROM contract_details_view c
-            LEFT JOIN source_system ss ON c.source = ss.system_id
-            WHERE c.person_id = @PersonId
+                contract_id AS ContractId,
+                external_id AS ExternalId,
+                person_id AS PersonId,
+                start_date AS StartDate,
+                end_date AS EndDate,
+                type_code AS TypeCode,
+                type_description AS TypeDescription,
+                fte AS Fte,
+                hours_per_week AS HoursPerWeek,
+                percentage AS Percentage,
+                sequence AS Sequence,
+                person_name AS PersonName,
+                person_external_id AS PersonExternalId,
+                manager_person_external_id AS ManagerPersonId,
+                manager_person_name AS ManagerPersonName,
+                location_external_id AS LocationExternalId,
+                location_code AS LocationCode,
+                location_name AS LocationName,
+                cost_center_external_id AS CostCenterExternalId,
+                cost_center_code AS CostCenterCode,
+                cost_center_name AS CostCenterName,
+                cost_bearer_external_id AS CostBearerExternalId,
+                cost_bearer_code AS CostBearerCode,
+                cost_bearer_name AS CostBearerName,
+                employer_external_id AS EmployerExternalId,
+                employer_code AS EmployerCode,
+                employer_name AS EmployerName,
+                team_external_id AS TeamExternalId,
+                team_code AS TeamCode,
+                team_name AS TeamName,
+                department_external_id AS DepartmentExternalId,
+                department_name AS DepartmentName,
+                department_code AS DepartmentCode,
+                department_parent_external_id AS DepartmentParentExternalId,
+                department_manager_person_id AS DepartmentManagerPersonId,
+                department_manager_name AS DepartmentManagerName,
+                department_parent_department_name AS DepartmentParentDepartmentName,
+                division_external_id AS DivisionExternalId,
+                division_code AS DivisionCode,
+                division_name AS DivisionName,
+                title_external_id AS TitleExternalId,
+                title_code AS TitleCode,
+                title_name AS TitleName,
+                organization_external_id AS OrganizationExternalId,
+                organization_code AS OrganizationCode,
+                organization_name AS OrganizationName,
+                contract_status AS ContractStatus,
+                contract_date_range AS ContractDateRange,
+                source AS Source,
+                source_display_name AS SourceDisplayName
+            FROM contract_details_view
+            WHERE person_id = @PersonId
             ORDER BY
-                CASE c.contract_status
+                CASE contract_status
                     WHEN 'Active' THEN 1
                     WHEN 'Future' THEN 2
                     WHEN 'Past' THEN 3
@@ -213,13 +213,30 @@ public class PersonService : IPersonService
                 END,
                 start_date DESC";
 
-        var contracts = await connection.QueryAsync<ContractDetailDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
-        var contractsList = contracts.ToList();
+        System.Diagnostics.Debug.WriteLine($"[PersonService] Executing SQL Query for PersonId: '{personId}'");
 
-        System.Diagnostics.Debug.WriteLine($"[PersonService] Loaded {contractsList.Count} contracts from contract_details_view");
-        foreach (var contract in contractsList)
+        List<ContractDetailDto> contractsList;
+
+        try
         {
-            System.Diagnostics.Debug.WriteLine($"[PersonService] Contract {contract.ContractId} - LocationName: '{contract.LocationName}', DepartmentName: '{contract.DepartmentName}', TitleName: '{contract.TitleName}', LocationExternalId: '{contract.LocationExternalId}', LocationSource: '{contract.Source}'");
+            var contracts = await connection.QueryAsync<ContractDetailDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
+            contractsList = contracts.ToList();
+
+            System.Diagnostics.Debug.WriteLine($"[PersonService] Query SUCCESS - Loaded {contractsList.Count} contracts");
+            foreach (var contract in contractsList)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PersonService]   Contract {contract.ContractId}: ExternalId='{contract.ExternalId}', Status='{contract.ContractStatus}', Location='{contract.LocationName}'");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PersonService] Query FAILED: {ex.GetType().Name} - {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PersonService]   Inner Exception: {ex.InnerException.Message}");
+            }
+            System.Diagnostics.Debug.WriteLine($"[PersonService]   Parameter: PersonId='{personId}' (Length: {personId.Length})");
+            throw;
         }
 
         // Calculate primary contract based on configuration
@@ -323,7 +340,31 @@ public class PersonService : IPersonService
             throw new ArgumentException("Person ID cannot be null or empty.", nameof(personId));
         }
 
-        return await _contactRepository.GetByPersonIdAsync(personId);
+        System.Diagnostics.Debug.WriteLine($"[PersonService] GetContactsByPersonIdAsync START - PersonId: '{personId}' (Length: {personId.Length})");
+
+        try
+        {
+            var contacts = await _contactRepository.GetByPersonIdAsync(personId);
+            var contactsList = contacts.ToList();
+
+            System.Diagnostics.Debug.WriteLine($"[PersonService] GetContactsByPersonIdAsync SUCCESS - Loaded {contactsList.Count} contacts");
+            foreach (var contact in contactsList)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PersonService]   Contact {contact.ContactId}: Type='{contact.Type}', Email='{contact.Email}'");
+            }
+
+            return contactsList;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PersonService] GetContactsByPersonIdAsync FAILED: {ex.GetType().Name} - {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PersonService]   Inner Exception: {ex.InnerException.Message}");
+            }
+            System.Diagnostics.Debug.WriteLine($"[PersonService]   Parameter: PersonId='{personId}' (Length: {personId.Length})");
+            throw;
+        }
     }
 
     public async Task<PersonDetailDto?> GetPersonWithMostContractsAsync(int skip = 0)

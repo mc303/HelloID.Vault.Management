@@ -7,9 +7,9 @@ namespace HelloID.Vault.Data.Repositories;
 
 public class CostBearerRepository : ICostBearerRepository
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
 
-    public CostBearerRepository(ISqliteConnectionFactory connectionFactory)
+    public CostBearerRepository(IDatabaseConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }

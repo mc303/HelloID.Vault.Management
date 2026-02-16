@@ -110,8 +110,8 @@
                 </ui:NavigationViewItem.Icon>
             </ui:NavigationViewItem>
 
-            <!-- Settings -->
-            <ui:NavigationViewItem Content="Settings" Tag="Settings">
+            <!-- Administration (Reference Data Configuration) -->
+            <ui:NavigationViewItem Content="Administration" Tag="Administration">
                 <ui:NavigationViewItem.Icon>
                     <ui:FontIcon Glyph="&#xE713;"/> <!-- Settings icon -->
                 </ui:NavigationViewItem.Icon>
@@ -138,6 +138,13 @@
             <ui:NavigationViewItem Content="Import Data" Tag="ImportData">
                 <ui:NavigationViewItem.Icon>
                     <ui:FontIcon Glyph="&#xE896;"/> <!-- Download icon -->
+                </ui:NavigationViewItem.Icon>
+            </ui:NavigationViewItem>
+
+            <!-- Database Management (Database configuration) -->
+            <ui:NavigationViewItem Content="Database Management" Tag="AppSettings">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xEC50;"/> <!-- Storage/Database icon -->
                 </ui:NavigationViewItem.Icon>
             </ui:NavigationViewItem>
         </ui:NavigationView.MenuItems>

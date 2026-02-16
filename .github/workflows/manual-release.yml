@@ -43,12 +43,28 @@ jobs:
         run: dotnet build HelloID.Vault.Management.sln --configuration ${{ env.CONFIGURATION }} --no-restore
 
       - name: Publish self-contained EXE (x64)
-        run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+        run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64
 
       - name: Copy db folder to publish directory
         run: |
           New-Item -Path "publish/win-x64/db" -ItemType Directory -Force | Out-Null
           Copy-Item -Path "db/sqlite_schema.sql" -Destination "publish/win-x64/db/sqlite_schema.sql" -Force
+          if (Test-Path "vault.json") {
+            Copy-Item -Path "vault.json" -Destination "publish/win-x64/db/vault.json" -Force
+          }
+
+      - name: Remove language resource folders
+        run: |
+          Get-ChildItem -Path "publish/win-x64" -Directory | Where-Object { $_.Name -match '^[a-z]{2}(-[A-Z]{2})?$' -and $_.Name -ne 'db' } | Remove-Item -Recurse -Force
+
+      - name: Verify db folder contents
+        run: |
+          Write-Host "=== Verifying db folder ==="
+          if (Test-Path "publish/win-x64/db") {
+            Get-ChildItem -Path "publish/win-x64/db" -Recurse | ForEach-Object { Write-Host "File: $($_.FullName.Substring((Get-Location).Path.Length + 1))" }
+          } else {
+            Write-Host "ERROR: db folder not found!"
+          }
 
       - name: Create ZIP archive (x64)
         run: Compress-Archive -Path publish/win-x64/* -DestinationPath HelloID.Vault.Management-win-x64.zip
@@ -72,12 +88,13 @@ jobs:
           $files = Get-ChildItem -Path "publish/win-x64" -Recurse -File
           $fileXml = ""
           $guidIndex = 100
-          $publishDir = "publish/win-x64"
+          $publishDir = Get-Item "publish/win-x64"
 
           foreach ($file in $files) {
             $fileName = $file.Name
-            $filePath = $file.FullName.Replace('\', '/')
-            $relativePath = $file.FullName.Substring($publishDir.Length + 1).Replace('\', '/')
+            # Use relative path from current directory for Source
+            $sourcePath = $file.FullName.Substring((Get-Location).Path.Length + 1).Replace('\', '/')
+            $relativePath = $file.FullName.Substring($publishDir.FullName.Length + 1).Replace('\', '/')
             $subdirectory = ""
 
             # Check if file is in a subdirectory
@@ -88,15 +105,15 @@ jobs:
 
             if ($fileName -eq "HelloID.Vault.Management.exe" -and $relativePath -eq "HelloID.Vault.Management.exe") {
               $fileXml += "                <Component Id=`"MainExecutable`" Guid=`"*`">`n"
-              $fileXml += "                  <File Source=`"$filePath`" KeyPath=`"yes`" Checksum=`"yes`"/>`n"
+              $fileXml += "                  <File Source=`"$sourcePath`" KeyPath=`"yes`" Checksum=`"yes`"/>`n"
               $fileXml += "                </Component>`n"
             } elseif ($subdirectory -ne "") {
               $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`" Subdirectory=`"$subdirectory`">`n"
-              $fileXml += "                  <File Source=`"$filePath`" Name=`"$fileName`" />`n"
+              $fileXml += "                  <File Source=`"$sourcePath`" Name=`"$fileName`" />`n"
               $fileXml += "                </Component>`n"
             } else {
               $fileXml += "                <Component Id=`"File_$guidIndex`" Guid=`"*`">`n"
-              $fileXml += "                  <File Source=`"$filePath`" Name=`"$fileName`" />`n"
+              $fileXml += "                  <File Source=`"$sourcePath`" Name=`"$fileName`" />`n"
               $fileXml += "                </Component>`n"
             }
             $guidIndex++
@@ -123,7 +140,7 @@ jobs:
 
             <Fragment>
               <StandardDirectory Id="ProgramFiles64Folder">
-                <Directory Id="INSTALLFOLDER" Name="HelloID Vault Management" />
+                <Directory Id="INSTALLFOLDER" Name="HelloID.Vault.Management" />
               </StandardDirectory>
               <StandardDirectory Id="ProgramMenuFolder" />
             </Fragment>
@@ -154,7 +171,7 @@ jobs:
       - name: Build MSI installer
         run: |
           $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
-          wix build HelloID.Vault.Management.wxs -out HelloID.Vault.Management.msi
+          wix build HelloID.Vault.Management.wxs -arch x64 -out HelloID.Vault.Management.msi
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4

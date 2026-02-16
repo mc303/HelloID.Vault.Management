@@ -118,6 +118,8 @@ public partial class PersonDetailViewModel : ObservableObject
     {
         if (IsLoading) return;
 
+        System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] LoadAsync START - PersonId: '{_personId}'");
+
         try
         {
             IsLoading = true;
@@ -129,9 +131,12 @@ public partial class PersonDetailViewModel : ObservableObject
             if (Person == null)
             {
                 ErrorMessage = "Person not found.";
+                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Person NOT FOUND for PersonId: '{_personId}'");
             }
             else
             {
+                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Person loaded: '{Person.DisplayName}' (ExternalId: '{Person.ExternalId}')");
+
                 // Load custom fields
                 var customFields = await _personService.GetCustomFieldsAsync(_personId);
                 CustomFields.Clear();
@@ -139,35 +144,47 @@ public partial class PersonDetailViewModel : ObservableObject
                 {
                     CustomFields.Add(field);
                 }
+                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Loaded {CustomFields.Count} custom fields");
                 OnPropertyChanged(nameof(HasCustomFields));
 
                 // Load contracts
+                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Loading contracts for PersonId: '{_personId}'...");
                 var contracts = await _personService.GetContractsByPersonIdAsync(_personId);
                 Contracts.Clear();
                 foreach (var contract in contracts)
                 {
                     Contracts.Add(contract);
                 }
+                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Loaded {Contracts.Count} contracts into ObservableCollection");
                 OnPropertyChanged(nameof(ContractsCount));
 
                 // Load contacts
+                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Loading contacts for PersonId: '{_personId}'...");
                 var contacts_data = await _personService.GetContactsByPersonIdAsync(_personId);
                 Contacts.Clear();
                 foreach (var contact in contacts_data)
                 {
                     Contacts.Add(contact);
                 }
+                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] Loaded {Contacts.Count} contacts into ObservableCollection");
                 OnPropertyChanged(nameof(ContactsCount));
                 OnPropertyChanged(nameof(CanAddContact));
             }
         }
         catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] LoadAsync FAILED: {ex.GetType().Name} - {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel]   Inner Exception: {ex.InnerException.Message}");
+            }
+            System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel]   StackTrace: {ex.StackTrace}");
             ErrorMessage = $"Error loading person: {ex.Message}";
         }
         finally
         {
             IsLoading = false;
+            System.Diagnostics.Debug.WriteLine($"[PersonDetailViewModel] LoadAsync END - PersonId: '{_personId}'");
         }
     }
 

@@ -27,7 +27,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\db\**\*" Link="db\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="Always" />
+    <None Include="..\..\db\**\*" Link="db\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="Always" Exclude="**\CLAUDE.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="**\CLAUDE.md" />
+    <None Remove="**\CLAUDE.md" />
+    <Compile Remove="**\CLAUDE.md" />
+    <EmbeddedResource Remove="**\CLAUDE.md" />
   </ItemGroup>
 
   <ItemGroup>

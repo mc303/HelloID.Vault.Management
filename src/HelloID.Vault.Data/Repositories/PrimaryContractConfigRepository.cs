@@ -10,9 +10,9 @@ namespace HelloID.Vault.Data.Repositories;
 /// </summary>
 public class PrimaryContractConfigRepository : IPrimaryContractConfigRepository
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
 
-    public PrimaryContractConfigRepository(ISqliteConnectionFactory connectionFactory)
+    public PrimaryContractConfigRepository(IDatabaseConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }

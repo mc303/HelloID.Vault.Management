@@ -1,6 +1,8 @@
 using System.Text.Json;
 using HelloID.Vault.Services.Interfaces;
+using HelloID.Vault.Services.Security;
 using HelloID.Vault.Core.Models;
+using HelloID.Vault.Data.Connection;
 
 namespace HelloID.Vault.Services;
 
@@ -737,6 +739,75 @@ public class UserPreferencesService : IUserPreferencesService
         }
     }
 
+    public string? DatabasePath
+    {
+        get => _preferences.DatabasePath;
+        set
+        {
+            if (_preferences.DatabasePath != value)
+            {
+                _preferences.DatabasePath = value;
+                _ = SaveAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the database type. Defaults to Sqlite.
+    /// </summary>
+    public DatabaseType DatabaseType
+    {
+        get => Enum.TryParse<DatabaseType>(_preferences.DatabaseType, out var dbType) ? dbType : DatabaseType.Sqlite;
+        set
+        {
+            var valueString = value.ToString();
+            if (_preferences.DatabaseType != valueString)
+            {
+                _preferences.DatabaseType = valueString;
+                _ = SaveAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the Supabase connection string (encrypted).
+    /// </summary>
+    public string? SupabaseConnectionString
+    {
+        get
+        {
+            var encrypted = _preferences.SupabaseConnectionStringEncrypted;
+            return string.IsNullOrEmpty(encrypted) ? null : new WindowsDpapiEncryptionService().Decrypt(encrypted);
+        }
+        set
+        {
+            var encryptionService = new WindowsDpapiEncryptionService();
+            var encrypted = string.IsNullOrEmpty(value) ? null : encryptionService.Encrypt(value);
+
+            if (_preferences.SupabaseConnectionStringEncrypted != encrypted)
+            {
+                _preferences.SupabaseConnectionStringEncrypted = encrypted;
+                _ = SaveAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the Supabase project URL.
+    /// </summary>
+    public string? SupabaseUrl
+    {
+        get => _preferences.SupabaseUrl;
+        set
+        {
+            if (_preferences.SupabaseUrl != value)
+            {
+                _preferences.SupabaseUrl = value;
+                _ = SaveAsync();
+            }
+        }
+    }
+
     public async Task LoadAsync()
     {
         System.Diagnostics.Debug.WriteLine($"[UserPreferencesService] LoadAsync START");
@@ -924,6 +995,27 @@ public class UserPreferences
     public string? LastContactSearchText { get; set; }
     public List<string>? ContactsColumnOrder { get; set; }
     public Dictionary<string, double>? ContactsColumnWidths { get; set; }
+
+    /// <summary>
+    /// Custom database path. If null or empty, uses default path.
+    /// </summary>
+    public string? DatabasePath { get; set; }
+
+    /// <summary>
+    /// Database type to use (SQLite or PostgreSQL/Supabase).
+    /// </summary>
+    public string DatabaseType { get; set; } = "Sqlite";
+
+    /// <summary>
+    /// Supabase URL (for reference only - not used for direct connection).
+    /// </summary>
+    public string? SupabaseUrl { get; set; }
+
+    /// <summary>
+    /// Encrypted Supabase connection string (PostgreSQL connection string).
+    /// Format: Host=db.xxx.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=...
+    /// </summary>
+    public string? SupabaseConnectionStringEncrypted { get; set; }
 }
 
 /// <summary>

@@ -7,9 +7,9 @@ namespace HelloID.Vault.Data.Repositories;
 
 public class TitleRepository : ITitleRepository
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
+    private readonly IDatabaseConnectionFactory _connectionFactory;
 
-    public TitleRepository(ISqliteConnectionFactory connectionFactory)
+    public TitleRepository(IDatabaseConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }
