@@ -2,7 +2,7 @@
   {
     "key": "wrapperDllPath",
     "templateOptions": {
-      "description": "Full path to HelloID.PostgreSQL.dll",
+      "description": "Full path to HelloID.PostgreSQL.dll (built with Npgsql 8.0.8 or 4.0.12)",
       "label": "Wrapper DLL Path",
       "placeholder": "C:\\HelloID\\SourceData\\HelloID.PostgreSQL.dll",
       "required": true
@@ -22,7 +22,7 @@
   {
     "key": "port",
     "templateOptions": {
-      "description": "PostgreSQL port (default: 5432, Aiven: 25980)",
+      "description": "PostgreSQL port (default: 5432, Aiven: check console for port)",
       "label": "Port",
       "placeholder": "5432",
       "required": true
@@ -81,7 +81,7 @@
   {
     "key": "fieldsToExclude",
     "templateOptions": {
-      "description": "Comma-separated fields to exclude from output",
+      "description": "Comma-separated fields to exclude from output (supports wildcards like custom_*)",
       "label": "Fields to Exclude",
       "placeholder": "Source,custom_*",
       "required": false
@@ -91,7 +91,7 @@
   {
     "key": "isDebug",
     "templateOptions": {
-      "description": "Enable verbose logging for troubleshooting",
+      "description": "Enable verbose logging for troubleshooting (shows SQL queries and data counts)",
       "label": "Debug Mode",
       "required": false
     },

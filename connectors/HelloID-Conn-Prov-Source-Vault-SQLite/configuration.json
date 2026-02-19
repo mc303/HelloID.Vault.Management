@@ -2,7 +2,7 @@
   {
     "key": "databasePath",
     "templateOptions": {
-      "description": "Full path to the Vault SQLite database file",
+      "description": "Full path to the Vault SQLite database file (use forward slashes or double backslashes)",
       "label": "Database Path",
       "placeholder": "C:\\ProgramData\\HelloID.Vault.Management\\vault.db",
       "required": true
@@ -12,9 +12,9 @@
   {
     "key": "sqliteDllPath",
     "templateOptions": {
-      "description": "Full path to Microsoft.Data.Sqlite.dll (required - all dependencies must be in same folder)",
+      "description": "Full path to System.Data.SQLite.dll (download from system.data.sqlite.org)",
       "label": "SQLite DLL Path",
-      "placeholder": "C:\\ProgramData\\HelloID\\Connectors\\Microsoft.Data.Sqlite.dll",
+      "placeholder": "C:\\HelloID\\SourceData\\System.Data.SQLite.dll",
       "required": true
     },
     "type": "input"
@@ -32,7 +32,7 @@
   {
     "key": "includeInactiveContracts",
     "templateOptions": {
-      "description": "Include contracts with end dates in the past",
+      "description": "Include contracts with end dates in the past (expired contracts)",
       "label": "Include Inactive Contracts",
       "required": false
     },
@@ -41,9 +41,9 @@
   {
     "key": "fieldsToExclude",
     "templateOptions": {
-      "description": "Comma-separated fields to exclude. Supports wildcards (e.g., Contact.Personal.*, Contracts.*.Custom)",
+      "description": "Comma-separated fields to exclude from output (supports wildcards like custom_*, Contact.Personal.*)",
       "label": "Fields to Exclude",
-      "placeholder": "Source,Contracts.*.Custom",
+      "placeholder": "Source,custom_*",
       "required": false
     },
     "type": "input"
@@ -51,7 +51,7 @@
   {
     "key": "isDebug",
     "templateOptions": {
-      "description": "Enable verbose logging for troubleshooting",
+      "description": "Enable verbose logging for troubleshooting (shows SQL queries and data counts)",
       "label": "Debug Mode",
       "required": false
     },

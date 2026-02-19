@@ -1,33 +1,63 @@
 [
   {
-    "key": "baseUrl",
+    "key": "wrapperDllPath",
     "templateOptions": {
-      "description": "Supabase project URL (e.g., https://xyzcompany.supabase.co)",
-      "label": "Supabase URL",
-      "placeholder": "https://xyzcompany.supabase.co",
+      "description": "Full path to HelloID.PostgreSQL.dll (built with Npgsql 8.0.8 or 4.0.12)",
+      "label": "Wrapper DLL Path",
+      "placeholder": "C:\\HelloID\\SourceData\\HelloID.PostgreSQL.dll",
       "required": true
     },
     "type": "input"
   },
   {
-    "key": "apiKey",
+    "key": "host",
     "templateOptions": {
-      "description": "Supabase API key (service_role key recommended for full access)",
-      "label": "API Key",
-      "placeholder": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "description": "Supabase database host (e.g., db.xxxxxx.supabase.co)",
+      "label": "Host",
+      "placeholder": "db.xxxxxx.supabase.co",
       "required": true
     },
-    "type": "password"
+    "type": "input"
   },
   {
-    "key": "useAuthentication",
+    "key": "port",
     "templateOptions": {
-      "description": "Use Bearer token authentication (recommended for Supabase)",
-      "label": "Use Authentication",
-      "required": false
+      "description": "Supabase port: 5432 (direct) or 6543 (pooler - recommended for production)",
+      "label": "Port",
+      "placeholder": "6543",
+      "required": true
     },
-    "type": "checkbox",
-    "value": true
+    "type": "input"
+  },
+  {
+    "key": "database",
+    "templateOptions": {
+      "description": "Database name (default: postgres)",
+      "label": "Database",
+      "placeholder": "postgres",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "key": "username",
+    "templateOptions": {
+      "description": "Database username (use 'postgres' for direct, 'postgres.PROJECT_REF' for pooler)",
+      "label": "Username",
+      "placeholder": "postgres",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "key": "password",
+    "templateOptions": {
+      "description": "Database password (from Supabase dashboard > Settings > Database)",
+      "label": "Password",
+      "required": true,
+      "type": "password"
+    },
+    "type": "input"
   },
   {
     "key": "sourceFilter",
@@ -51,9 +81,9 @@
   {
     "key": "fieldsToExclude",
     "templateOptions": {
-      "description": "Comma-separated fields to exclude. Supports wildcards (e.g., Contact.Personal.*, Contracts.*.Custom)",
+      "description": "Comma-separated fields to exclude from output (supports wildcards like custom_*)",
       "label": "Fields to Exclude",
-      "placeholder": "Source,Contracts.*.Custom",
+      "placeholder": "Source,custom_*",
       "required": false
     },
     "type": "input"
@@ -61,7 +91,7 @@
   {
     "key": "isDebug",
     "templateOptions": {
-      "description": "Enable verbose logging for troubleshooting",
+      "description": "Enable verbose logging for troubleshooting (shows SQL queries and data counts)",
       "label": "Debug Mode",
       "required": false
     },
