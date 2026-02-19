@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>HelloID.PostgreSQL</AssemblyName>
+    <RootNamespace>HelloID.PostgreSQL</RootNamespace>
+    <OutputType>Library</OutputType>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\Release\</OutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Embedded\Npgsql.dll" />
+    <EmbeddedResource Include="Embedded\Microsoft.Extensions.Logging.Abstractions.dll" />
+    <EmbeddedResource Include="Embedded\Microsoft.Extensions.DependencyInjection.Abstractions.dll" />
+    <EmbeddedResource Include="Embedded\Microsoft.Extensions.Options.dll" />
+    <EmbeddedResource Include="Embedded\Microsoft.Extensions.Primitives.dll" />
+    <EmbeddedResource Include="Embedded\System.Threading.Tasks.Extensions.dll" />
+    <EmbeddedResource Include="Embedded\System.Runtime.CompilerServices.Unsafe.dll" />
+    <EmbeddedResource Include="Embedded\System.Memory.dll" />
+    <EmbeddedResource Include="Embedded\Microsoft.Bcl.AsyncInterfaces.dll" />
+    <EmbeddedResource Include="Embedded\System.Text.Json.dll" />
+    <EmbeddedResource Include="Embedded\System.Buffers.dll" />
+    <EmbeddedResource Include="Embedded\System.Numerics.Vectors.dll" />
+    <EmbeddedResource Include="Embedded\System.Threading.Channels.dll" />
+    <EmbeddedResource Include="Embedded\System.Diagnostics.DiagnosticSource.dll" />
+  </ItemGroup>
+
+</Project>

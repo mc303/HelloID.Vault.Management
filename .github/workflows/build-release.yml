@@ -12,6 +12,7 @@ env:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build:
@@ -21,6 +22,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Delete old artifacts to free storage quota
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          Write-Host "Cleaning up old artifacts..."
+          $artifacts = gh api repos/${{ github.repository }}/actions/artifacts --jq '.artifacts[] | select(.expired == false) | .id' 2>$null
+          if ($artifacts) {
+            foreach ($id in $artifacts) {
+              Write-Host "Deleting artifact $id..."
+              gh api -X DELETE repos/${{ github.repository }}/actions/artifacts/$id 2>$null
+            }
+            Write-Host "Deleted $($artifacts.Count) artifacts"
+          } else {
+            Write-Host "No artifacts to delete"
+          }
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4

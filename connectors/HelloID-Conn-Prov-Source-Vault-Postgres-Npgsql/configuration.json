@@ -1,0 +1,100 @@
+[
+  {
+    "key": "wrapperDllPath",
+    "templateOptions": {
+      "description": "Full path to HelloID.PostgreSQL.dll",
+      "label": "Wrapper DLL Path",
+      "placeholder": "C:\\HelloID\\SourceData\\HelloID.PostgreSQL.dll",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "key": "host",
+    "templateOptions": {
+      "description": "PostgreSQL server hostname (e.g., localhost or db-project.aivencloud.com)",
+      "label": "Host",
+      "placeholder": "localhost",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "key": "port",
+    "templateOptions": {
+      "description": "PostgreSQL port (default: 5432, Aiven: 25980)",
+      "label": "Port",
+      "placeholder": "5432",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "key": "database",
+    "templateOptions": {
+      "description": "Database name",
+      "label": "Database",
+      "placeholder": "vault",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "key": "username",
+    "templateOptions": {
+      "description": "Database username",
+      "label": "Username",
+      "placeholder": "postgres",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "key": "password",
+    "templateOptions": {
+      "description": "Database password",
+      "label": "Password",
+      "required": true,
+      "type": "password"
+    },
+    "type": "input"
+  },
+  {
+    "key": "sourceFilter",
+    "templateOptions": {
+      "description": "Filter data by source system (leave empty to import all sources)",
+      "label": "Source System Filter",
+      "placeholder": "HR-System-A",
+      "required": false
+    },
+    "type": "input"
+  },
+  {
+    "key": "includeInactiveContracts",
+    "templateOptions": {
+      "description": "Include contracts with end dates in the past",
+      "label": "Include Inactive Contracts",
+      "required": false
+    },
+    "type": "checkbox"
+  },
+  {
+    "key": "fieldsToExclude",
+    "templateOptions": {
+      "description": "Comma-separated fields to exclude from output",
+      "label": "Fields to Exclude",
+      "placeholder": "Source,custom_*",
+      "required": false
+    },
+    "type": "input"
+  },
+  {
+    "key": "isDebug",
+    "templateOptions": {
+      "description": "Enable verbose logging for troubleshooting",
+      "label": "Debug Mode",
+      "required": false
+    },
+    "type": "checkbox"
+  }
+]
