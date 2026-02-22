@@ -35,6 +35,9 @@ TestResult.xml
 [Rr]eleasePS/
 dlldata.c
 
+typescript
+*.heapsnapshot
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json
