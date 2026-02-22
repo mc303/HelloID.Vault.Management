@@ -157,7 +157,7 @@ CREATE TABLE departments (
 CREATE TABLE contacts (
     contact_id SERIAL PRIMARY KEY,
     person_id TEXT NOT NULL,
-    type TEXT,
+    type TEXT CHECK(type IN ('Business', 'Personal')),
     email TEXT,
     phone_mobile TEXT,
     phone_fixed TEXT,

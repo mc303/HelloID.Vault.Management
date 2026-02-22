@@ -137,7 +137,7 @@ CREATE TABLE contracts (
 CREATE TABLE contacts (
     contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
     person_id TEXT NOT NULL,
-    type TEXT,
+    type TEXT CHECK(type IN ('Business', 'Personal')),
     email TEXT,
     phone_mobile TEXT,
     phone_fixed TEXT,

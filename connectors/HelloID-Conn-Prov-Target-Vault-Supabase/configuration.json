@@ -1,0 +1,53 @@
+[
+    {
+        "key": "baseUrl",
+        "type": "input",
+        "defaultValue": "https://xxxxxxxxxxxx.supabase.co",
+        "templateOptions": {
+            "label": "Base URL",
+            "description": "Supabase project URL (from Project Settings > API > URL)",
+            "required": true
+        }
+    },
+    {
+        "key": "apiKey",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "type": "password",
+            "label": "API Key (Publishable/Anon)",
+            "description": "Publishable/anon key (from Project Settings > API > Project API keys). Used for apikey header.",
+            "required": true
+        }
+    },
+    {
+        "key": "authEmail",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "Service Account Email",
+            "description": "Email of the service account user created in Supabase Auth for HelloID connector",
+            "required": true
+        }
+    },
+    {
+        "key": "authPassword",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "type": "password",
+            "label": "Service Account Password",
+            "description": "Password for the service account user",
+            "required": true
+        }
+    },
+    {
+        "key": "isDebug",
+        "type": "checkbox",
+        "defaultValue": false,
+        "templateOptions": {
+            "label": "Debug Mode",
+            "description": "Enable verbose debug logging (disable in production)"
+        }
+    }
+]

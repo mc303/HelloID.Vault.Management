@@ -1,0 +1,72 @@
+[
+    {
+        "key": "wrapperDllPath",
+        "type": "input",
+        "defaultValue": "C:\\HelloID\\SourceData\\HelloID.PostgreSQL.dll",
+        "templateOptions": {
+            "label": "Wrapper DLL Path",
+            "description": "Full path to HelloID.PostgreSQL.dll wrapper (embeds Npgsql)",
+            "required": true
+        }
+    },
+    {
+        "key": "host",
+        "type": "input",
+        "defaultValue": "localhost",
+        "templateOptions": {
+            "label": "Host",
+            "description": "PostgreSQL server hostname or IP address",
+            "required": true
+        }
+    },
+    {
+        "key": "port",
+        "type": "input",
+        "defaultValue": "5432",
+        "templateOptions": {
+            "label": "Port",
+            "description": "PostgreSQL server port (default: 5432)",
+            "required": true
+        }
+    },
+    {
+        "key": "database",
+        "type": "input",
+        "defaultValue": "vault",
+        "templateOptions": {
+            "label": "Database",
+            "description": "Database name",
+            "required": true
+        }
+    },
+    {
+        "key": "username",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "Username",
+            "description": "Database username",
+            "required": true
+        }
+    },
+    {
+        "key": "password",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "type": "password",
+            "label": "Password",
+            "description": "Database password",
+            "required": true
+        }
+    },
+    {
+        "key": "isDebug",
+        "type": "checkbox",
+        "defaultValue": false,
+        "templateOptions": {
+            "label": "Debug Mode",
+            "description": "Enable verbose debug logging (disable in production)"
+        }
+    }
+]

@@ -1,0 +1,118 @@
+{
+  "Version": "v1",
+  "MappingFields": [
+    {
+      "Name": "persons_user_name",
+      "Description": "Username for login (persons.user_name)",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.Username\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
+    },
+    {
+      "Name": "contacts_business_email",
+      "Description": "Business email address (contacts.email where type='Business')",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.Contact.Business.Email\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
+    },
+    {
+      "Name": "contacts_business_phone_mobile",
+      "Description": "Business mobile phone number (contacts.phone_mobile where type='Business')",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.Contact.Business.Phone.Mobile\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
+    },
+    {
+      "Name": "contacts_business_phone_fixed",
+      "Description": "Business fixed phone number (contacts.phone_fixed where type='Business')",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.Contact.Business.Phone.Fixed\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
+    },
+    {
+      "Name": "contacts_personal_email",
+      "Description": "Personal email address (contacts.email where type='Personal')",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.Contact.Personal.Email\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
+    },
+    {
+      "Name": "contacts_personal_phone_mobile",
+      "Description": "Personal mobile phone number (contacts.phone_mobile where type='Personal')",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.Contact.Personal.Phone.Mobile\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
+    },
+    {
+      "Name": "contacts_personal_phone_fixed",
+      "Description": "Personal fixed phone number (contacts.phone_fixed where type='Personal')",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.Contact.Personal.Phone.Fixed\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
+    }
+  ],
+  "UniqueFieldNames": []
+}

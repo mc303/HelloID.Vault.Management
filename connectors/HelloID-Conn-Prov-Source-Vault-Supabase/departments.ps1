@@ -1,10 +1,11 @@
 #####################################################
 # HelloID-Conn-Prov-Source-Vault-Supabase-Departments
 #
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: HelloID source connector for Vault Supabase database
 #              Uses PostgREST API with flattened output structure
 #              Supports source filtering and field exclusion
+#              v1.1.0: Match field naming with PostgreSQL-Npgsql connector
 #####################################################
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
@@ -157,14 +158,13 @@ try {
         $departmentInProcess = $_
 
         $flatDepartment = @{
-            DisplayName       = $_.display_name
-            ExternalId        = $_.external_id
-            code              = $_.code
-            parent_external_id = $_.parent_external_id
-            manager_person_id = $_.manager_person_id
-            ManagerExternalId = if ($_.manager) { $_.manager.external_id } else { $null }
+            DisplayName         = $_.display_name
+            ExternalId          = $_.external_id
+            code                = $_.code
+            parent_external_id  = $_.parent_external_id
+            manager_external_id = if ($_.manager) { $_.manager.external_id } else { $null }
             manager_display_name = if ($_.manager) { $_.manager.display_name } else { $null }
-            source            = $_.source
+            source              = $_.source
         }
 
         foreach ($fieldToExclude in $excludedFields) {

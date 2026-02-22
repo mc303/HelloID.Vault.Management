@@ -1,0 +1,31 @@
+[
+    {
+        "key": "sqliteDllPath",
+        "type": "input",
+        "defaultValue": "C:\\HelloID\\SourceData\\System.Data.SQLite.dll",
+        "templateOptions": {
+            "label": "SQLite DLL Path",
+            "description": "Full path to System.Data.SQLite.dll (x64 or x86 must match PowerShell architecture)",
+            "required": true
+        }
+    },
+    {
+        "key": "databasePath",
+        "type": "input",
+        "defaultValue": "C:\\HelloID\\Data\\vault.db",
+        "templateOptions": {
+            "label": "Database Path",
+            "description": "Full path to the Vault SQLite database file",
+            "required": true
+        }
+    },
+    {
+        "key": "isDebug",
+        "type": "checkbox",
+        "defaultValue": false,
+        "templateOptions": {
+            "label": "Debug Mode",
+            "description": "Enable verbose debug logging (disable in production)"
+        }
+    }
+]

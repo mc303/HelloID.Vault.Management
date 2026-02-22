@@ -1,10 +1,11 @@
 #####################################################
 # HelloID-Conn-Prov-Source-Vault-Supabase-Persons
 #
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: HelloID source connector for Vault Supabase database
 #              Uses PostgREST API with flattened output structure
 #              Supports source filtering and field exclusion
+#              v1.1.0: Match field naming with PostgreSQL-Npgsql connector
 #####################################################
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
@@ -284,6 +285,73 @@ function Sort-HashtableKeys {
     
     return $ordered
 }
+
+function Add-ContractPrefix {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Hashtable
+    )
+
+    $contractBaseFields = @(
+        'external_id', 'start_date', 'end_date', 'sequence',
+        'type_code', 'type_description', 'fte', 'hours_per_week',
+        'percentage', 'custom_fields', 'source', 'person_id'
+    )
+
+    foreach ($field in $contractBaseFields) {
+        if ($Hashtable.Contains($field) -and -not $Hashtable.Contains("contract_$field")) {
+            $Hashtable["contract_$field"] = $Hashtable[$field]
+            [void]$Hashtable.Remove($field)
+        }
+    }
+    return $Hashtable
+}
+
+function Get-ExpectedContractFields {
+    return @{
+        'contract_external_id' = $null
+        'contract_start_date' = $null
+        'contract_end_date' = $null
+        'contract_sequence' = $null
+        'contract_type_code' = $null
+        'contract_type_description' = $null
+        'contract_fte' = $null
+        'contract_hours_per_week' = $null
+        'contract_percentage' = $null
+        'contract_custom_fields' = $null
+        'contract_source' = $null
+        'department_external_id' = $null
+        'department_display_name' = $null
+        'department_code' = $null
+        'title_external_id' = $null
+        'title_name' = $null
+        'title_code' = $null
+        'location_external_id' = $null
+        'location_name' = $null
+        'location_code' = $null
+        'cost_center_external_id' = $null
+        'cost_center_name' = $null
+        'cost_center_code' = $null
+        'cost_bearer_external_id' = $null
+        'cost_bearer_name' = $null
+        'cost_bearer_code' = $null
+        'employer_external_id' = $null
+        'employer_name' = $null
+        'employer_code' = $null
+        'manager_person_external_id' = $null
+        'manager_display_name' = $null
+        'manager_external_id' = $null
+        'team_external_id' = $null
+        'team_name' = $null
+        'team_code' = $null
+        'division_external_id' = $null
+        'division_name' = $null
+        'division_code' = $null
+        'organization_external_id' = $null
+        'organization_name' = $null
+        'organization_code' = $null
+    }
+}
 #endregion
 
 try {
@@ -364,13 +432,20 @@ try {
                     catch { }
                 }
 
-                $contractDataToFlatten = $contract | Select-Object * -ExcludeProperty 'location', 'cost_center', 'cost_bearer', 'employer', 'manager', 'team', 'department', 'division', 'title', 'organization'
-                $flatContract = Flatten-Object -InputObject $contractDataToFlatten
+                $flatContract = Get-ExpectedContractFields
 
-                $flatContract = Format-DateFields -Hashtable $flatContract -DateFields @('start_date', 'end_date')
-                $flatContract = Expand-JsonFields -Hashtable $flatContract -JsonFields @('custom_fields')
-                $flatContract = Rename-HelloIDFields -Hashtable $flatContract -RenameMap @{ 'external_id' = 'ExternalId' }
-                $flatContract = Sort-HashtableKeys -Hashtable $flatContract -FrontFields @('ExternalId')
+                $actualValues = Flatten-Object -InputObject $contract
+                $actualValues = Add-ContractPrefix -Hashtable $actualValues
+
+                $actualValues.GetEnumerator() | ForEach-Object {
+                    if ($flatContract.Contains($_.Key)) {
+                        $flatContract[$_.Key] = $_.Value
+                    }
+                }
+
+                $flatContract = Format-DateFields -Hashtable $flatContract -DateFields @('contract_start_date', 'contract_end_date')
+                $flatContract = Expand-JsonFields -Hashtable $flatContract -JsonFields @('contract_custom_fields')
+                $flatContract = Sort-HashtableKeys -Hashtable $flatContract -FrontFields @('contract_external_id')
 
                 $outputContracts += $flatContract
             }
