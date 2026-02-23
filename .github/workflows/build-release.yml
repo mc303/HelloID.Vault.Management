@@ -50,6 +50,24 @@ jobs:
       - name: Build solution
         run: dotnet build HelloID.Vault.Management.sln --configuration ${{ env.CONFIGURATION }} --no-restore
 
+      - name: Build HelloID.PostgreSQL wrapper DLL
+        run: |
+          Write-Host "Building HelloID.PostgreSQL wrapper..." -ForegroundColor Cyan
+          Set-Location connectors/HelloID.PostgreSQL
+          ./build.ps1
+          Set-Location ../..
+
+      - name: Create PostgreSQL wrapper ZIP
+        run: |
+          Write-Host "Creating HelloID.PostgreSQL.zip..." -ForegroundColor Cyan
+          Compress-Archive -Path connectors/HelloID.PostgreSQL/bin/Release/HelloID.PostgreSQL.dll -DestinationPath HelloID.PostgreSQL.zip
+
+      - name: Upload PostgreSQL wrapper artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HelloID.PostgreSQL
+          path: HelloID.PostgreSQL.zip
+
       - name: Publish self-contained EXE (x64)
         run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64
 
@@ -208,6 +226,7 @@ jobs:
           files: |
             HelloID.Vault.Management-win-x64.zip
             HelloID.Vault.Management.msi
+            HelloID.PostgreSQL.zip
           draft: false
           prerelease: false
           name: ${{ steps.get_version.outputs.version }}
@@ -222,6 +241,9 @@ jobs:
             **MSI Installer (Recommended for easy installation):**
             Download `HelloID.Vault.Management.msi` for automated installation with Start Menu shortcut.
 
+            **PostgreSQL Wrapper DLL:**
+            Download `HelloID.PostgreSQL.zip` for the PostgreSQL connection wrapper used by HelloID connectors.
+
             ### Installation Instructions
 
             **ZIP Archive:**
@@ -233,6 +255,11 @@ jobs:
             1. Download `HelloID.Vault.Management.msi`
             2. Double-click to install
             3. Launch from Start Menu under "HelloID Vault Management"
+
+            **PostgreSQL Wrapper:**
+            1. Download `HelloID.PostgreSQL.zip`
+            2. Extract `HelloID.PostgreSQL.dll` to your HelloID SourceData folder
+            3. Required for PostgreSQL/Supabase target system connectors
 
             ### Requirements
 

@@ -31,6 +31,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Delete old artifacts to free storage quota
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          Write-Host "Cleaning up old artifacts..."
+          $artifacts = gh api repos/${{ github.repository }}/actions/artifacts --jq '.artifacts[] | select(.expired == false) | .id' 2>$null
+          if ($artifacts) {
+            foreach ($id in $artifacts) {
+              Write-Host "Deleting artifact $id..."
+              gh api -X DELETE repos/${{ github.repository }}/actions/artifacts/$id 2>$null
+            }
+            Write-Host "Deleted $($artifacts.Count) artifacts"
+          } else {
+            Write-Host "No artifacts to delete"
+          }
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -41,6 +57,24 @@ jobs:
 
       - name: Build solution
         run: dotnet build HelloID.Vault.Management.sln --configuration ${{ env.CONFIGURATION }} --no-restore
+
+      - name: Build HelloID.PostgreSQL wrapper DLL
+        run: |
+          Write-Host "Building HelloID.PostgreSQL wrapper..." -ForegroundColor Cyan
+          Set-Location connectors/HelloID.PostgreSQL
+          ./build.ps1
+          Set-Location ../..
+
+      - name: Create PostgreSQL wrapper ZIP
+        run: |
+          Write-Host "Creating HelloID.PostgreSQL.zip..." -ForegroundColor Cyan
+          Compress-Archive -Path connectors/HelloID.PostgreSQL/bin/Release/HelloID.PostgreSQL.dll -DestinationPath HelloID.PostgreSQL.zip
+
+      - name: Upload PostgreSQL wrapper artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HelloID.PostgreSQL
+          path: HelloID.PostgreSQL.zip
 
       - name: Publish self-contained EXE (x64)
         run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64
@@ -207,6 +241,7 @@ jobs:
           files: |
             HelloID.Vault.Management-win-x64.zip
             HelloID.Vault.Management.msi
+            HelloID.PostgreSQL.zip
           draft: ${{ inputs.draft }}
           prerelease: false
           name: ${{ inputs.version }}
@@ -221,6 +256,9 @@ jobs:
             **ZIP Archive:**
             Download `HelloID.Vault.Management-win-x64.zip` for portable use.
 
+            **PostgreSQL Wrapper DLL:**
+            Download `HelloID.PostgreSQL.zip` for the PostgreSQL connection wrapper used by HelloID connectors.
+
             ### Installation Instructions
 
             **MSI Installer:**
@@ -232,6 +270,11 @@ jobs:
             1. Download `HelloID.Vault.Management-win-x64.zip`
             2. Extract to a folder of your choice
             3. Run `HelloID.Vault.Management.exe`
+
+            **PostgreSQL Wrapper:**
+            1. Download `HelloID.PostgreSQL.zip`
+            2. Extract `HelloID.PostgreSQL.dll` to your HelloID SourceData folder
+            3. Required for PostgreSQL/Supabase target system connectors
 
             ### Requirements
 
