@@ -19,6 +19,7 @@ env:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build:
@@ -32,6 +33,7 @@ jobs:
           fetch-depth: 0
 
       - name: Delete old artifacts to free storage quota
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
