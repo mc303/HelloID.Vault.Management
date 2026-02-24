@@ -1,13 +1,10 @@
 #####################################################
-# HelloID-Conn-Prov-Source-Vault-SQLite-Departments
+# HelloID-Conn-Prov-Source-Vault-SQLite-MicrosoftData-Departments
 #
-# Version: 1.2.0
+# Version: 1.0.0
 # Description: HelloID source connector for Vault SQLite database
-#              Uses System.Data.SQLite with flattened output structure
+#              Uses Microsoft.Data.Sqlite via HelloID.SQLite wrapper DLL
 #              Supports source filtering and field exclusion
-#              v1.2.0: Changed to flattened output structure
-#              v1.1.0: Switched to System.Data.SQLite
-#              v1.0.0: Initial release
 #####################################################
 
 $VerbosePreference = "SilentlyContinue"
@@ -17,7 +14,7 @@ $WarningPreference = "Continue"
 $c = $configuration | ConvertFrom-Json
 
 $databasePath = $c.databasePath
-$dllPath = $c.sqliteDllPath
+$wrapperDllPath = $c.wrapperDllPath
 $excludedFields = if ($c.fieldsToExclude) { $c.fieldsToExclude.Split(',') | ForEach-Object { $_.Trim() } } else { @() }
 $sourceFilter = $c.sourceFilter
 $isDebug = $c.isDebug -eq $true
@@ -69,101 +66,27 @@ function Invoke-SqliteQuery {
         [Parameter(Mandatory = $false)]
         [hashtable]$Parameters = @{},
         [Parameter(Mandatory = $false)]
-        [string]$DllPath
+        [string]$WrapperDllPath
     )
 
     try {
-        Write-Verbose "Executing SQLite query using System.Data.SQLite..."
+        Write-Verbose "Executing SQLite query using HelloID.SQLite wrapper..."
 
-        $assemblyLoaded = $false
-        $loadErrors = @()
-
-        if (-not $assemblyLoaded -and -not [string]::IsNullOrWhiteSpace($DllPath)) {
-            if (Test-Path $DllPath) {
-                try {
-                    Add-Type -Path $DllPath
-                    $assemblyLoaded = $true
-                    Write-Verbose "Loaded System.Data.SQLite from: $DllPath"
-                }
-                catch {
-                    $loadErrors += "Configured path: $($_.Exception.Message)"
-                }
-            }
-            else {
-                $loadErrors += "Configured path not found: $DllPath"
-            }
+        if (-not (Test-Path $WrapperDllPath)) {
+            throw "HelloID.SQLite wrapper DLL not found at: $WrapperDllPath"
         }
 
-        if (-not $assemblyLoaded) {
-            $nugetPatterns = @(
-                "${env:USERPROFILE}\.nuget\packages\system.data.sqlite\*\lib\net6.0\System.Data.SQLite.dll",
-                "${env:USERPROFILE}\.nuget\packages\system.data.sqlite\*\lib\net8.0\System.Data.SQLite.dll",
-                "${env:USERPROFILE}\.nuget\packages\system.data.sqlite\*\lib\net46\System.Data.SQLite.dll",
-                "${env:USERPROFILE}\.nuget\packages\system.data.sqlite\*\lib\netstandard2.0\System.Data.SQLite.dll"
-            )
-            foreach ($pathPattern in $nugetPatterns) {
-                if (-not $assemblyLoaded) {
-                    $foundDlls = Get-Item $pathPattern -ErrorAction SilentlyContinue
-                    foreach ($dllItem in $foundDlls) {
-                        try {
-                            Add-Type -Path $dllItem.FullName
-                            $assemblyLoaded = $true
-                            Write-Verbose "Loaded System.Data.SQLite from NuGet: $($dllItem.FullName)"
-                            break
-                        }
-                        catch {
-                            $loadErrors += "NuGet $($dllItem.FullName): $($_.Exception.Message)"
-                        }
-                    }
-                }
-            }
-        }
+        Add-Type -Path $WrapperDllPath -ErrorAction Stop
+        Write-Verbose "Loaded HelloID.SQLite wrapper from: $WrapperDllPath"
 
-        if (-not $assemblyLoaded) {
-            try {
-                Add-Type -AssemblyName "System.Data.SQLite" -ErrorAction Stop
-                $assemblyLoaded = $true
-                Write-Verbose "Loaded System.Data.SQLite from GAC"
-            }
-            catch {
-                $loadErrors += "GAC: $($_.Exception.Message)"
-            }
-        }
-
-        if (-not $assemblyLoaded) {
-            $errorMsg = @"
-Failed to load System.Data.SQLite assembly.
-
-INSTALLATION:
-1. Download from: https://system.data.sqlite.org/index.html/doc/trunk/www/downloads.wiki
-2. Extract and copy System.Data.SQLite.dll to your connector folder
-3. Set 'SQLite DLL Path' configuration to the full path of System.Data.SQLite.dll
-
-Errors encountered:
-$($loadErrors -join "`n")
-"@
-            throw $errorMsg
-        }
-
-        $connection = New-Object System.Data.SQLite.SQLiteConnection
-        $connection.ConnectionString = "Data Source=$DatabasePath;Version=3;"
-        $connection.Open()
-
-        $command = $connection.CreateCommand()
-        $command.CommandText = $Query
-
+        $connectionString = "Data Source=$DatabasePath"
+        
+        $dictParams = New-Object 'System.Collections.Generic.Dictionary[string,object]'
         foreach ($key in $Parameters.Keys) {
-            $command.Parameters.AddWithValue("@$key", $Parameters[$key]) | Out-Null
+            $dictParams.Add($key, $Parameters[$key])
         }
-
-        $adapter = New-Object System.Data.SQLite.SQLiteDataAdapter($command)
-        $dataTable = New-Object System.Data.DataTable
-        $adapter.Fill($dataTable) | Out-Null
-
-        $adapter.Dispose()
-        $command.Dispose()
-        $connection.Close()
-        $connection.Dispose()
+        
+        $dataTable = [HelloID.SQLite.Query]::Execute($connectionString, $Query, $dictParams)
 
         Write-Verbose "Query returned $($dataTable.Rows.Count) rows"
         return ,$dataTable
@@ -205,7 +128,7 @@ $sourceFilterClause
 ORDER BY d.display_name
 "@
 
-    $departmentsTable = Invoke-SqliteQuery -DatabasePath $databasePath -Query $departmentsQuery -Parameters $queryParams -DllPath $dllPath
+    $departmentsTable = Invoke-SqliteQuery -DatabasePath $databasePath -Query $departmentsQuery -Parameters $queryParams -WrapperDllPath $wrapperDllPath
     Write-Information "Found $($departmentsTable.Rows.Count) departments"
 
     Write-Information "Enhancing and exporting department objects to HelloID"
@@ -234,7 +157,6 @@ ORDER BY d.display_name
             }
         }
 
-        # Sort keys: DisplayName, ExternalId first, then alphabetically
         $orderedDept = [ordered]@{}
         foreach ($key in @('DisplayName', 'ExternalId')) {
             if ($flatDepartment.Contains($key)) {

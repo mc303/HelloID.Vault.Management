@@ -118,4 +118,5 @@ obj/
 .agent/
 .vibe/
 .vs/
+.cache/
 # screenshots/

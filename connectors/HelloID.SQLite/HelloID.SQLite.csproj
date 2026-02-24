@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>HelloID.SQLite</AssemblyName>
+    <RootNamespace>HelloID.SQLite</RootNamespace>
+    <OutputType>Library</OutputType>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\Release\</OutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Embedded\Microsoft.Data.Sqlite.dll" />
+    <EmbeddedResource Include="Embedded\SQLitePCLRaw.batteries_v2.dll" />
+    <EmbeddedResource Include="Embedded\SQLitePCLRaw.core.dll" />
+    <EmbeddedResource Include="Embedded\SQLitePCLRaw.provider.e_sqlite3.dll" />
+    <EmbeddedResource Include="Embedded\System.Memory.dll" />
+    <EmbeddedResource Include="Embedded\System.Buffers.dll" />
+    <EmbeddedResource Include="Embedded\System.Runtime.CompilerServices.Unsafe.dll" />
+    <EmbeddedResource Include="Embedded\System.Numerics.Vectors.dll" />
+  </ItemGroup>
+
+</Project>

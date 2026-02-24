@@ -605,6 +605,7 @@ SELECT
     c.percentage,
     c.sequence,
     c.source,
+    ss.display_name AS source_display_name,
 
     -- Person
     p.display_name AS person_name,
@@ -693,6 +694,9 @@ SELECT
     END AS contract_date_range
 
 FROM contracts c
+
+-- Join source system for display name
+LEFT JOIN source_system ss ON c.source = ss.system_id
 
 -- Join person
 LEFT JOIN persons p ON c.person_id = p.person_id
@@ -1252,6 +1256,7 @@ CREATE TABLE contract_details_cache (
     percentage REAL,
     sequence INTEGER,
     source TEXT,
+    source_display_name TEXT,
 
     -- Person
     person_name TEXT,

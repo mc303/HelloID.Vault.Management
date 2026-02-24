@@ -10,11 +10,11 @@
     "type": "input"
   },
   {
-    "key": "sqliteDllPath",
+    "key": "wrapperDllPath",
     "templateOptions": {
-      "description": "Full path to System.Data.SQLite.dll (download from system.data.sqlite.org)",
-      "label": "SQLite DLL Path",
-      "placeholder": "C:\\HelloID\\SourceData\\System.Data.SQLite.dll",
+      "description": "Full path to HelloID.SQLite.dll (includes Microsoft.Data.Sqlite)",
+      "label": "Wrapper DLL Path",
+      "placeholder": "C:\\HelloID\\SourceData\\HelloID.SQLite.dll",
       "required": true
     },
     "type": "input"

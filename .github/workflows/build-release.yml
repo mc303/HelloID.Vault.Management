@@ -69,6 +69,26 @@ jobs:
           name: HelloID.PostgreSQL
           path: HelloID.PostgreSQL.zip
 
+      - name: Build HelloID.SQLite wrapper DLL
+        run: |
+          Write-Host "Building HelloID.SQLite wrapper..." -ForegroundColor Cyan
+          Set-Location connectors/HelloID.SQLite
+          ./build.ps1
+          Set-Location ../..
+
+      - name: Create SQLite wrapper ZIP
+        run: |
+          Write-Host "Creating HelloID.SQLite.zip..." -ForegroundColor Cyan
+          Set-Location connectors/HelloID.SQLite/bin/Release
+          Compress-Archive -Path HelloID.SQLite.dll, runtimes -DestinationPath ../../../HelloID.SQLite.zip
+          Set-Location ../../..
+
+      - name: Upload SQLite wrapper artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HelloID.SQLite
+          path: HelloID.SQLite.zip
+
       - name: Publish self-contained EXE (x64)
         run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64
 
@@ -228,6 +248,7 @@ jobs:
             HelloID.Vault.Management-win-x64.zip
             HelloID.Vault.Management.msi
             HelloID.PostgreSQL.zip
+            HelloID.SQLite.zip
           draft: false
           prerelease: false
           name: ${{ steps.get_version.outputs.version }}
@@ -245,6 +266,9 @@ jobs:
             **PostgreSQL Wrapper DLL:**
             Download `HelloID.PostgreSQL.zip` for the PostgreSQL connection wrapper used by HelloID connectors.
 
+            **SQLite Wrapper DLL:**
+            Download `HelloID.SQLite.zip` for the SQLite connection wrapper used by HelloID connectors.
+
             ### Installation Instructions
 
             **ZIP Archive:**
@@ -261,6 +285,11 @@ jobs:
             1. Download `HelloID.PostgreSQL.zip`
             2. Extract `HelloID.PostgreSQL.dll` to your HelloID SourceData folder
             3. Required for PostgreSQL/Supabase target system connectors
+
+            **SQLite Wrapper:**
+            1. Download `HelloID.SQLite.zip`
+            2. Extract `HelloID.SQLite.dll` to your HelloID SourceData folder
+            3. Required for SQLite target system connectors (Microsoft.Data.Sqlite)
 
             ### Requirements
 

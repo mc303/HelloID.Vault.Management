@@ -1,14 +1,10 @@
 #####################################################
-# HelloID-Conn-Prov-Source-Vault-SQLite-Persons
+# HelloID-Conn-Prov-Source-Vault-SQLite-MicrosoftData-Persons
 #
-# Version: 1.3.0
+# Version: 1.0.0
 # Description: HelloID source connector for Vault SQLite database
-#              Uses System.Data.SQLite with flattened output structure
+#              Uses Microsoft.Data.Sqlite via HelloID.SQLite wrapper DLL
 #              Supports source filtering and field exclusion
-#              v1.3.0: Simplified - auto-convert DataRow fields
-#              v1.2.0: Changed to flattened output structure
-#              v1.1.0: Switched to System.Data.SQLite
-#              v1.0.0: Initial release
 #####################################################
 
 $VerbosePreference = "SilentlyContinue"
@@ -18,7 +14,7 @@ $WarningPreference = "Continue"
 $c = $configuration | ConvertFrom-Json
 
 $databasePath = $c.databasePath
-$dllPath = $c.sqliteDllPath
+$wrapperDllPath = $c.wrapperDllPath
 $includeInactiveContracts = $c.includeInactiveContracts -eq $true
 $excludedFields = if ($c.fieldsToExclude) { $c.fieldsToExclude.Split(',') | ForEach-Object { $_.Trim() } } else { @() }
 $sourceFilter = $c.sourceFilter
@@ -71,65 +67,27 @@ function Invoke-SqliteQuery {
         [Parameter(Mandatory = $false)]
         [hashtable]$Parameters = @{},
         [Parameter(Mandatory = $false)]
-        [string]$DllPath
+        [string]$WrapperDllPath
     )
 
     try {
-        Write-Verbose "Executing SQLite query using System.Data.SQLite..."
+        Write-Verbose "Executing SQLite query using HelloID.SQLite wrapper..."
 
-        $assemblyLoaded = $false
-        $loadErrors = @()
-
-        if (-not $assemblyLoaded -and -not [string]::IsNullOrWhiteSpace($DllPath)) {
-            if (Test-Path $DllPath) {
-                try {
-                    Add-Type -Path $DllPath
-                    $assemblyLoaded = $true
-                    Write-Verbose "Loaded System.Data.SQLite from: $DllPath"
-                }
-                catch {
-                    $loadErrors += "Configured path: $($_.Exception.Message)"
-                }
-            }
-            else {
-                $loadErrors += "Configured path not found: $DllPath"
-            }
+        if (-not (Test-Path $WrapperDllPath)) {
+            throw "HelloID.SQLite wrapper DLL not found at: $WrapperDllPath"
         }
 
-        if (-not $assemblyLoaded) {
-            $errorMsg = @"
-Failed to load System.Data.SQLite assembly.
+        Add-Type -Path $WrapperDllPath -ErrorAction Stop
+        Write-Verbose "Loaded HelloID.SQLite wrapper from: $WrapperDllPath"
 
-INSTALLATION:
-1. Download from: https://system.data.sqlite.org/index.html/doc/trunk/www/downloads.wiki
-2. Extract and copy System.Data.SQLite.dll to your connector folder
-3. Set 'SQLite DLL Path' configuration to the full path of System.Data.SQLite.dll
-
-Errors encountered:
-$($loadErrors -join "`n")
-"@
-            throw $errorMsg
-        }
-
-        $connection = New-Object System.Data.SQLite.SQLiteConnection
-        $connection.ConnectionString = "Data Source=$DatabasePath;Version=3;"
-        $connection.Open()
-
-        $command = $connection.CreateCommand()
-        $command.CommandText = $Query
-
+        $connectionString = "Data Source=$DatabasePath"
+        
+        $dictParams = New-Object 'System.Collections.Generic.Dictionary[string,object]'
         foreach ($key in $Parameters.Keys) {
-            $command.Parameters.AddWithValue("@$key", $Parameters[$key]) | Out-Null
+            $dictParams.Add($key, $Parameters[$key])
         }
-
-        $adapter = New-Object System.Data.SQLite.SQLiteDataAdapter($command)
-        $dataTable = New-Object System.Data.DataTable
-        $adapter.Fill($dataTable) | Out-Null
-
-        $adapter.Dispose()
-        $command.Dispose()
-        $connection.Close()
-        $connection.Dispose()
+        
+        $dataTable = [HelloID.SQLite.Query]::Execute($connectionString, $Query, $dictParams)
 
         Write-Verbose "Query returned $($dataTable.Rows.Count) rows"
         return ,$dataTable
@@ -236,28 +194,6 @@ function Rename-HelloIDFields {
     return $Hashtable
 }
 
-function Move-ToFront {
-    param(
-        [Parameter(Mandatory = $true)]
-        $Hashtable,
-        [Parameter(Mandatory = $true)]
-        [string[]]$FieldNames
-    )
-
-    $ordered = [ordered]@{}
-    foreach ($fieldName in $FieldNames) {
-        if ($Hashtable.Contains($fieldName)) {
-            $ordered[$fieldName] = $Hashtable[$fieldName]
-        }
-    }
-    foreach ($key in $Hashtable.Keys) {
-        if (-not $ordered.Contains($key)) {
-            $ordered[$key] = $Hashtable[$key]
-        }
-    }
-    return $ordered
-}
-
 function Sort-HashtableKeys {
     param(
         [Parameter(Mandatory = $true)]
@@ -268,14 +204,12 @@ function Sort-HashtableKeys {
 
     $ordered = [ordered]@{}
     
-    # Add front fields first
     foreach ($fieldName in $FrontFields) {
         if ($Hashtable.Contains($fieldName)) {
             $ordered[$fieldName] = $Hashtable[$fieldName]
         }
     }
     
-    # Sort remaining keys alphabetically
     $remainingKeys = $Hashtable.Keys | Where-Object { -not $ordered.Contains($_) } | Sort-Object
     foreach ($key in $remainingKeys) {
         $ordered[$key] = $Hashtable[$key]
@@ -328,7 +262,7 @@ $sourceFilterClause
 ORDER BY p.display_name
 "@
 
-    $personsTable = Invoke-SqliteQuery -DatabasePath $databasePath -Query $personsQuery -Parameters $queryParams -DllPath $dllPath
+    $personsTable = Invoke-SqliteQuery -DatabasePath $databasePath -Query $personsQuery -Parameters $queryParams -WrapperDllPath $wrapperDllPath
     Write-Information "Found $($personsTable.Rows.Count) persons"
 
     $contractsSourceFilter = ""
@@ -398,7 +332,7 @@ $contractsSourceFilter
 ORDER BY c.person_id, c.sequence
 "@
 
-    $contractsTable = Invoke-SqliteQuery -DatabasePath $databasePath -Query $contractsQuery -Parameters $contractsParams -DllPath $dllPath
+    $contractsTable = Invoke-SqliteQuery -DatabasePath $databasePath -Query $contractsQuery -Parameters $contractsParams -WrapperDllPath $wrapperDllPath
     Write-Information "Found $($contractsTable.Rows.Count) contracts"
 
     $contactsSourceFilter = ""
@@ -428,7 +362,7 @@ $contactsSourceFilter
 ORDER BY ct.person_id, ct.type
 "@
 
-    $contactsTable = Invoke-SqliteQuery -DatabasePath $databasePath -Query $contactsQuery -Parameters $contactsParams -DllPath $dllPath
+    $contactsTable = Invoke-SqliteQuery -DatabasePath $databasePath -Query $contactsQuery -Parameters $contactsParams -WrapperDllPath $wrapperDllPath
     Write-Information "Found $($contactsTable.Rows.Count) contacts"
 
     $contractsByPerson = @{}

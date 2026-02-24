@@ -1,13 +1,11 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Vault-SQLite-Update
+# HelloID-Conn-Prov-Target-Vault-SQLite-MicrosoftData-Update
 # PowerShell V2
 # Version: 1.0.0
 #####################################################
 
-# Set default output context
 $outputContext.Success = $false
 
-# Set debug logging
 switch ($($actionContext.Configuration.isDebug)) {
     $true { $InformationPreference = 'Continue' }
     $false { $InformationPreference = 'SilentlyContinue' }
@@ -39,46 +37,16 @@ function Get-ErrorMessage {
     }
 }
 
-function Invoke-SqliteQuery {
-    [CmdletBinding()]
+function ConvertTo-Dictionary {
     param (
         [Parameter(Mandatory)]
-        [object]$Connection,
-        [Parameter(Mandatory)]
-        [string]$Query,
-        [Parameter()]
-        [hashtable]$Parameters = @{}
+        [hashtable]$Hashtable
     )
-
-    $command = $Connection.CreateCommand()
-    $command.CommandText = $Query
-
-    foreach ($key in $Parameters.Keys) {
-        $command.Parameters.AddWithValue("@$key", $Parameters[$key]) | Out-Null
+    $dict = New-Object 'System.Collections.Generic.Dictionary[string,object]'
+    foreach ($key in $Hashtable.Keys) {
+        $dict.Add($key, $Hashtable[$key])
     }
-
-    return $command.ExecuteNonQuery()
-}
-
-function Invoke-SqliteScalar {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [object]$Connection,
-        [Parameter(Mandatory)]
-        [string]$Query,
-        [Parameter()]
-        [hashtable]$Parameters = @{}
-    )
-
-    $command = $Connection.CreateCommand()
-    $command.CommandText = $Query
-
-    foreach ($key in $Parameters.Keys) {
-        $command.Parameters.AddWithValue("@$key", $Parameters[$key]) | Out-Null
-    }
-
-    return $command.ExecuteScalar()
+    return $dict
 }
 #endregion functions
 
@@ -93,18 +61,19 @@ try {
     $personId = $aRef.PersonId
     #endregion Validate account reference
 
-    #region Load SQLite assembly
-    Write-Information "Loading System.Data.SQLite assembly from '$($actionContext.Configuration.sqliteDllPath)'"
+    #region Load HelloID.SQLite wrapper
+    Write-Information "Loading HelloID.SQLite wrapper from '$($actionContext.Configuration.wrapperDllPath)'"
     try {
-        Add-Type -Path $actionContext.Configuration.sqliteDllPath -ErrorAction Stop
+        Add-Type -Path $actionContext.Configuration.wrapperDllPath -ErrorAction Stop
     }
     catch {
-        throw "Failed to load SQLite assembly: $($_.Exception.Message)"
+        throw "Failed to load HelloID.SQLite wrapper: $($_.Exception.Message)"
     }
-    #endregion Load SQLite assembly
+    #endregion Load HelloID.SQLite wrapper
 
     #region Parse field mappings
     $personsFields = @{}
+    $customFieldsUpdates = @{}
     $contactsUpdates = @{}
 
     $protectedFields = @('person_id', 'external_id', 'PersonId', 'ExternalId')
@@ -122,7 +91,12 @@ try {
             continue
         }
 
-        if ($fieldName -like 'persons_*') {
+        if ($fieldName -like 'persons_custom_field_*') {
+            $customFieldName = $fieldName -replace '^persons_custom_field_', ''
+            $customFieldsUpdates[$customFieldName] = $fieldValue
+            Write-Information "Persons custom field [$customFieldName] = [$fieldValue]"
+        }
+        elseif ($fieldName -like 'persons_*') {
             $columnName = $fieldName -replace '^persons_', ''
             if ($columnName -notin $protectedFields) {
                 $personsFields[$columnName] = $fieldValue
@@ -143,17 +117,12 @@ try {
             }
         }
         else {
-            Write-Information "Skipping unmapped field [$fieldName] (doesn't match persons_* or contacts_* pattern)"
+            Write-Information "Skipping unmapped field [$fieldName] (doesn't match persons_*, contacts_*, or persons_custom_field_* pattern)"
         }
     }
     #endregion Parse field mappings
 
-    #region Open connection
-    $connectionString = "Data Source=$($actionContext.Configuration.databasePath);Version=3;"
-    $connection = New-Object System.Data.SQLite.SQLiteConnection
-    $connection.ConnectionString = $connectionString
-    $connection.Open()
-    #endregion Open connection
+    $connectionString = "Data Source=$($actionContext.Configuration.databasePath)"
 
     $updatedTables = @()
     $auditMessages = @()
@@ -171,7 +140,7 @@ try {
                 $parameters[$key] = $personsFields[$key]
             }
 
-            $rowsAffected = Invoke-SqliteQuery -Connection $connection -Query $query -Parameters $parameters
+            $rowsAffected = [HelloID.SQLite.Query]::ExecuteNonQuery($connectionString, $query, (ConvertTo-Dictionary $parameters))
 
             if ($rowsAffected -eq 0) {
                 throw "No rows updated in persons table. Person with person_id=$personId may not exist."
@@ -187,13 +156,64 @@ try {
     }
     #endregion Update persons table
 
+    #region Update persons custom_fields JSON
+    if ($customFieldsUpdates.Count -gt 0) {
+        if (-not($actionContext.DryRun -eq $true)) {
+            $lookupParams = ConvertTo-Dictionary @{ personId = $personId }
+            $currentCustomFieldsJson = [HelloID.SQLite.Query]::ExecuteScalar($connectionString,
+                "SELECT custom_fields FROM persons WHERE person_id = @personId",
+                $lookupParams)
+
+            if ($null -eq $currentCustomFieldsJson) {
+                throw "Person with person_id=$personId not found."
+            }
+
+            $customFields = @{}
+            if (-not [string]::IsNullOrWhiteSpace($currentCustomFieldsJson)) {
+                try {
+                    $customFields = $currentCustomFieldsJson | ConvertFrom-Json
+                    if ($customFields -isnot [hashtable]) {
+                        $customFields = @{}
+                    }
+                }
+                catch {
+                    Write-Information "Could not parse existing custom_fields JSON, starting fresh"
+                    $customFields = @{}
+                }
+            }
+
+            foreach ($key in $customFieldsUpdates.Keys) {
+                $customFields[$key] = $customFieldsUpdates[$key]
+            }
+
+            $updatedJson = $customFields | ConvertTo-Json -Compress -Depth 10
+            $query = "UPDATE persons SET custom_fields = @customFields WHERE person_id = @personId"
+
+            Write-Information "Persons custom_fields update query: $query"
+
+            $params = ConvertTo-Dictionary @{ personId = $personId; customFields = $updatedJson }
+            [HelloID.SQLite.Query]::ExecuteNonQuery($connectionString, $query, $params) | Out-Null
+
+            $updatedTables += "persons_custom_fields"
+            $auditMessages += "Updated persons custom fields: $($customFieldsUpdates.Keys -join ', ')"
+            Write-Information "Successfully updated persons custom_fields for [person_id=$personId]"
+        }
+        else {
+            $auditMessages += "DryRun: Would update persons custom fields: $($customFieldsUpdates.Keys -join ', ')"
+        }
+    }
+    #endregion Update persons custom_fields JSON
+
     #region Update/Upsert contacts table
     foreach ($contactType in $contactsUpdates.Keys) {
         $contactFields = $contactsUpdates[$contactType]
 
         if ($contactFields.Count -eq 0) { continue }
 
-        $existingContactId = Invoke-SqliteScalar -Connection $connection -Query "SELECT contact_id FROM contacts WHERE person_id = @personId AND type = @type" -Parameters @{ personId = $personId; type = $contactType }
+        $lookupParams = ConvertTo-Dictionary @{ personId = $personId; type = $contactType }
+        $existingContactId = [HelloID.SQLite.Query]::ExecuteScalar($connectionString,
+            "SELECT contact_id FROM contacts WHERE person_id = @personId AND type = @type",
+            $lookupParams)
 
         if ($null -ne $existingContactId) {
             if (-not($actionContext.DryRun -eq $true)) {
@@ -207,7 +227,7 @@ try {
                     $parameters[$key] = $contactFields[$key]
                 }
 
-                Invoke-SqliteQuery -Connection $connection -Query $query -Parameters $parameters | Out-Null
+                [HelloID.SQLite.Query]::ExecuteNonQuery($connectionString, $query, (ConvertTo-Dictionary $parameters)) | Out-Null
 
                 $updatedTables += "contacts_$contactType"
                 $auditMessages += "Updated contacts [$contactType] fields: $($contactFields.Keys -join ', ')"
@@ -230,7 +250,7 @@ try {
                     $parameters[$key] = $contactFields[$key]
                 }
 
-                Invoke-SqliteQuery -Connection $connection -Query $query -Parameters $parameters | Out-Null
+                [HelloID.SQLite.Query]::ExecuteNonQuery($connectionString, $query, (ConvertTo-Dictionary $parameters)) | Out-Null
 
                 $updatedTables += "contacts_$contactType"
                 $auditMessages += "Created contacts [$contactType] with fields: $($contactFields.Keys -join ', ')"
@@ -243,10 +263,8 @@ try {
     }
     #endregion Update/Upsert contacts table
 
-    $connection.Close()
-
     #region Set output
-    if ($personsFields.Count -eq 0 -and $contactsUpdates.Count -eq 0) {
+    if ($personsFields.Count -eq 0 -and $customFieldsUpdates.Count -eq 0 -and $contactsUpdates.Count -eq 0) {
         Write-Information "No updateable fields provided. Skipping update."
         $outputContext.AuditLogs.Add([PSCustomObject]@{
             Action  = 'UpdateAccount'

@@ -1,11 +1,11 @@
 [
     {
-        "key": "sqliteDllPath",
+        "key": "wrapperDllPath",
         "type": "input",
-        "defaultValue": "C:\\HelloID\\SourceData\\System.Data.SQLite.dll",
+        "defaultValue": "C:\\HelloID\\SourceData\\HelloID.SQLite.dll",
         "templateOptions": {
-            "label": "SQLite DLL Path",
-            "description": "Full path to System.Data.SQLite.dll (x64 or x86 must match PowerShell architecture)",
+            "label": "Wrapper DLL Path",
+            "description": "Full path to HelloID.SQLite.dll (includes Microsoft.Data.Sqlite)",
             "required": true
         }
     },

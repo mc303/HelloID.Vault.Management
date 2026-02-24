@@ -1,14 +1,12 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Vault-SQLite-Create
+# HelloID-Conn-Prov-Target-Vault-SQLite-MicrosoftData-Create
 # PowerShell V2
 # Version: 1.0.0
 #####################################################
 
-# Set default output context
 $outputContext.Success = $false
 $outputContext.AccountReference = 'Currently not available'
 
-# Set debug logging
 switch ($($actionContext.Configuration.isDebug)) {
     $true { $InformationPreference = 'Continue' }
     $false { $InformationPreference = 'SilentlyContinue' }
@@ -60,36 +58,26 @@ try {
     }
     #endregion Validate correlation configuration
 
-    #region Load SQLite assembly
-    Write-Information "Loading System.Data.SQLite assembly from '$($actionContext.Configuration.sqliteDllPath)'"
+    #region Load HelloID.SQLite wrapper
+    Write-Information "Loading HelloID.SQLite wrapper from '$($actionContext.Configuration.wrapperDllPath)'"
     try {
-        Add-Type -Path $actionContext.Configuration.sqliteDllPath -ErrorAction Stop
+        Add-Type -Path $actionContext.Configuration.wrapperDllPath -ErrorAction Stop
     }
     catch {
-        throw "Failed to load SQLite assembly: $($_.Exception.Message)"
+        throw "Failed to load HelloID.SQLite wrapper: $($_.Exception.Message)"
     }
-    #endregion Load SQLite assembly
+    #endregion Load HelloID.SQLite wrapper
 
     #region Query database for existing person
     Write-Information "Querying SQLite database for person where [$correlationField] = [$correlationValue]"
 
     try {
-        $connectionString = "Data Source=$($actionContext.Configuration.databasePath);Version=3;Read Only=True;"
+        $connectionString = "Data Source=$($actionContext.Configuration.databasePath)"
         $query = "SELECT person_id, external_id, given_name, family_name FROM persons WHERE external_id = @external_id"
+        $parameters = New-Object 'System.Collections.Generic.Dictionary[string,object]'
+        $parameters.Add("external_id", $correlationValue)
         
-        $connection = New-Object System.Data.SQLite.SQLiteConnection
-        $connection.ConnectionString = $connectionString
-        $connection.Open()
-
-        $command = $connection.CreateCommand()
-        $command.CommandText = $query
-        $command.Parameters.AddWithValue("@external_id", $correlationValue) | Out-Null
-
-        $adapter = New-Object System.Data.SQLite.SQLiteDataAdapter($command)
-        $dataTable = New-Object System.Data.DataTable
-        $adapter.Fill($dataTable) | Out-Null
-
-        $connection.Close()
+        $dataTable = [HelloID.SQLite.Query]::Execute($connectionString, $query, $parameters)
 
         $correlatedAccount = $dataTable.Rows
     }
@@ -114,7 +102,6 @@ try {
     #region Process action
     switch ($action) {
         'CreateAccount' {
-            # This connector only correlates - does not create new accounts
             throw "No person found in Vault database where [$correlationField] = [$correlationValue]. This connector only correlates existing persons."
         }
 
