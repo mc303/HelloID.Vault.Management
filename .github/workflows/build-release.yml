@@ -80,7 +80,12 @@ jobs:
         run: |
           Write-Host "Creating HelloID.SQLite.zip..." -ForegroundColor Cyan
           Set-Location connectors/HelloID.SQLite/bin/Release
-          Compress-Archive -Path HelloID.SQLite.dll, runtimes -DestinationPath ../../../HelloID.SQLite.zip
+          if (Test-Path "runtimes") {
+            Compress-Archive -Path HelloID.SQLite.dll, runtimes -DestinationPath ../../../HelloID.SQLite.zip
+          } else {
+            Write-Host "WARNING: runtimes folder not found, creating zip without native libraries" -ForegroundColor Yellow
+            Compress-Archive -Path HelloID.SQLite.dll -DestinationPath ../../../HelloID.SQLite.zip
+          }
           Set-Location ../../..
 
       - name: Upload SQLite wrapper artifact
