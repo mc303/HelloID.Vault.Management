@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
-    <AssemblyName>HelloID.PostgreSQL</AssemblyName>
-    <RootNamespace>HelloID.PostgreSQL</RootNamespace>
+    <AssemblyName>PostgreSQL.Wrapper</AssemblyName>
+    <RootNamespace>PostgreSQL.Wrapper</RootNamespace>
     <OutputType>Library</OutputType>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>

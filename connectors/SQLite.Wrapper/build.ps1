@@ -12,7 +12,7 @@ $ProjectDir = $PSScriptRoot
 $EmbeddedDir = Join-Path $ProjectDir "Embedded"
 $NugetDir = Join-Path $ProjectDir "packages"
 
-Write-Host "=== HelloID.SQLite Build Script ===" -ForegroundColor Cyan
+Write-Host "=== SQLite.Wrapper Build Script ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Create directories
@@ -119,7 +119,7 @@ Write-Host ""
 Write-Host "Step 5: Building project..." -ForegroundColor Yellow
 Write-Host ""
 
-& dotnet build (Join-Path $ProjectDir "HelloID.SQLite.csproj") -c $Configuration
+& dotnet build (Join-Path $ProjectDir "SQLite.Wrapper.csproj") -c $Configuration
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
@@ -127,7 +127,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$outputPath = Join-Path $ProjectDir "bin\$Configuration\HelloID.SQLite.dll"
+$outputPath = Join-Path $ProjectDir "bin\$Configuration\SQLite.Wrapper.dll"
 
 # Copy native SQLite runtime to output
 Write-Host ""
@@ -156,6 +156,6 @@ $outputInfo = Get-Item $outputPath
 Write-Host "Size: $([math]::Round($outputInfo.Length / 1KB, 1)) KB" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Deploy to HelloID SourceData folder:" -ForegroundColor White
-Write-Host "  - HelloID.SQLite.dll" -ForegroundColor Gray
+Write-Host "  - SQLite.Wrapper.dll" -ForegroundColor Gray
 Write-Host "  - runtimes\win-x64\native\e_sqlite3.dll" -ForegroundColor Gray
 Write-Host ""

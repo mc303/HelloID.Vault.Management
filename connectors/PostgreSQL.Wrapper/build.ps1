@@ -12,7 +12,7 @@ $ProjectDir = $PSScriptRoot
 $EmbeddedDir = Join-Path $ProjectDir "Embedded"
 $NugetDir = Join-Path $ProjectDir "packages"
 
-Write-Host "=== HelloID.PostgreSQL Build Script ===" -ForegroundColor Cyan
+Write-Host "=== PostgreSQL.Wrapper Build Script ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Create directories
@@ -124,7 +124,7 @@ Write-Host ""
 Write-Host "Step 5: Building project..." -ForegroundColor Yellow
 Write-Host ""
 
-& dotnet build (Join-Path $ProjectDir "HelloID.PostgreSQL.csproj") -c $Configuration
+& dotnet build (Join-Path $ProjectDir "PostgreSQL.Wrapper.csproj") -c $Configuration
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
@@ -132,7 +132,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$outputPath = Join-Path $ProjectDir "bin\$Configuration\HelloID.PostgreSQL.dll"
+$outputPath = Join-Path $ProjectDir "bin\$Configuration\PostgreSQL.Wrapper.dll"
 
 Write-Host ""
 Write-Host "=== Build Complete ===" -ForegroundColor Green
@@ -141,5 +141,5 @@ Write-Host "Output: $outputPath" -ForegroundColor Cyan
 $outputInfo = Get-Item $outputPath
 Write-Host "Size: $([math]::Round($outputInfo.Length / 1KB, 1)) KB" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Deploy to: C:\HelloID\SourceData\HelloID.PostgreSQL.dll" -ForegroundColor White
+Write-Host "Deploy to: C:\HelloID\SourceData\PostgreSQL.Wrapper.dll" -ForegroundColor White
 Write-Host ""

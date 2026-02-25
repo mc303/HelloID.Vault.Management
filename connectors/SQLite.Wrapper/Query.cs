@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 
-namespace HelloID.PostgreSQL
+namespace SQLite.Wrapper
 {
     public static class Query
     {
@@ -27,30 +27,30 @@ namespace HelloID.PostgreSQL
 
         private static dynamic CreateConnection(string connectionString)
         {
-            var npgsqlAssembly = AppDomain.CurrentDomain.GetAssemblies()
-                .FirstOrDefault(a => a.GetName().Name.Equals("Npgsql", StringComparison.OrdinalIgnoreCase));
+            var sqliteAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name.Equals("Microsoft.Data.Sqlite", StringComparison.OrdinalIgnoreCase));
 
-            if (npgsqlAssembly == null)
-                throw new InvalidOperationException("Npgsql assembly not loaded");
+            if (sqliteAssembly == null)
+                throw new InvalidOperationException("Microsoft.Data.Sqlite assembly not loaded");
 
-            var connectionType = npgsqlAssembly.GetType("Npgsql.NpgsqlConnection");
+            var connectionType = sqliteAssembly.GetType("Microsoft.Data.Sqlite.SqliteConnection");
             if (connectionType == null)
-                throw new InvalidOperationException("NpgsqlConnection type not found");
+                throw new InvalidOperationException("SqliteConnection type not found");
 
             return Activator.CreateInstance(connectionType, connectionString);
         }
 
         private static dynamic CreateCommand(dynamic connection, string query, Dictionary<string, object> parameters)
         {
-            var npgsqlAssembly = AppDomain.CurrentDomain.GetAssemblies()
-                .FirstOrDefault(a => a.GetName().Name.Equals("Npgsql", StringComparison.OrdinalIgnoreCase));
+            var sqliteAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name.Equals("Microsoft.Data.Sqlite", StringComparison.OrdinalIgnoreCase));
 
-            if (npgsqlAssembly == null)
-                throw new InvalidOperationException("Npgsql assembly not loaded");
+            if (sqliteAssembly == null)
+                throw new InvalidOperationException("Microsoft.Data.Sqlite assembly not loaded");
 
-            var commandType = npgsqlAssembly.GetType("Npgsql.NpgsqlCommand");
+            var commandType = sqliteAssembly.GetType("Microsoft.Data.Sqlite.SqliteCommand");
             if (commandType == null)
-                throw new InvalidOperationException("NpgsqlCommand type not found");
+                throw new InvalidOperationException("SqliteCommand type not found");
 
             dynamic command = Activator.CreateInstance(commandType);
             command.Connection = connection;
@@ -86,19 +86,8 @@ namespace HelloID.PostgreSQL
             if (string.IsNullOrWhiteSpace(query))
                 throw new ArgumentNullException(nameof(query));
 
-            var npgsqlAssembly = AppDomain.CurrentDomain.GetAssemblies()
-                .FirstOrDefault(a => a.GetName().Name.Equals("Npgsql", StringComparison.OrdinalIgnoreCase));
-
-            if (npgsqlAssembly == null)
-                throw new InvalidOperationException("Npgsql assembly not loaded");
-
-            var adapterType = npgsqlAssembly.GetType("Npgsql.NpgsqlDataAdapter");
-            if (adapterType == null)
-                throw new InvalidOperationException("NpgsqlDataAdapter type not found");
-
             dynamic connection = null;
             dynamic command = null;
-            dynamic adapter = null;
 
             try
             {
@@ -109,14 +98,15 @@ namespace HelloID.PostgreSQL
 
                 var dataTable = new DataTable();
 
-                adapter = Activator.CreateInstance(adapterType, command);
-                adapter.Fill(dataTable);
+                using (var reader = command.ExecuteReader())
+                {
+                    dataTable.Load(reader);
+                }
 
                 return dataTable;
             }
             finally
             {
-                if (adapter != null) { try { adapter.Dispose(); } catch { } }
                 if (command != null) { try { command.Dispose(); } catch { } }
                 if (connection != null) { try { connection.Close(); } catch { } try { connection.Dispose(); } catch { } }
             }
@@ -217,82 +207,6 @@ namespace HelloID.PostgreSQL
             finally
             {
                 if (command != null) { try { command.Dispose(); } catch { } }
-                if (connection != null) { try { connection.Close(); } catch { } try { connection.Dispose(); } catch { } }
-            }
-        }
-
-        public static int BulkInsert(string connectionString, string tableName, DataTable data)
-        {
-            return BulkInsert(connectionString, tableName, data, null);
-        }
-
-        public static int BulkInsert(string connectionString, string tableName, DataTable data, int? batchSize)
-        {
-            EnsureInitialized();
-
-            if (string.IsNullOrWhiteSpace(connectionString))
-                throw new ArgumentNullException(nameof(connectionString));
-
-            if (string.IsNullOrWhiteSpace(tableName))
-                throw new ArgumentNullException(nameof(tableName));
-
-            if (data == null || data.Rows.Count == 0)
-                return 0;
-
-            var npgsqlAssembly = AppDomain.CurrentDomain.GetAssemblies()
-                .FirstOrDefault(a => a.GetName().Name.Equals("Npgsql", StringComparison.OrdinalIgnoreCase));
-
-            if (npgsqlAssembly == null)
-                throw new InvalidOperationException("Npgsql assembly not loaded");
-
-            var binaryImporterType = npgsqlAssembly.GetType("Npgsql.NpgsqlBinaryImporter");
-            if (binaryImporterType == null)
-                throw new InvalidOperationException("NpgsqlBinaryImporter type not found. Bulk insert requires Npgsql 8.0+");
-
-            dynamic connection = null;
-            dynamic importer = null;
-            int rowsInserted = 0;
-
-            try
-            {
-                connection = CreateConnection(connectionString);
-                connection.Open();
-
-                var columnNames = new List<string>();
-                foreach (DataColumn col in data.Columns)
-                {
-                    columnNames.Add(col.ColumnName);
-                }
-
-                var copyCommand = $"COPY {tableName} ({string.Join(", ", columnNames)}) FROM STDIN (FORMAT BINARY)";
-
-                var beginBinaryImportMethod = connection.GetType().GetMethod("BeginBinaryImport");
-                importer = beginBinaryImportMethod.Invoke(connection, new object[] { copyCommand });
-
-                foreach (DataRow row in data.Rows)
-                {
-                    importer.StartRow();
-                    foreach (DataColumn col in data.Columns)
-                    {
-                        var value = row[col];
-                        if (value == DBNull.Value || value == null)
-                        {
-                            importer.WriteNull();
-                        }
-                        else
-                        {
-                            importer.Write(value);
-                        }
-                    }
-                    rowsInserted++;
-                }
-
-                importer.Complete();
-                return rowsInserted;
-            }
-            finally
-            {
-                if (importer != null) { try { importer.Dispose(); } catch { } }
                 if (connection != null) { try { connection.Close(); } catch { } try { connection.Dispose(); } catch { } }
             }
         }
@@ -668,16 +582,10 @@ namespace HelloID.PostgreSQL
             if (string.IsNullOrWhiteSpace(keyColumn))
                 throw new ArgumentNullException(nameof(keyColumn));
 
-            var whereClause = $"{keyColumn} = @keyValue";
-            if (!string.IsNullOrWhiteSpace(additionalWhere))
-            {
-                whereClause += " " + additionalWhere;
-            }
-
             var sql = $@"
 INSERT INTO {tableName} ({keyColumn}, {fieldName}) 
 VALUES (@keyValue, @value)
-ON CONFLICT ({keyColumn}) DO UPDATE SET {fieldName} = EXCLUDED.{fieldName}";
+ON CONFLICT({keyColumn}) DO UPDATE SET {fieldName} = excluded.{fieldName}";
 
             var parameters = new Dictionary<string, object>
             {
@@ -711,12 +619,55 @@ ON CONFLICT ({keyColumn}) DO UPDATE SET {fieldName} = EXCLUDED.{fieldName}";
 
             var columnNames = string.Join(", ", allFields.Keys);
             var paramNames = string.Join(", ", allFields.Keys.Select(k => "@" + k));
-            var updateClauses = fields.Keys.Select(f => $"{f} = EXCLUDED.{f}");
+            var updateClauses = fields.Keys.Select(f => $"{f} = excluded.{f}");
 
             var sql = $@"
 INSERT INTO {tableName} ({columnNames}) 
 VALUES ({paramNames})
-ON CONFLICT ({keyColumn}) DO UPDATE SET {string.Join(", ", updateClauses)}";
+ON CONFLICT({keyColumn}) DO UPDATE SET {string.Join(", ", updateClauses)}";
+
+            var parameters = new Dictionary<string, object>();
+            foreach (var field in allFields)
+            {
+                parameters[field.Key] = field.Value ?? DBNull.Value;
+            }
+
+            return ExecuteNonQuery(connectionString, sql, parameters);
+        }
+
+        public static int UpsertFieldsWithWhere(string connectionString, string tableName, Dictionary<string, object> fields, string keyColumn, object keyValue, string whereColumn, object whereValue)
+        {
+            EnsureInitialized();
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+                throw new ArgumentNullException(nameof(connectionString));
+
+            if (string.IsNullOrWhiteSpace(tableName))
+                throw new ArgumentNullException(nameof(tableName));
+
+            if (fields == null || fields.Count == 0)
+                throw new ArgumentException("At least one field must be specified", nameof(fields));
+
+            if (string.IsNullOrWhiteSpace(keyColumn))
+                throw new ArgumentNullException(nameof(keyColumn));
+
+            if (string.IsNullOrWhiteSpace(whereColumn))
+                throw new ArgumentNullException(nameof(whereColumn));
+
+            var allFields = new Dictionary<string, object>(fields)
+            {
+                [keyColumn] = keyValue ?? DBNull.Value,
+                [whereColumn] = whereValue ?? DBNull.Value
+            };
+
+            var columnNames = string.Join(", ", allFields.Keys);
+            var paramNames = string.Join(", ", allFields.Keys.Select(k => "@" + k));
+            var updateClauses = fields.Keys.Select(f => $"{f} = excluded.{f}");
+
+            var sql = $@"
+INSERT INTO {tableName} ({columnNames}) 
+VALUES ({paramNames})
+ON CONFLICT({keyColumn}, {whereColumn}) DO UPDATE SET {string.Join(", ", updateClauses)}";
 
             var parameters = new Dictionary<string, object>();
             foreach (var field in allFields)

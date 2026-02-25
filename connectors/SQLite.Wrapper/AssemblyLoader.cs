@@ -3,11 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
-namespace HelloID.PostgreSQL
+namespace SQLite.Wrapper
 {
     internal static class AssemblyLoader
     {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetDllDirectory(string lpPathName);
+
         private static bool _initialized = false;
         private static readonly object _lock = new object();
         private static string _tempDir;
@@ -15,20 +20,14 @@ namespace HelloID.PostgreSQL
 
         private static readonly string[] _expectedDlls = new[]
         {
-            "Npgsql.dll",
-            "Microsoft.Extensions.Logging.Abstractions.dll",
-            "Microsoft.Extensions.DependencyInjection.Abstractions.dll",
-            "Microsoft.Extensions.Options.dll",
-            "Microsoft.Extensions.Primitives.dll",
-            "System.Threading.Tasks.Extensions.dll",
-            "System.Runtime.CompilerServices.Unsafe.dll",
+            "Microsoft.Data.Sqlite.dll",
+            "SQLitePCLRaw.batteries_v2.dll",
+            "SQLitePCLRaw.core.dll",
+            "SQLitePCLRaw.provider.e_sqlite3.dll",
             "System.Memory.dll",
-            "Microsoft.Bcl.AsyncInterfaces.dll",
-            "System.Text.Json.dll",
             "System.Buffers.dll",
-            "System.Numerics.Vectors.dll",
-            "System.Threading.Channels.dll",
-            "System.Diagnostics.DiagnosticSource.dll"
+            "System.Runtime.CompilerServices.Unsafe.dll",
+            "System.Numerics.Vectors.dll"
         };
 
         public static void Initialize()
@@ -41,14 +40,15 @@ namespace HelloID.PostgreSQL
 
                 try
                 {
-                    _tempDir = Path.Combine(Path.GetTempPath(), "HelloID.PostgreSQL", Guid.NewGuid().ToString("N"));
+                    _tempDir = Path.Combine(Path.GetTempPath(), "SQLite.Wrapper", Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(_tempDir);
 
                     ExtractEmbeddedAssemblies();
+                    SetupNativeLibraryPath();
 
                     AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
 
-                    LoadNpgsql();
+                    LoadMicrosoftDataSqlite();
 
                     _initialized = true;
                 }
@@ -92,6 +92,24 @@ namespace HelloID.PostgreSQL
             }
         }
 
+        private static void SetupNativeLibraryPath()
+        {
+            var assembly = typeof(AssemblyLoader).Assembly;
+            var wrapperLocation = Path.GetDirectoryName(assembly.Location);
+            
+            if (string.IsNullOrEmpty(wrapperLocation))
+            {
+                return;
+            }
+
+            var nativeDir = Path.Combine(wrapperLocation, "runtimes", "win-x64", "native");
+
+            if (Directory.Exists(nativeDir))
+            {
+                SetDllDirectory(nativeDir);
+            }
+        }
+
         private static Assembly OnAssemblyResolve(object sender, ResolveEventArgs args)
         {
             var assemblyName = new AssemblyName(args.Name);
@@ -128,16 +146,16 @@ namespace HelloID.PostgreSQL
             return null;
         }
 
-        private static void LoadNpgsql()
+        private static void LoadMicrosoftDataSqlite()
         {
-            var npgsqlPath = Path.Combine(_tempDir, "Npgsql.dll");
-            if (!File.Exists(npgsqlPath))
+            var dllPath = Path.Combine(_tempDir, "Microsoft.Data.Sqlite.dll");
+            if (!File.Exists(dllPath))
             {
-                throw new FileNotFoundException($"Npgsql.dll not found at: {npgsqlPath}");
+                throw new FileNotFoundException($"Microsoft.Data.Sqlite.dll not found at: {dllPath}");
             }
 
-            var npgsqlAssembly = Assembly.LoadFrom(npgsqlPath);
-            _loadedAssemblies["Npgsql"] = npgsqlAssembly;
+            var sqlAssembly = Assembly.LoadFrom(dllPath);
+            _loadedAssemblies["Microsoft.Data.Sqlite"] = sqlAssembly;
         }
 
         private static void Cleanup()

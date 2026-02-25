@@ -51,41 +51,41 @@ jobs:
       - name: Build solution
         run: dotnet build HelloID.Vault.Management.sln --configuration ${{ env.CONFIGURATION }} --no-restore
 
-      - name: Build HelloID.PostgreSQL wrapper DLL
+      - name: Build PostgreSQL.Wrapper DLL
         run: |
-          Write-Host "Building HelloID.PostgreSQL wrapper..." -ForegroundColor Cyan
-          Set-Location connectors/HelloID.PostgreSQL
+          Write-Host "Building PostgreSQL.Wrapper..." -ForegroundColor Cyan
+          Set-Location connectors/PostgreSQL.Wrapper
           ./build.ps1
           Set-Location ../..
 
-      - name: Create PostgreSQL wrapper ZIP
+      - name: Create PostgreSQL.Wrapper ZIP
         run: |
-          Write-Host "Creating HelloID.PostgreSQL.zip..." -ForegroundColor Cyan
-          Compress-Archive -Path connectors/HelloID.PostgreSQL/bin/Release/HelloID.PostgreSQL.dll -DestinationPath HelloID.PostgreSQL.zip
+          Write-Host "Creating PostgreSQL.Wrapper.zip..." -ForegroundColor Cyan
+          Compress-Archive -Path connectors/PostgreSQL.Wrapper/bin/Release/PostgreSQL.Wrapper.dll -DestinationPath PostgreSQL.Wrapper.zip
 
-      - name: Upload PostgreSQL wrapper artifact
+      - name: Upload PostgreSQL.Wrapper artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HelloID.PostgreSQL
-          path: HelloID.PostgreSQL.zip
+          name: PostgreSQL.Wrapper
+          path: PostgreSQL.Wrapper.zip
 
-      - name: Build HelloID.SQLite wrapper DLL
+      - name: Build SQLite.Wrapper DLL
         run: |
-          Write-Host "Building HelloID.SQLite wrapper..." -ForegroundColor Cyan
-          Set-Location connectors/HelloID.SQLite
+          Write-Host "Building SQLite.Wrapper..." -ForegroundColor Cyan
+          Set-Location connectors/SQLite.Wrapper
           ./build.ps1
           Set-Location ../..
 
-      - name: Create SQLite wrapper ZIP
+      - name: Create SQLite.Wrapper ZIP
         run: |
-          Write-Host "Creating HelloID.SQLite.zip..." -ForegroundColor Cyan
-          Compress-Archive -Path connectors/HelloID.SQLite/bin/Release/HelloID.SQLite.dll, connectors/HelloID.SQLite/bin/Release/runtimes -DestinationPath HelloID.SQLite.zip
+          Write-Host "Creating SQLite.Wrapper.zip..." -ForegroundColor Cyan
+          Compress-Archive -Path connectors/SQLite.Wrapper/bin/Release/SQLite.Wrapper.dll, connectors/SQLite.Wrapper/bin/Release/runtimes -DestinationPath SQLite.Wrapper.zip
 
-      - name: Upload SQLite wrapper artifact
+      - name: Upload SQLite.Wrapper artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HelloID.SQLite
-          path: HelloID.SQLite.zip
+          name: SQLite.Wrapper
+          path: SQLite.Wrapper.zip
 
       - name: Publish self-contained EXE (x64)
         run: dotnet publish src/HelloID.Vault.Management/HelloID.Vault.Management.csproj --configuration ${{ env.CONFIGURATION }} --runtime win-x64 --self-contained true --output publish/win-x64
@@ -245,8 +245,8 @@ jobs:
           files: |
             HelloID.Vault.Management-win-x64.zip
             HelloID.Vault.Management.msi
-            HelloID.PostgreSQL.zip
-            HelloID.SQLite.zip
+            PostgreSQL.Wrapper.zip
+            SQLite.Wrapper.zip
           draft: false
           prerelease: false
           name: ${{ steps.get_version.outputs.version }}
@@ -262,10 +262,10 @@ jobs:
             Download `HelloID.Vault.Management.msi` for automated installation with Start Menu shortcut.
 
             **PostgreSQL Wrapper DLL:**
-            Download `HelloID.PostgreSQL.zip` for the PostgreSQL connection wrapper used by HelloID connectors.
+            Download `PostgreSQL.Wrapper.zip` for the PostgreSQL connection wrapper used by HelloID connectors.
 
             **SQLite Wrapper DLL:**
-            Download `HelloID.SQLite.zip` for the SQLite connection wrapper used by HelloID connectors.
+            Download `SQLite.Wrapper.zip` for the SQLite connection wrapper used by HelloID connectors.
 
             ### Installation Instructions
 
@@ -280,13 +280,13 @@ jobs:
             3. Launch from Start Menu under "HelloID Vault Management"
 
             **PostgreSQL Wrapper:**
-            1. Download `HelloID.PostgreSQL.zip`
-            2. Extract `HelloID.PostgreSQL.dll` to your HelloID SourceData folder
+            1. Download `PostgreSQL.Wrapper.zip`
+            2. Extract `PostgreSQL.Wrapper.dll` to your HelloID SourceData folder
             3. Required for PostgreSQL/Supabase target system connectors
 
             **SQLite Wrapper:**
-            1. Download `HelloID.SQLite.zip`
-            2. Extract `HelloID.SQLite.dll` to your HelloID SourceData folder
+            1. Download `SQLite.Wrapper.zip`
+            2. Extract `SQLite.Wrapper.dll` to your HelloID SourceData folder
             3. Required for SQLite target system connectors (Microsoft.Data.Sqlite)
 
             ### Requirements

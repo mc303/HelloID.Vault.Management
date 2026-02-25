@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
-    <AssemblyName>HelloID.SQLite</AssemblyName>
-    <RootNamespace>HelloID.SQLite</RootNamespace>
+    <AssemblyName>SQLite.Wrapper</AssemblyName>
+    <RootNamespace>SQLite.Wrapper</RootNamespace>
     <OutputType>Library</OutputType>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
