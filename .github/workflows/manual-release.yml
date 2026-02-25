@@ -88,14 +88,7 @@ jobs:
       - name: Create SQLite wrapper ZIP
         run: |
           Write-Host "Creating HelloID.SQLite.zip..." -ForegroundColor Cyan
-          Set-Location connectors/HelloID.SQLite/bin/Release
-          if (Test-Path "runtimes") {
-            Compress-Archive -Path HelloID.SQLite.dll, runtimes -DestinationPath ../../../HelloID.SQLite.zip
-          } else {
-            Write-Host "WARNING: runtimes folder not found, creating zip without native libraries" -ForegroundColor Yellow
-            Compress-Archive -Path HelloID.SQLite.dll -DestinationPath ../../../HelloID.SQLite.zip
-          }
-          Set-Location ../../..
+          Compress-Archive -Path connectors/HelloID.SQLite/bin/Release/HelloID.SQLite.dll, connectors/HelloID.SQLite/bin/Release/runtimes -DestinationPath HelloID.SQLite.zip
 
       - name: Upload SQLite wrapper artifact
         uses: actions/upload-artifact@v4
