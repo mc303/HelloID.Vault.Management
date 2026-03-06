@@ -13,5 +13,10 @@ public enum DatabaseType
     /// <summary>
     /// PostgreSQL database (remote server, e.g., Supabase).
     /// </summary>
-    PostgreSql
+    PostgreSql,
+
+    /// <summary>
+    /// Turso database (cloud-based SQLite-compatible via REST API).
+    /// </summary>
+    Turso
 }

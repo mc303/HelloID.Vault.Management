@@ -7,6 +7,7 @@ using HelloID.Vault.Core.Models.DTOs;
 using HelloID.Vault.Core.Models.Filters;
 using HelloID.Vault.Services.Interfaces;
 using HelloID.Vault.Data.Repositories.Interfaces;
+using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Management.Views.Persons;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,6 +29,7 @@ public partial class PersonsViewModel : ObservableObject
     private const int SearchDebounceMs = 300;
     private int _currentOffset = 0;
     private bool _hasMoreData = true;
+    private bool _schemaError = false;
 
     [ObservableProperty]
     private ObservableCollection<PersonListDto> _persons = new();
@@ -219,6 +221,7 @@ public partial class PersonsViewModel : ObservableObject
             Persons.Clear();
             _currentOffset = 0;
             _hasMoreData = true;
+            _schemaError = false;
 
             // If we have a target person to restore, load as many batches as needed to find them
             if (!string.IsNullOrEmpty(targetPersonId))
@@ -226,8 +229,8 @@ public partial class PersonsViewModel : ObservableObject
                 PersonListDto? targetPerson = null;
                 int batchCount = 0;
 
-                // Keep loading batches until we find the person or run out of results
-                while (_hasMoreData && targetPerson == null)
+                // Keep loading batches until we find the person or run out of results (or hit a schema error)
+                while (_hasMoreData && !_schemaError && targetPerson == null)
                 {
                     batchCount++;
                     await LoadNextBatchAsync();
@@ -295,6 +298,21 @@ public partial class PersonsViewModel : ObservableObject
         {
             IsBusy = false;
             _willRestoreSelection = false;
+
+            // Show helpful message if database schema is missing (e.g., empty Turso database)
+            if (_schemaError && Persons.Count == 0)
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    System.Windows.MessageBox.Show(
+                        "The database appears to be empty or the schema is missing.\n\n" +
+                        "Please import data first using File > Import Vault.\n\n" +
+                        "For Turso databases, ensure the database has been initialized with the correct schema.",
+                        "Database Empty",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Information);
+                });
+            }
         }
     }
 
@@ -355,10 +373,34 @@ public partial class PersonsViewModel : ObservableObject
             System.Diagnostics.Debug.WriteLine($"  Exception Type: {ex.GetType().FullName}");
             System.Diagnostics.Debug.WriteLine($"  Message: {ex.Message}");
 
+            // Check for schema/table errors (e.g., empty database)
+            if (ex.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase) ||
+                ex.Message.Contains("relation", StringComparison.OrdinalIgnoreCase) && ex.Message.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ||
+                ex.Message.Contains("Namespace", StringComparison.OrdinalIgnoreCase) && ex.Message.Contains("doesn't exist", StringComparison.OrdinalIgnoreCase))
+            {
+                System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Schema/database error detected - database may be empty or not exist");
+                _schemaError = true;
+                _hasMoreData = false;
+            }
+
+            // Handle Turso exceptions (connection or query errors indicate database issues)
+            if (ex is TursoQueryException || ex is TursoConnectionException)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PersonsViewModel] Turso error ({ex.GetType().Name}) - database may be empty, not exist, or schema missing");
+                _schemaError = true;
+                _hasMoreData = false;
+            }
+
             // Log Npgsql-specific details
             if (ex is Npgsql.NpgsqlException npgsqlEx)
             {
                 System.Diagnostics.Debug.WriteLine($"  SQL State: {npgsqlEx.SqlState}");
+                // PostgreSQL relation does not exist errors
+                if (npgsqlEx.SqlState == "42P01") // undefined_table
+                {
+                    _schemaError = true;
+                    _hasMoreData = false;
+                }
             }
 
             // Don't re-throw - this prevents cascading failures

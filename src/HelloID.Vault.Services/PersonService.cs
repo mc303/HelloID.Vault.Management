@@ -3,8 +3,6 @@ using HelloID.Vault.Core.Models.DTOs;
 using HelloID.Vault.Core.Models.Filters;
 using HelloID.Vault.Data.Repositories.Interfaces;
 using HelloID.Vault.Services.Interfaces;
-using Dapper;
-using HelloID.Vault.Data.Connection;
 
 namespace HelloID.Vault.Services;
 
@@ -15,7 +13,7 @@ public class PersonService : IPersonService
 {
     private readonly IPersonRepository _personRepository;
     private readonly ICustomFieldRepository _customFieldRepository;
-    private readonly IDatabaseConnectionFactory _connectionFactory;
+    private readonly IContractRepository _contractRepository;
     private readonly IPrimaryContractConfigRepository _primaryContractConfigRepository;
     private readonly IContactRepository _contactRepository;
     private readonly PrimaryContractFieldResolver _fieldResolver;
@@ -23,13 +21,13 @@ public class PersonService : IPersonService
     public PersonService(
         IPersonRepository personRepository,
         ICustomFieldRepository customFieldRepository,
-        IDatabaseConnectionFactory connectionFactory,
+        IContractRepository contractRepository,
         IPrimaryContractConfigRepository primaryContractConfigRepository,
         IContactRepository contactRepository)
     {
         _personRepository = personRepository ?? throw new ArgumentNullException(nameof(personRepository));
         _customFieldRepository = customFieldRepository ?? throw new ArgumentNullException(nameof(customFieldRepository));
-        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+        _contractRepository = contractRepository ?? throw new ArgumentNullException(nameof(contractRepository));
         _primaryContractConfigRepository = primaryContractConfigRepository ?? throw new ArgumentNullException(nameof(primaryContractConfigRepository));
         _contactRepository = contactRepository ?? throw new ArgumentNullException(nameof(contactRepository));
         _fieldResolver = new PrimaryContractFieldResolver(_customFieldRepository);
@@ -146,80 +144,11 @@ public class PersonService : IPersonService
 
         System.Diagnostics.Debug.WriteLine($"[PersonService] GetContractsByPersonIdAsync START - PersonId: '{personId}' (Length: {personId.Length})");
 
-        using var connection = _connectionFactory.CreateConnection();
-
-        // Query contract_details_view for all contracts of this person
-        // Note: The view already includes source_display_name from the source_system join
-        var sql = @"
-            SELECT
-                contract_id AS ContractId,
-                external_id AS ExternalId,
-                person_id AS PersonId,
-                start_date AS StartDate,
-                end_date AS EndDate,
-                type_code AS TypeCode,
-                type_description AS TypeDescription,
-                fte AS Fte,
-                hours_per_week AS HoursPerWeek,
-                percentage AS Percentage,
-                sequence AS Sequence,
-                person_name AS PersonName,
-                person_external_id AS PersonExternalId,
-                manager_person_external_id AS ManagerPersonId,
-                manager_person_name AS ManagerPersonName,
-                location_external_id AS LocationExternalId,
-                location_code AS LocationCode,
-                location_name AS LocationName,
-                cost_center_external_id AS CostCenterExternalId,
-                cost_center_code AS CostCenterCode,
-                cost_center_name AS CostCenterName,
-                cost_bearer_external_id AS CostBearerExternalId,
-                cost_bearer_code AS CostBearerCode,
-                cost_bearer_name AS CostBearerName,
-                employer_external_id AS EmployerExternalId,
-                employer_code AS EmployerCode,
-                employer_name AS EmployerName,
-                team_external_id AS TeamExternalId,
-                team_code AS TeamCode,
-                team_name AS TeamName,
-                department_external_id AS DepartmentExternalId,
-                department_name AS DepartmentName,
-                department_code AS DepartmentCode,
-                department_parent_external_id AS DepartmentParentExternalId,
-                department_manager_person_id AS DepartmentManagerPersonId,
-                department_manager_name AS DepartmentManagerName,
-                department_parent_department_name AS DepartmentParentDepartmentName,
-                division_external_id AS DivisionExternalId,
-                division_code AS DivisionCode,
-                division_name AS DivisionName,
-                title_external_id AS TitleExternalId,
-                title_code AS TitleCode,
-                title_name AS TitleName,
-                organization_external_id AS OrganizationExternalId,
-                organization_code AS OrganizationCode,
-                organization_name AS OrganizationName,
-                contract_status AS ContractStatus,
-                contract_date_range AS ContractDateRange,
-                source AS Source,
-                source_display_name AS SourceDisplayName
-            FROM contract_details_view
-            WHERE person_id = @PersonId
-            ORDER BY
-                CASE contract_status
-                    WHEN 'Active' THEN 1
-                    WHEN 'Future' THEN 2
-                    WHEN 'Past' THEN 3
-                    ELSE 4
-                END,
-                start_date DESC";
-
-        System.Diagnostics.Debug.WriteLine($"[PersonService] Executing SQL Query for PersonId: '{personId}'");
-
         List<ContractDetailDto> contractsList;
 
         try
         {
-            var contracts = await connection.QueryAsync<ContractDetailDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
+            var contracts = await _contractRepository.GetDetailsByPersonIdAsync(personId);
             contractsList = contracts.ToList();
 
             System.Diagnostics.Debug.WriteLine($"[PersonService] Query SUCCESS - Loaded {contractsList.Count} contracts");

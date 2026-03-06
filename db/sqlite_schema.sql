@@ -1,6 +1,11 @@
 -- HR Management System - SQLite Database Schema
 -- Context7-compatible schema with TEXT-based JSON storage
 -- Compatible with standard SQLite 3.38.0+
+-- Turso upload compatible (page_size=4096, auto_vacuum=0, journal_mode=WAL)
+
+-- Turso-required settings (MUST be set before any tables are created)
+PRAGMA page_size = 4096;
+PRAGMA auto_vacuum = 0;
 
 -- Enable required SQLite extensions and settings
 PRAGMA foreign_keys = ON;

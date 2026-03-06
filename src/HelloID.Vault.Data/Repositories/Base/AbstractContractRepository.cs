@@ -698,6 +698,70 @@ public abstract class AbstractContractRepository : IContractRepository
         return await connection.QueryAsync<ContractDetailDto>(sql).ConfigureAwait(false);
     }
 
+    public async Task<IEnumerable<ContractDetailDto>> GetDetailsByPersonIdAsync(string personId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var sql = @"
+            SELECT
+                c.contract_id AS ContractId,
+                c.external_id AS ExternalId,
+                c.person_id AS PersonId,
+                c.person_name AS PersonName,
+                c.person_external_id AS PersonExternalId,
+                c.start_date AS StartDate,
+                c.end_date AS EndDate,
+                c.type_code AS TypeCode,
+                c.type_description AS TypeDescription,
+                c.fte AS Fte,
+                c.hours_per_week AS HoursPerWeek,
+                c.percentage AS Percentage,
+                c.sequence AS Sequence,
+                c.manager_person_external_id AS ManagerPersonExternalId,
+                c.manager_person_name AS ManagerPersonName,
+                c.location_external_id AS LocationExternalId,
+                c.location_code AS LocationCode,
+                c.location_name AS LocationName,
+                c.cost_center_external_id AS CostCenterExternalId,
+                c.cost_center_code AS CostCenterCode,
+                c.cost_center_name AS CostCenterName,
+                c.cost_bearer_external_id AS CostBearerExternalId,
+                c.cost_bearer_code AS CostBearerCode,
+                c.cost_bearer_name AS CostBearerName,
+                c.employer_external_id AS EmployerExternalId,
+                c.employer_code AS EmployerCode,
+                c.employer_name AS EmployerName,
+                c.team_external_id AS TeamExternalId,
+                c.team_code AS TeamCode,
+                c.team_name AS TeamName,
+                c.department_external_id AS DepartmentExternalId,
+                c.department_name AS DepartmentName,
+                c.department_code AS DepartmentCode,
+                c.department_parent_external_id AS DepartmentParentExternalId,
+                c.department_manager_person_id AS DepartmentManagerPersonId,
+                c.department_manager_name AS DepartmentManagerName,
+                c.department_parent_department_name AS DepartmentParentDepartmentName,
+                c.division_external_id AS DivisionExternalId,
+                c.division_code AS DivisionCode,
+                c.division_name AS DivisionName,
+                c.title_external_id AS TitleExternalId,
+                c.title_code AS TitleCode,
+                c.title_name AS TitleName,
+                c.organization_external_id AS OrganizationExternalId,
+                c.organization_code AS OrganizationCode,
+                c.organization_name AS OrganizationName,
+                c.contract_status AS ContractStatus,
+                c.contract_date_range AS ContractDateRange,
+                c.source AS Source,
+                ss.display_name AS SourceDisplayName
+            FROM contract_details_view c
+            LEFT JOIN source_system ss ON c.source = ss.system_id
+            WHERE c.person_id = @personId
+            ORDER BY c.start_date DESC";
+
+        return await connection.QueryAsync<ContractDetailDto>(sql, new { personId }).ConfigureAwait(false);
+    }
+
     public async Task<IEnumerable<ContractDetailDto>> GetAllFromCacheAsync()
     {
         using var connection = _connectionFactory.CreateConnection();

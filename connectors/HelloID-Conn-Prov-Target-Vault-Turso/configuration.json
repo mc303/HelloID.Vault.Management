@@ -1,0 +1,32 @@
+[
+  {
+    "key": "databaseUrl",
+    "templateOptions": {
+      "description": "Turso database URL (libsql:// or https:// format)",
+      "label": "Database URL",
+      "placeholder": "libsql://your-database-org.turso.io",
+      "required": true
+    },
+    "type": "input"
+  },
+  {
+    "key": "authToken",
+    "templateOptions": {
+      "description": "Turso database authentication token (JWT from Turso dashboard)",
+      "label": "Auth Token",
+      "placeholder": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "required": true,
+      "type": "password"
+    },
+    "type": "input"
+  },
+  {
+    "key": "isDebug",
+    "templateOptions": {
+      "description": "Enable verbose logging for troubleshooting (shows SQL queries and data counts)",
+      "label": "Debug Mode",
+      "required": false
+    },
+    "type": "checkbox"
+  }
+]

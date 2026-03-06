@@ -1,6 +1,6 @@
 # HelloID Vault Management Connectors
 
-A collection of HelloID provisioning connectors for reading and writing data to Vault Management databases. This project provides source connectors (read) and target connectors (write) for SQLite, PostgreSQL, and Supabase databases.
+A collection of HelloID provisioning connectors for reading and writing data to Vault Management databases. This project provides source connectors (read) and target connectors (write) for SQLite, PostgreSQL, Supabase, and Turso databases.
 
 ## Table of Contents
 
@@ -10,6 +10,7 @@ A collection of HelloID provisioning connectors for reading and writing data to 
   - [SQLite Setup](#31-sqlite-setup)
   - [PostgreSQL Setup](#32-postgresql-setup)
   - [Supabase Setup](#33-supabase-setup)
+  - [Turso Setup](#34-turso-setup)
 - [Field Mapping](#field-mapping)
 - [Correlation Configuration](#correlation-configuration)
 - [Troubleshooting](#troubleshooting)
@@ -36,6 +37,7 @@ A collection of HelloID provisioning connectors for reading and writing data to 
 | `HelloID-Conn-Prov-Source-Vault-SQLite` | SQLite | System.Data.SQLite.dll |
 | `HelloID-Conn-Prov-Source-Vault-Postgres-Npgsql` | PostgreSQL | HelloID.PostgreSQL.dll wrapper (embeds Npgsql) |
 | `HelloID-Conn-Prov-Source-Vault-Supabase` | Supabase | HelloID.PostgreSQL.dll wrapper (direct DB access) |
+| `HelloID-Conn-Prov-Source-Vault-Turso` | Turso | Turso HTTP API (libsql://) |
 
 #### Target Connectors (Write data TO Vault)
 
@@ -44,6 +46,7 @@ A collection of HelloID provisioning connectors for reading and writing data to 
 | `HelloID-Conn-Prov-Target-Vault-SQLite` | SQLite | System.Data.SQLite.dll |
 | `HelloID-Conn-Prov-Target-Vault-Postgres-Npgsql` | PostgreSQL | HelloID.PostgreSQL.dll wrapper |
 | `HelloID-Conn-Prov-Target-Vault-Supabase` | Supabase | PostgREST API |
+| `HelloID-Conn-Prov-Target-Vault-Turso` | Turso | Turso HTTP API |
 
 ---
 
@@ -70,6 +73,11 @@ A collection of HelloID provisioning connectors for reading and writing data to 
 - Supabase project with `persons` table
 - Database password (from Settings > Database)
 - Service Role API key for target connector (from Settings > API)
+
+#### Turso
+- Turso database with Vault Management schema
+- Database URL (`libsql://` or `https://` format)
+- Database authentication token (JWT with read permissions for source, read+write for target)
 
 ### Build Machine Requirements (PostgreSQL/Supabase only)
 
@@ -294,6 +302,87 @@ The Supabase target connector uses the PostgREST API.
 
 ---
 
+### 3.4 Turso Setup
+
+Turso is an edge SQLite platform with HTTP API access. Connectors use direct HTTP calls to Turso's API - no wrapper DLLs required.
+
+#### Step 1: Create Turso Database
+
+1. Log in to [Turso Dashboard](https://turso.tech/dashboard)
+2. Create a new database
+3. Apply the Vault Management schema using the HelloID.Vault.Management app (import vault.json)
+4. Or use Turso CLI: `turso db shell vaultdb < db/sqlite_schema.sql`
+
+#### Step 2: Create Authentication Tokens
+
+In the Turso Dashboard:
+
+1. Navigate to **Settings** → **Tokens**
+2. Create tokens with appropriate permissions:
+
+| Connector | Token Permissions | Purpose |
+|-----------|-------------------|---------|
+| Source Connector | **Read** only | Import persons/departments |
+| Target Connector | **Read + Write** | Correlate and update persons |
+
+3. Copy the tokens for connector configuration
+
+**Security:** Create separate tokens for source and target connectors. Never use read+write tokens for source-only operations.
+
+#### Step 3: Configure Source Connector
+
+Upload `persons.ps1` and `departments.ps1` from the Turso source connector folder.
+
+| Configuration Setting | Value |
+|----------------------|-------|
+| Database URL | `libsql://vaultdb-org.turso.io` |
+| Auth Token | JWT token with **Read** permissions |
+| Source System Filter | (optional) Filter by source system |
+| Include Inactive Contracts | `false` (recommended) |
+| Fields to Exclude | (optional) `Source,custom_*` |
+| Debug Mode | `false` |
+
+**Database URL Formats:**
+
+| Format | Example | Notes |
+|--------|---------|-------|
+| `libsql://` | `libsql://vaultdb-org.turso.io` | Turso format (recommended) |
+| `https://` | `https://vaultdb-org.turso.io` | HTTP format |
+
+#### Step 4: Configure Target Connector
+
+Upload `create.ps1` and `update.ps1` from the Turso target connector folder.
+
+| Configuration Setting | Value |
+|----------------------|-------|
+| Database URL | `libsql://vaultdb-org.turso.io` |
+| Auth Token | JWT token with **Read + Write** permissions |
+| Debug Mode | `false` |
+
+**Important:**
+- Target connector requires **Read + Write** permissions
+- Use separate token from source connector
+- Correlation only - does NOT create new persons
+- Person must exist in database before correlation
+
+#### Field Naming Convention (Target Connector)
+
+Turso target connector uses field naming conventions to map to database tables:
+
+| Field Pattern | Database Table | Example |
+|---------------|-----------------|---------|
+| `persons_*` | `persons` table | `persons_user_name` |
+| `persons_custom_field_*` | `persons.custom_fields` JSON | `persons_custom_field_employee_id` |
+| `contacts_*` | `contacts` table (upsert) | `contacts_business_email` |
+
+**Contact Type Mapping:**
+- `contacts_business_*` → `type = 'Business'`
+- `contacts_personal_*` → `type = 'Personal'`
+
+See [Turso Target README](HelloID-Conn-Prov-Target-Vault-Turso/README.md) for complete field mapping documentation.
+
+---
+
 ## Field Mapping
 
 ### Source Connector Fields
@@ -485,6 +574,59 @@ Test-NetConnection -ComputerName "db.server.com" -Port 5432
 2. Verify `external_id` matches between HelloID and database
 3. Check correlation configuration
 
+### Turso Issues
+
+#### "Authentication failed"
+
+**Cause:** Invalid token or insufficient permissions.
+
+**Solution:**
+1. Verify token has correct permissions (Read for source, Read+Write for target)
+2. Check token expiration in Turso dashboard
+3. Regenerate token with correct permissions
+4. Ensure no extra spaces when copying token
+
+#### "No person found in Turso database"
+
+**Cause:** Person doesn't exist in database.
+
+**Solution:**
+1. Run source connector first to import persons
+2. Verify `external_id` matches between HelloID and database
+3. Check correlation configuration
+4. Verify database URL is correct
+
+#### "No rows updated in persons table"
+
+**Cause:** Person doesn't exist or no updateable fields.
+
+**Solution:**
+1. Verify `person_id` from correlation exists in database
+2. Ensure at least one `persons_*` field is mapped
+3. Check field names match database schema
+4. Verify target connector has Read+Write permissions
+
+#### "Turso query error: no such table"
+
+**Cause:** Database schema not initialized.
+
+**Solution:**
+1. Ensure Vault Management schema is applied to Turso database
+2. Use HelloID.Vault.Management app to import vault.json
+3. Or apply schema: `turso db shell vaultdb < db/sqlite_schema.sql`
+
+#### "Connection timeout"
+
+**Cause:** Network connectivity issues to Turso API.
+
+**Solution:**
+```powershell
+Test-NetConnection -ComputerName "your-database-org.turso.io" -Port 443
+```
+1. Verify network allows HTTPS to Turso hosts
+2. Check firewall settings
+3. Verify database URL is correct (libsql:// or https://)
+
 ### General Issues
 
 #### Query returns no data
@@ -562,6 +704,24 @@ The `service_role` key has **full database access** and bypasses RLS:
 - ⚠️ **Store only in HelloID's encrypted configuration**
 - ⚠️ **Regenerate immediately if compromised**
 
+### Turso Authentication Tokens
+
+Turso uses JWT tokens for database authentication:
+
+- ✅ **Use read-only tokens for source connectors** - Import operations only need read access
+- ✅ **Use read+write tokens only for target connectors** - Update operations require write access
+- ✅ **Create separate tokens for source and target** - Principle of least privilege
+- ✅ **Store tokens in HelloID's encrypted configuration** - Never hardcode
+- ✅ **Rotate tokens regularly** - Turso recommends 30-90 days
+- ❌ **Never use read+write tokens for source-only operations**
+- ❌ **Never hardcode tokens in scripts or commit to version control**
+
+**Token Management:**
+- Monitor token usage in Turso dashboard
+- Revoke unused tokens immediately
+- Regenerate tokens if compromised
+- Use descriptive token names for identification
+
 ### SQLite Database Security
 
 - Place database files in secure, access-controlled locations
@@ -575,6 +735,7 @@ The `service_role` key has **full database access** and bypasses RLS:
 - Restrict database server firewall to HelloID agent IP
 - Use connection pooler (Supabase port 6543) for production
 - Enable connection timeouts to prevent hanging
+- Turso uses HTTPS (implicit with libsql:// URLs) - ensure outbound HTTPS to turso.io domains
 
 ### Audit and Monitoring
 
@@ -598,5 +759,7 @@ For issues specific to these connectors:
 
 - [HelloID Documentation](https://docs.helloid.com/)
 - [Supabase Documentation](https://supabase.com/docs)
+- [Turso Documentation](https://turso.tech/docs)
+- [Turso HTTP API](https://turso.tech/docs/http-api)
 - [Npgsql Documentation](https://www.npgsql.org/)
 - [System.Data.SQLite](https://system.data.sqlite.org/)

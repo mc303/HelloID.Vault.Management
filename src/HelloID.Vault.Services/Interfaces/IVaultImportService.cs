@@ -63,6 +63,7 @@ public class ImportResult
 {
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
+    public string? Message { get; set; }
     public int PersonsImported { get; set; }
     public int ContractsImported { get; set; }
     public int ContactsImported { get; set; }
@@ -80,6 +81,9 @@ public class ImportResult
     public int CustomFieldPersonsImported { get; set; }
     public int CustomFieldContractsImported { get; set; }
     public TimeSpan Duration { get; set; }
+
+    // Turso auto-create
+    public string? NewDatabaseUrl { get; set; }
 
     // Phase 2: Source-aware validation tracking
     public int OrphanedDepartmentsDetected { get; set; }

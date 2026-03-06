@@ -11,6 +11,7 @@ using HelloID.Vault.Data.Repositories.Base;
 using HelloID.Vault.Data.Repositories.Interfaces;
 using HelloID.Vault.Data.Repositories.Postgres;
 using HelloID.Vault.Data.Repositories.Sqlite;
+using HelloID.Vault.Data.Repositories.Turso;
 using HelloID.Vault.Management.Views;
 using HelloID.Vault.Management.Views.ReferenceData;
 using HelloID.Vault.Management.ViewModels;
@@ -147,9 +148,10 @@ public partial class App : Application
         // Register appropriate connection factory based on database type
         // Use DatabaseType enum directly to determine factory
         
-        // Case-insensitive check for SupabaseConnectionString
+        // Case-insensitive check for database type
         bool isPostgres = string.Equals(dbType.ToString(), DatabaseType.PostgreSql.ToString(), StringComparison.OrdinalIgnoreCase);
-        
+        bool isTurso = string.Equals(dbType.ToString(), DatabaseType.Turso.ToString(), StringComparison.OrdinalIgnoreCase);
+
         if (isPostgres)
         {
             // PostgreSQL connection (Supabase)
@@ -159,6 +161,31 @@ public partial class App : Application
                 sp.GetRequiredService<IDatabaseConnectionFactory>(),
                 postgresSchemaPath));
             System.Diagnostics.Debug.WriteLine($"Using PostgreSQL database (Supabase)");
+        }
+        else if (isTurso)
+        {
+            // Turso connection (cloud SQLite via REST API)
+            var tursoDatabaseUrl = preferencesService.TursoDatabaseUrl;
+            var tursoAuthToken = preferencesService.TursoAuthToken;
+
+            if (string.IsNullOrWhiteSpace(tursoDatabaseUrl) || string.IsNullOrWhiteSpace(tursoAuthToken))
+            {
+                throw new InvalidOperationException("Turso database URL and auth token are required. Please configure them in Settings.");
+            }
+
+            // Register Turso client
+            var tursoClient = new TursoClient(tursoDatabaseUrl, tursoAuthToken);
+            services.AddSingleton<ITursoClient>(tursoClient);
+
+            // Register Turso connection factory (for service compatibility)
+            services.AddSingleton<IDatabaseConnectionFactory>(new TursoDatabaseConnectionFactory(tursoClient));
+
+            // Register DatabaseInitializer for Turso (no-op - schema managed externally)
+            services.AddSingleton(sp => new DatabaseInitializer(
+                sp.GetRequiredService<IDatabaseConnectionFactory>(),
+                "turso"));
+
+            System.Diagnostics.Debug.WriteLine($"Using Turso database: {tursoDatabaseUrl}");
         }
         else
         {
@@ -197,6 +224,10 @@ public partial class App : Application
         {
             services.AddSingleton<ICustomFieldRepository, PostgresCustomFieldRepository>();
         }
+        else if (isTurso)
+        {
+            services.AddSingleton<ICustomFieldRepository, TursoCustomFieldRepository>();
+        }
         else
         {
             services.AddSingleton<ICustomFieldRepository, SqliteCustomFieldRepository>();
@@ -206,6 +237,10 @@ public partial class App : Application
         if (isPostgres)
         {
             services.AddSingleton<IContractRepository, PostgresContractRepository>();
+        }
+        else if (isTurso)
+        {
+            services.AddSingleton<IContractRepository, TursoContractRepository>();
         }
         else
         {
@@ -217,6 +252,10 @@ public partial class App : Application
         {
             services.AddSingleton<ISourceSystemRepository, PostgresSourceSystemRepository>();
         }
+        else if (isTurso)
+        {
+            services.AddSingleton<ISourceSystemRepository, TursoSourceSystemRepository>();
+        }
         else
         {
             services.AddSingleton<ISourceSystemRepository, SqliteSourceSystemRepository>();
@@ -225,24 +264,56 @@ public partial class App : Application
         // Memory Cache
         services.AddSingleton<IMemoryCache, MemoryCache>();
 
-        // Repositories
-        services.AddSingleton<IPersonRepository, PersonRepository>();
-        services.AddSingleton<IContactRepository, ContactRepository>();
-        services.AddSingleton<IDepartmentRepository, DepartmentRepository>();
-        services.AddSingleton<ILocationRepository, LocationRepository>();
-        services.AddSingleton<ITitleRepository, TitleRepository>();
-        services.AddSingleton<IDivisionRepository, DivisionRepository>();
-        services.AddSingleton<ITeamRepository, TeamRepository>();
-        services.AddSingleton<IOrganizationRepository, OrganizationRepository>();
-        services.AddSingleton<IEmployerRepository, EmployerRepository>();
-        services.AddSingleton<ICostCenterRepository, CostCenterRepository>();
-        services.AddSingleton<ICostBearerRepository, CostBearerRepository>();
-        services.AddSingleton<IPrimaryContractConfigRepository, PrimaryContractConfigRepository>();
+        // Repositories - database-specific implementations
+        if (isTurso)
+        {
+            services.AddSingleton<IPersonRepository, TursoPersonRepository>();
+            services.AddSingleton<IContactRepository, TursoContactRepository>();
+            services.AddSingleton<IDepartmentRepository, TursoDepartmentRepository>();
+            services.AddSingleton<ILocationRepository, TursoLocationRepository>();
+            services.AddSingleton<ITitleRepository, TursoTitleRepository>();
+            services.AddSingleton<IDivisionRepository, TursoDivisionRepository>();
+            services.AddSingleton<ITeamRepository, TursoTeamRepository>();
+            services.AddSingleton<IOrganizationRepository, TursoOrganizationRepository>();
+            services.AddSingleton<IEmployerRepository, TursoEmployerRepository>();
+            services.AddSingleton<ICostCenterRepository, TursoCostCenterRepository>();
+            services.AddSingleton<ICostBearerRepository, TursoCostBearerRepository>();
+            services.AddSingleton<IPrimaryContractConfigRepository, TursoPrimaryContractConfigRepository>();
+        }
+        else
+        {
+            // SQLite and PostgreSQL use Dapper-based repositories
+            services.AddSingleton<IPersonRepository, PersonRepository>();
+            services.AddSingleton<IContactRepository, ContactRepository>();
+            services.AddSingleton<IDepartmentRepository, DepartmentRepository>();
+            services.AddSingleton<ILocationRepository, LocationRepository>();
+            services.AddSingleton<ITitleRepository, TitleRepository>();
+            services.AddSingleton<IDivisionRepository, DivisionRepository>();
+            services.AddSingleton<ITeamRepository, TeamRepository>();
+            services.AddSingleton<IOrganizationRepository, OrganizationRepository>();
+            services.AddSingleton<IEmployerRepository, EmployerRepository>();
+            services.AddSingleton<ICostCenterRepository, CostCenterRepository>();
+            services.AddSingleton<ICostBearerRepository, CostBearerRepository>();
+            services.AddSingleton<IPrimaryContractConfigRepository, PrimaryContractConfigRepository>();
+        }
 
         // Services
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<IPersonService, PersonService>();
-        services.AddSingleton<IVaultImportService, VaultImportService>();
+        services.AddSingleton<IVaultImportService>(sp => new VaultImportService(
+            sp.GetRequiredService<IDatabaseConnectionFactory>(),
+            sp.GetRequiredService<DatabaseInitializer>(),
+            sp.GetRequiredService<IDatabaseManager>(),
+            sp.GetRequiredService<IPersonRepository>(),
+            sp.GetRequiredService<IContractRepository>(),
+            sp.GetRequiredService<IContactRepository>(),
+            sp.GetRequiredService<IDepartmentRepository>(),
+            sp.GetRequiredService<ICustomFieldRepository>(),
+            sp.GetRequiredService<IPrimaryManagerService>(),
+            sp.GetRequiredService<IUserPreferencesService>(),
+            sp.GetRequiredService<IReferenceDataService>(),
+            sp.GetService<ITursoClient>(),
+            sqliteSchemaPath));
         services.AddSingleton<IReferenceDataService, ReferenceDataService>();
         services.AddSingleton<IContractService, ContractService>();
         services.AddSingleton<IUserPreferencesService>(sp =>
@@ -290,13 +361,49 @@ public partial class App : Application
 
         try
         {
-            // Initialize database
-            var dbInitializer = _host.Services.GetRequiredService<DatabaseInitializer>();
-            await dbInitializer.InitializeAsync();
-
-            // Load user preferences
+            // Load user preferences first (needed to determine database type)
             var preferencesService = _host.Services.GetRequiredService<IUserPreferencesService>();
             await preferencesService.LoadAsync();
+
+            // Initialize database (only for SQLite and PostgreSQL)
+            // Turso uses HTTP API, schema must be applied via Turso CLI/dashboard
+            var dbType = preferencesService.DatabaseType;
+            if (dbType != Data.Connection.DatabaseType.Turso)
+            {
+                var dbInitializer = _host.Services.GetRequiredService<DatabaseInitializer>();
+                await dbInitializer.InitializeAsync();
+            }
+            else
+            {
+                // For Turso, just verify connection
+                var tursoClient = _host.Services.GetRequiredService<ITursoClient>();
+                try
+                {
+                    var connected = await tursoClient.TestConnectionAsync();
+                    if (!connected)
+                    {
+                        System.Diagnostics.Debug.WriteLine("[App] Turso connection test returned false - database may not exist yet");
+                        // Don't throw - allow app to start so user can import and auto-create database
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("[App] Turso connection verified");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Database doesn't exist yet - allow app to start so user can import
+                    System.Diagnostics.Debug.WriteLine($"[App] Turso connection failed: {ex.Message}");
+                    // Show warning but don't crash - import will auto-create the database
+                    MessageBox.Show(
+                        $"Could not connect to Turso database. The database may not exist yet.\n\n" +
+                        $"Please import data to create the database, or check your settings.\n\n" +
+                        $"Error: {ex.Message}",
+                        "Turso Connection Warning",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
 
             // Warm up reference data cache in background (fire and forget)
             var referenceDataService = _host.Services.GetRequiredService<IReferenceDataService>();

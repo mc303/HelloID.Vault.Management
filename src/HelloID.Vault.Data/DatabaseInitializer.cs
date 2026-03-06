@@ -6,13 +6,14 @@ namespace HelloID.Vault.Data;
 
 /// <summary>
 /// Initializes the database by executing the schema SQL script if needed.
-/// Supports both SQLite and PostgreSQL databases.
+/// Supports SQLite, PostgreSQL, and Turso databases.
 /// </summary>
 public class DatabaseInitializer
 {
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly string _schemaFilePath;
     private readonly string? _databasePath; // Only used for SQLite
+    private readonly ITursoClient? _tursoClient; // Only used for Turso
 
     /// <summary>
     /// Initializes a new instance for SQLite.
@@ -34,6 +35,16 @@ public class DatabaseInitializer
     }
 
     /// <summary>
+    /// Initializes a new instance for Turso (requires TursoClient).
+    /// </summary>
+    public DatabaseInitializer(IDatabaseConnectionFactory connectionFactory, ITursoClient tursoClient, string schemaFilePath)
+    {
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+        _tursoClient = tursoClient ?? throw new ArgumentNullException(nameof(tursoClient));
+        _schemaFilePath = schemaFilePath ?? throw new ArgumentNullException(nameof(schemaFilePath));
+    }
+
+    /// <summary>
     /// Initializes the database by creating it and executing the schema if it doesn't exist.
     /// </summary>
     public async Task InitializeAsync()
@@ -50,6 +61,11 @@ public class DatabaseInitializer
         {
             System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Calling InitializePostgreSqlAsync");
             await InitializePostgreSqlAsync();
+        }
+        else if (dbType == DatabaseType.Turso)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Calling InitializeTursoAsync");
+            await InitializeTursoAsync();
         }
         else
         {
@@ -115,6 +131,56 @@ public class DatabaseInitializer
         await VerifySchemaAsync();
 
         System.Diagnostics.Debug.WriteLine("PostgreSQL database initialized.");
+    }
+
+    private async Task InitializeTursoAsync()
+    {
+        System.Diagnostics.Debug.WriteLine("[DatabaseInitializer] Initializing Turso database...");
+
+        if (_tursoClient == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[DatabaseInitializer] TursoClient is null - cannot initialize schema");
+            throw new InvalidOperationException("TursoClient is required for Turso database initialization");
+        }
+
+        // Check if schema is already initialized
+        var schemaExists = await _tursoClient.IsSchemaInitializedAsync();
+
+        if (!schemaExists)
+        {
+            System.Diagnostics.Debug.WriteLine("[DatabaseInitializer] Schema does not exist in Turso database. Creating schema...");
+            await CreateTursoSchemaAsync();
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("[DatabaseInitializer] Schema already exists in Turso database.");
+        }
+
+        System.Diagnostics.Debug.WriteLine("[DatabaseInitializer] Turso database initialized.");
+    }
+
+    /// <summary>
+    /// Creates the database schema in Turso by executing the schema SQL file.
+    /// </summary>
+    private async Task CreateTursoSchemaAsync()
+    {
+        System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] CreateTursoSchemaAsync - Schema path: {_schemaFilePath}");
+
+        if (!File.Exists(_schemaFilePath))
+        {
+            System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] SCHEMA FILE NOT FOUND: {_schemaFilePath}");
+            throw new FileNotFoundException($"Schema file not found: {_schemaFilePath}");
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Schema file exists, reading SQL...");
+
+        // Read schema SQL
+        var schemaSql = await File.ReadAllTextAsync(_schemaFilePath).ConfigureAwait(false);
+        System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Schema SQL loaded: {schemaSql.Length} characters");
+
+        // Execute schema via TursoClient
+        var statementsExecuted = await _tursoClient!.ExecuteScriptAsync(schemaSql);
+        System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Executed {statementsExecuted} schema statements in Turso.");
     }
 
     /// <summary>

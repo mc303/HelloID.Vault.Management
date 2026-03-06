@@ -27,6 +27,15 @@ public partial class CompanyImportDialog : Window
             // Update overwrite message for PostgreSQL
             OverwriteMessage.Text = "Drop all tables and reimport (database is preserved)";
         }
+        else if (databaseType == DatabaseType.Turso)
+        {
+            // Disable backup button for Turso (no file backup possible)
+            BackupAndOverwriteButton.IsEnabled = false;
+            BackupAndOverwriteButton.ToolTip = "Database backup is not supported for Turso";
+
+            // Update overwrite message for Turso
+            OverwriteMessage.Text = "Delete database and recreate (all data will be lost)";
+        }
         // SQLite uses default XAML values
     }
 

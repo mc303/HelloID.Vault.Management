@@ -808,6 +808,102 @@ public class UserPreferencesService : IUserPreferencesService
         }
     }
 
+    /// <summary>
+    /// Gets or sets the Turso database URL (e.g., libsql://database-org.turso.io).
+    /// </summary>
+    public string? TursoDatabaseUrl
+    {
+        get => _preferences.TursoDatabaseUrl;
+        set
+        {
+            if (_preferences.TursoDatabaseUrl != value)
+            {
+                _preferences.TursoDatabaseUrl = value;
+                _ = SaveAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the Turso authentication token (encrypted).
+    /// </summary>
+    public string? TursoAuthToken
+    {
+        get
+        {
+            var encrypted = _preferences.TursoAuthTokenEncrypted;
+            return string.IsNullOrEmpty(encrypted) ? null : new WindowsDpapiEncryptionService().Decrypt(encrypted);
+        }
+        set
+        {
+            var encryptionService = new WindowsDpapiEncryptionService();
+            var encrypted = string.IsNullOrEmpty(value) ? null : encryptionService.Encrypt(value);
+
+            if (_preferences.TursoAuthTokenEncrypted != encrypted)
+            {
+                _preferences.TursoAuthTokenEncrypted = encrypted;
+                _ = SaveAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the Turso organization slug (for Platform API token refresh).
+    /// </summary>
+    public string? TursoOrganizationSlug
+    {
+        get => _preferences.TursoOrganizationSlug;
+        set
+        {
+            if (_preferences.TursoOrganizationSlug != value)
+            {
+                _preferences.TursoOrganizationSlug = value;
+                _ = SaveAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the Turso Platform API token for database creation (encrypted).
+    /// Required for creating upload-enabled databases.
+    /// </summary>
+    public string? TursoPlatformApiToken
+    {
+        get
+        {
+            var encrypted = _preferences.TursoPlatformApiTokenEncrypted;
+            return string.IsNullOrEmpty(encrypted) ? null : new WindowsDpapiEncryptionService().Decrypt(encrypted);
+        }
+        set
+        {
+            var encryptionService = new WindowsDpapiEncryptionService();
+            var encrypted = string.IsNullOrEmpty(value) ? null : encryptionService.Encrypt(value);
+
+            if (_preferences.TursoPlatformApiTokenEncrypted != encrypted)
+            {
+                _preferences.TursoPlatformApiTokenEncrypted = encrypted;
+                _ = SaveAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the Turso database name for auto-creation.
+    /// Used when creating a new upload-enabled database.
+    /// </summary>
+    public string? TursoDatabaseName
+    {
+        get => _preferences.TursoDatabaseName;
+        set
+        {
+            if (_preferences.TursoDatabaseName != value)
+            {
+                _preferences.TursoDatabaseName = value;
+                _ = SaveAsync();
+            }
+        }
+    }
+
     public async Task LoadAsync()
     {
         System.Diagnostics.Debug.WriteLine($"[UserPreferencesService] LoadAsync START");
@@ -1016,6 +1112,32 @@ public class UserPreferences
     /// Format: Host=db.xxx.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=...
     /// </summary>
     public string? SupabaseConnectionStringEncrypted { get; set; }
+
+    // Turso Database Settings
+    /// <summary>
+    /// Turso database URL (e.g., libsql://database-org.turso.io).
+    /// </summary>
+    public string? TursoDatabaseUrl { get; set; }
+
+    /// <summary>
+    /// Encrypted Turso authentication token.
+    /// </summary>
+    public string? TursoAuthTokenEncrypted { get; set; }
+
+    /// <summary>
+    /// Turso organization slug (for Platform API token refresh).
+    /// </summary>
+    public string? TursoOrganizationSlug { get; set; }
+
+    /// <summary>
+    /// Encrypted Turso Platform API token for database creation.
+    /// </summary>
+    public string? TursoPlatformApiTokenEncrypted { get; set; }
+
+    /// <summary>
+    /// Turso database name for auto-creation.
+    /// </summary>
+    public string? TursoDatabaseName { get; set; }
 }
 
 /// <summary>

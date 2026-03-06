@@ -25,6 +25,11 @@ public interface IContractRepository
     Task<IEnumerable<ContractDto>> GetByPersonIdAsync(string personId);
 
     /// <summary>
+    /// Gets all contract details for a specific person from contract_details_view.
+    /// </summary>
+    Task<IEnumerable<ContractDetailDto>> GetDetailsByPersonIdAsync(string personId);
+
+    /// <summary>
     /// Gets a contract by its ID.
     /// </summary>
     Task<Contract?> GetByIdAsync(int contractId);

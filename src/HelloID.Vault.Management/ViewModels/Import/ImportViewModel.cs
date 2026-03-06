@@ -1,6 +1,7 @@
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Management.Views.Import;
 using HelloID.Vault.Services.Interfaces;
 using Microsoft.Win32;
@@ -116,8 +117,11 @@ public partial class ImportViewModel : ObservableObject
 
                     case ImportConfirmResult.OverwriteWithoutBackup:
                         createBackup = false;
-                        // Delete database manually without backup
-                        await DeleteDatabaseAsync();
+                        // Delete database manually without backup (skip for Turso - import handles it)
+                        if (_importService.DatabaseType != DatabaseType.Turso)
+                        {
+                            await DeleteDatabaseAsync();
+                        }
                         break;
 
                     case ImportConfirmResult.Cancel:
@@ -219,8 +223,11 @@ public partial class ImportViewModel : ObservableObject
 
                     case ImportConfirmResult.OverwriteWithoutBackup:
                         createBackup = false;
-                        // Delete database manually without backup
-                        await DeleteDatabaseAsync();
+                        // Delete database manually without backup (skip for Turso - import handles it)
+                        if (_importService.DatabaseType != DatabaseType.Turso)
+                        {
+                            await DeleteDatabaseAsync();
+                        }
                         break;
 
                     case ImportConfirmResult.Cancel:

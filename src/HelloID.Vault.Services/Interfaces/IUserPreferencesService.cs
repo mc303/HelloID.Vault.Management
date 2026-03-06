@@ -347,6 +347,34 @@ public interface IUserPreferencesService
     /// </summary>
     string? SupabaseUrl { get; set; }
 
+    // Turso Database Settings
+    /// <summary>
+    /// Gets or sets the Turso database URL (e.g., libsql://database-org.turso.io).
+    /// </summary>
+    string? TursoDatabaseUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Turso authentication token (encrypted).
+    /// </summary>
+    string? TursoAuthToken { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Turso organization slug (for Platform API token refresh).
+    /// </summary>
+    string? TursoOrganizationSlug { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Turso Platform API token for database creation (encrypted).
+    /// Required for creating upload-enabled databases.
+    /// </summary>
+    string? TursoPlatformApiToken { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Turso database name for auto-creation.
+    /// Used when creating a new upload-enabled database.
+    /// </summary>
+    string? TursoDatabaseName { get; set; }
+
     /// <summary>
     /// Loads preferences from disk asynchronously.
     /// </summary>

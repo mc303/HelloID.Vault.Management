@@ -56,25 +56,35 @@
                                    FontWeight="Medium"
                                    Margin="0,0,0,10"/>
                         <StackPanel Margin="20,0,0,20">
-                            <RadioButton Content="SQLite (Local Database)"
-                                         GroupName="DatabaseType"
-                                         IsChecked="{Binding SelectedDatabaseType, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Sqlite}"
-                                         Margin="0,0,0,10"/>
-                            <TextBlock Text="Local file-based database. No additional configuration required. Default option."
-                                       FontSize="12"
-                                       Foreground="{DynamicResource SystemControlPageTextBaseMediumBrush}"
-                                       Margin="25,0,0,15"
-                                       TextWrapping="Wrap"/>
+                             <RadioButton Content="SQLite (Local Database)"
+                                          GroupName="DatabaseType"
+                                          IsChecked="{Binding SelectedDatabaseType, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Sqlite}"
+                                          Margin="0,0,0,10"/>
+                             <TextBlock Text="Local file-based database. No additional configuration required. Default option."
+                                        FontSize="12"
+                                        Foreground="{DynamicResource SystemControlPageTextBaseMediumBrush}"
+                                        Margin="25,0,0,10"
+                                        TextWrapping="Wrap"/>
 
                             <RadioButton Content="Supabase (PostgreSQL)"
-                                         GroupName="DatabaseType"
-                                         IsChecked="{Binding SelectedDatabaseType, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=PostgreSql}"
-                                         Margin="0,0,0,10"/>
+                                          GroupName="DatabaseType"
+                                          IsChecked="{Binding SelectedDatabaseType, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=PostgreSql}"
+                                          Margin="0,0,0,10"/>
                             <TextBlock Text="Cloud-hosted PostgreSQL database. Requires connection string configuration."
-                                       FontSize="12"
-                                       Foreground="{DynamicResource SystemControlPageTextBaseMediumBrush}"
-                                       Margin="25,0,0,0"
-                                       TextWrapping="Wrap"/>
+                                        FontSize="12"
+                                        Foreground="{DynamicResource SystemControlPageTextBaseMediumBrush}"
+                                        Margin="25,0,0,15"
+                                        TextWrapping="Wrap"/>
+
+                            <RadioButton Content="Turso (Cloud SQLite)"
+                                          GroupName="DatabaseType"
+                                          IsChecked="{Binding SelectedDatabaseType, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Turso}"
+                                          Margin="0,0,0,10"/>
+                            <TextBlock Text="Cloud-based SQLite-compatible database via REST API. Requires database URL and auth token."
+                                        FontSize="12"
+                                        Foreground="{DynamicResource SystemControlPageTextBaseMediumBrush}"
+                                        Margin="25,0,0,0"
+                                        TextWrapping="Wrap"/>
                         </StackPanel>
 
                         <!-- Supabase Connection Settings (visible only when PostgreSQL selected) -->
@@ -90,10 +100,42 @@
                                 <!-- Connection String Input -->
                                 <TextBlock Text="Connection String"
                                            Margin="0,0,0,5"/>
-                                <PasswordBox x:Name="ConnectionPasswordBox"
-                                            Margin="0,0,0,10"
-                                            ui:ControlHelper.PlaceholderText="Host=db.xxx.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=***;SSL Mode=Require"
-                                            PasswordChanged="OnPasswordChanged"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- PasswordBox (visible by default) -->
+                                    <PasswordBox x:Name="ConnectionPasswordBox"
+                                                 Grid.Column="0"
+                                                 ui:ControlHelper.PlaceholderText="Host=db.xxx.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=***;SSL Mode=Require"
+                                                 PasswordChanged="OnPasswordChanged"
+                                                 Visibility="{Binding ShowSupabasePassword, Converter={StaticResource InverseBoolConverter}}"/>
+                                    <!-- TextBox (visible when toggled) -->
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding SupabaseConnectionString, UpdateSourceTrigger=PropertyChanged}"
+                                             ui:ControlHelper.PlaceholderText="Host=db.xxx.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=***;SSL Mode=Require"
+                                             Visibility="{Binding ShowSupabasePassword, Converter={StaticResource BoolToVisConverter}}"/>
+                                    <!-- Toggle Button -->
+                                    <Button Grid.Column="1"
+                                            Margin="5,0,0,0"
+                                            Padding="8,0"
+                                            MinWidth="40"
+                                            Command="{Binding ToggleSupabasePasswordVisibilityCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="👁"/>
+                                                <Setter Property="ToolTip" Value="Show password"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowSupabasePassword}" Value="True">
+                                                        <Setter Property="Content" Value="🙈"/>
+                                                        <Setter Property="ToolTip" Value="Hide password"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
 
                                 <!-- Connection String Format Help -->
                                 <Border Background="{DynamicResource SystemControlPageBackgroundListLowBrush}"
@@ -147,6 +189,303 @@
                                 </Button>
                             </StackPanel>
                         </Border>
+
+                        <!-- Turso Connection Settings (visible only when Turso selected) -->
+                        <Border Background="{DynamicResource SystemControlPageBackgroundChromeLowBrush}"
+                                Padding="15"
+                                CornerRadius="4"
+                                Visibility="{Binding IsTursoSelected, Converter={StaticResource BoolToVisConverter}}"
+                                Margin="0,15,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Turso Connection Settings"
+                                           FontWeight="Medium"
+                                           Margin="0,0,0,10"/>
+
+                                <!-- Database URL Input -->
+                                <TextBlock Text="Database URL"
+                                           Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding TursoDatabaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                         ui:ControlHelper.PlaceholderText="libsql://your-database-org.turso.io"
+                                         Margin="0,0,0,10"/>
+
+                                <!-- Auth Token Input -->
+                                <TextBlock Text="Auth Token"
+                                           Margin="0,0,0,5"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- PasswordBox (visible by default) -->
+                                    <PasswordBox x:Name="TursoAuthTokenPasswordBox"
+                                                 Grid.Column="0"
+                                                 ui:ControlHelper.PlaceholderText="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                                 PasswordChanged="OnTursoPasswordChanged"
+                                                 Visibility="{Binding ShowTursoAuthToken, Converter={StaticResource InverseBoolConverter}}"/>
+                                    <!-- TextBox (visible when toggled) -->
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding TursoAuthToken, UpdateSourceTrigger=PropertyChanged}"
+                                             ui:ControlHelper.PlaceholderText="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                             Visibility="{Binding ShowTursoAuthToken, Converter={StaticResource BoolToVisConverter}}"/>
+                                    <!-- Toggle Button -->
+                                    <Button Grid.Column="1"
+                                            Margin="5,0,0,0"
+                                            Padding="8,0"
+                                            MinWidth="40"
+                                            Command="{Binding ToggleTursoAuthTokenVisibilityCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="👁"/>
+                                                <Setter Property="ToolTip" Value="Show token"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowTursoAuthToken}" Value="True">
+                                                        <Setter Property="Content" Value="🙈"/>
+                                                        <Setter Property="ToolTip" Value="Hide token"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Organization Slug (Optional) -->
+                                <TextBlock Text="Organization Slug (Optional)"
+                                           Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding TursoOrganizationSlug, UpdateSourceTrigger=PropertyChanged}"
+                                         ui:ControlHelper.PlaceholderText="my-organization"
+                                         Margin="0,0,0,10"/>
+
+                                <!-- Separator for auto-create settings -->
+                                <Separator Margin="0,5,0,15"/>
+
+                                <TextBlock Text="Auto-Create Database (Optional)"
+                                           FontWeight="Medium"
+                                           Margin="0,0,0,5"/>
+                                <TextBlock Text="Configure these settings to automatically create a Turso database on first import."
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemControlPageTextBaseMediumBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10"/>
+
+                                <!-- Platform API Token -->
+                                <TextBlock Text="Platform API Token"
+                                           Margin="0,0,0,5"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- PasswordBox (visible by default) -->
+                                    <PasswordBox x:Name="TursoPlatformApiTokenPasswordBox"
+                                                 Grid.Column="0"
+                                                 ui:ControlHelper.PlaceholderText="Create at turso.tech -> Settings -> API Tokens"
+                                                 PasswordChanged="OnTursoPlatformApiTokenPasswordChanged"
+                                                 Visibility="{Binding ShowTursoPlatformToken, Converter={StaticResource InverseBoolConverter}}"/>
+                                    <!-- TextBox (visible when toggled) -->
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding TursoPlatformApiToken, UpdateSourceTrigger=PropertyChanged}"
+                                             ui:ControlHelper.PlaceholderText="Create at turso.tech -> Settings -> API Tokens"
+                                             Visibility="{Binding ShowTursoPlatformToken, Converter={StaticResource BoolToVisConverter}}"/>
+                                    <!-- Toggle Button -->
+                                    <Button Grid.Column="1"
+                                            Margin="5,0,0,0"
+                                            Padding="8,0"
+                                            MinWidth="40"
+                                            Command="{Binding ToggleTursoPlatformTokenVisibilityCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="👁"/>
+                                                <Setter Property="ToolTip" Value="Show token"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowTursoPlatformToken}" Value="True">
+                                                        <Setter Property="Content" Value="🙈"/>
+                                                        <Setter Property="ToolTip" Value="Hide token"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Database Name -->
+                                <TextBlock Text="Database Name"
+                                           Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding TursoDatabaseName, UpdateSourceTrigger=PropertyChanged}"
+                                         ui:ControlHelper.PlaceholderText="vault-db"
+                                         Margin="0,0,0,10"/>
+
+                                <!-- Action Buttons -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
+                                    <Button Content="Create New Database"
+                                            Command="{Binding CreateTursoDatabaseCommand}"
+                                            Padding="15,8"
+                                            Margin="0,0,10,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding HasPlatformToken}" Value="False">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Use Existing Database"
+                                            Command="{Binding ConnectTursoDatabaseCommand}"
+                                            Padding="15,8">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+
+                                <!-- Connection String Format Help -->
+                                <Border Background="{DynamicResource SystemControlPageBackgroundListLowBrush}"
+                                        Padding="10"
+                                        CornerRadius="4"
+                                        Margin="0,0,0,15">
+                                    <StackPanel>
+                                        <TextBlock Text="Configuration Help:"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,5"/>
+                                        <TextBlock FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5">
+                                            <Run Text="1. Create a database at"/>
+                                            <Hyperlink NavigateUri="https://turso.tech" RequestNavigate="OnHelpLinkRequestNavigate">
+                                                <Run Text="turso.tech"/>
+                                            </Hyperlink>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5">
+                                            <Run Text="2. Get URL: "/>
+                                            <Run FontFamily="Consolas" FontSize="10" Text="turso db show your-db --url"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" TextWrapping="Wrap" Margin="0,0,0,5">
+                                            <Run Text="3. Create token: "/>
+                                            <Run FontFamily="Consolas" FontSize="10" Text="turso db tokens create your-db"/>
+                                        </TextBlock>
+                                        <TextBlock Margin="0,5,0,0">
+                                            <Hyperlink NavigateUri="https://docs.turso.tech/sdk/http/quickstart"
+                                                       RequestNavigate="OnHelpLinkRequestNavigate">
+                                                <Run Text="📖 View Turso Documentation"/>
+                                            </Hyperlink>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Test Connection Button -->
+                                <Button Content="Test Connection"
+                                        Command="{Binding TestTursoConnectionCommand}"
+                                        HorizontalAlignment="Left"
+                                        Padding="15,8"
+                                        Margin="0,0,0,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- SQLite Settings (visible only when SQLite selected) -->
+                        <Border Background="{DynamicResource SystemControlPageBackgroundChromeLowBrush}"
+                                Padding="15"
+                                CornerRadius="4"
+                                Visibility="{Binding IsSqliteSelected, Converter={StaticResource BoolToVisConverter}}"
+                                Margin="0,15,0,0">
+                            <StackPanel>
+                                <TextBlock Text="SQLite Database Location"
+                                           FontWeight="Medium"
+                                           Margin="0,0,0,10"/>
+
+                                <!-- Database Path Display -->
+                                <TextBlock Text="Database File Path"
+                                           Margin="0,0,0,5"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding SqliteDatabasePath, UpdateSourceTrigger=PropertyChanged}"
+                                             ui:ControlHelper.PlaceholderText="Path to vault.db file"
+                                             IsReadOnly="True"
+                                             Margin="0,0,5,0"/>
+                                    <Button Grid.Column="1"
+                                            Content="Browse..."
+                                            Command="{Binding BrowseDatabasePathCommand}"
+                                            Padding="10,5"
+                                            Margin="0,0,5,0"/>
+                                    <Button Grid.Column="2"
+                                            Content="Open Folder"
+                                            Command="{Binding OpenDatabaseFolderCommand}"
+                                            Padding="10,5"/>
+                                </Grid>
+
+                                <!-- Info about location -->
+                                <Border Background="{DynamicResource SystemControlPageBackgroundListLowBrush}"
+                                        Padding="10"
+                                        CornerRadius="4">
+                                    <TextBlock FontSize="11" TextWrapping="Wrap">
+                                        <Run Text="The database file will be created if it doesn't exist."/><LineBreak/>
+                                        <Run Text="Changes require application restart to take effect."/>
+                                    </TextBlock>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Application Data Section -->
+                <Border Background="{DynamicResource SystemControlPageBackgroundAltLowBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                        BorderThickness="1"
+                        Padding="20"
+                        CornerRadius="4"
+                        Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="Application Data"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,15"/>
+
+                        <!-- Preferences File Location -->
+                        <TextBlock Text="Preferences File Location"
+                                   FontWeight="Medium"
+                                   Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding PreferencesFilePath, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     Margin="0,0,5,0"/>
+                            <Button Grid.Column="1"
+                                    Content="Open Folder"
+                                    Command="{Binding OpenPreferencesFolderCommand}"
+                                    Padding="10,5"/>
+                        </Grid>
+
+                        <TextBlock Text="User preferences (window states, column layouts, filters) are stored in this JSON file."
+                                   FontSize="11"
+                                   Foreground="{DynamicResource SystemControlPageTextBaseMediumBrush}"
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
@@ -156,7 +495,7 @@
                         BorderThickness="1"
                         Padding="20"
                         CornerRadius="4"
-                        Visibility="{Binding IsSupabaseSelected, Converter={StaticResource BoolToVisConverter}}">
+                        Visibility="{Binding ShowDatabaseWarning, Converter={StaticResource BoolToVisConverter}}">
                     <StackPanel>
                         <TextBlock Text="⚠️ Important Notice"
                                    FontSize="14"
