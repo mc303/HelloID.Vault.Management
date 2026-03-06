@@ -13,10 +13,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HelloID.Vault.Services", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HelloID.Vault.Management", "src\HelloID.Vault.Management\HelloID.Vault.Management.csproj", "{0AF52130-B216-4BD9-A79A-6A7C402B7AD1}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{39B65EF4-0E51-41AC-B8C1-D25D4D463D58}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HelloID.Vault.Tests.Turso", "tests\HelloID.Vault.Tests.Turso\HelloID.Vault.Tests.Turso.csproj", "{C038FDF6-0885-4C1C-B42A-170A17127316}"
-EndProject
+
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,10 +36,6 @@ Global
 		{0AF52130-B216-4BD9-A79A-6A7C402B7AD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0AF52130-B216-4BD9-A79A-6A7C402B7AD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0AF52130-B216-4BD9-A79A-6A7C402B7AD1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C038FDF6-0885-4C1C-B42A-170A17127316}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C038FDF6-0885-4C1C-B42A-170A17127316}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C038FDF6-0885-4C1C-B42A-170A17127316}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C038FDF6-0885-4C1C-B42A-170A17127316}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -55,6 +48,5 @@ Global
 		{FED20EEF-582D-4C0F-A6F8-960826F02F58} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{3B62D43E-6A6E-4579-ACE3-0D999E6E1254} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{0AF52130-B216-4BD9-A79A-6A7C402B7AD1} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{C038FDF6-0885-4C1C-B42A-170A17127316} = {39B65EF4-0E51-41AC-B8C1-D25D4D463D58}
 	EndGlobalSection
 EndGlobal
