@@ -1,0 +1,132 @@
+<UserControl x:Class="HelloID.Vault.Management.Controls.ManagerSearchControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             mc:Ignorable="d"
+             d:DesignHeight="30" d:DesignWidth="300"
+             x:Name="Root">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Read-only display of selected manager -->
+        <TextBox Grid.Row="0"
+                 Text="{Binding SelectedPersonDisplay, Mode=OneWay, TargetNullValue=''}"
+                 ui:ControlHelper.PlaceholderText="No manager selected"
+                 FontSize="12"
+                 IsReadOnly="True"
+                 VerticalAlignment="Center"
+                 IsTabStop="False"/>
+
+        <!-- Buttons row -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,4,0,0">
+            <!-- Clear button (visible only when manager selected) -->
+            <Button Content="Clear"
+                    FontSize="11"
+                    Padding="8,2"
+                    Margin="0,0,4,0"
+                    Command="{Binding ClearSelectionCommand}"
+                    Visibility="{Binding SelectedPersonDisplay, Converter={StaticResource NullToCollapsedConverter}}"
+                    ToolTip="Clear manager"/>
+
+            <!-- Search button -->
+            <Button Content="Search"
+                    FontSize="11"
+                    Padding="8,2"
+                    Command="{Binding OpenSearchCommand}"
+                    ToolTip="Search for a manager"/>
+        </StackPanel>
+
+        <!-- Inline search popup -->
+        <Popup IsOpen="{Binding IsPopupOpen}"
+               PlacementTarget="{Binding ElementName=Root}"
+               Placement="Bottom"
+               StaysOpen="False"
+               Width="{Binding ActualWidth, ElementName=Root}"
+               MaxHeight="300">
+            <Border Background="{x:Static SystemColors.WindowBrush}"
+                    BorderBrush="{x:Static SystemColors.ActiveBorderBrush}"
+                    BorderThickness="1">
+                <StackPanel>
+                    <!-- Search input inside popup -->
+                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             ui:ControlHelper.PlaceholderText="Type name or ID to search..."
+                             FontSize="12"
+                             Margin="0,0,0,0"
+                             BorderThickness="0"
+                             x:Name="PopupSearchBox"/>
+
+                    <!-- Loading indicator -->
+                    <ui:ProgressRing IsActive="{Binding IsSearching}"
+                                     Width="14" Height="14"
+                                     HorizontalAlignment="Left"
+                                     Margin="8,2"
+                                     Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}"/>
+
+                    <!-- Results list -->
+                    <ListBox x:Name="ResultsList"
+                             ItemsSource="{Binding SearchResults}"
+                             FontSize="12"
+                             BorderThickness="0"
+                             MaxHeight="200"
+                             Margin="0"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             MouseDoubleClick="ResultsList_MouseDoubleClick">
+                        <ListBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding SelectResultCommand}"
+                                        CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=ListBox}}"/>
+                        </ListBox.InputBindings>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="8,4"/>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,1">
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding ExternalId}" FontSize="10"
+                                               Foreground="{x:Static SystemColors.GrayTextBrush}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Empty state -->
+                    <TextBlock Text="Type at least 2 characters to search&#x0a;Double-click or select + Enter to choose a manager"
+                               FontSize="11"
+                               Foreground="{x:Static SystemColors.GrayTextBrush}"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               Margin="0,8">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SearchResults.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

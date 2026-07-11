@@ -1,5 +1,5 @@
-using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.DTOs;
+using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.Filters;
 
 namespace HelloID.Vault.Data.Repositories.Interfaces;
@@ -71,4 +71,10 @@ public interface IPersonRepository
     /// <param name="skip">Number of persons to skip (0 for first, 1 for second, etc.)</param>
     /// <returns>Person detail with contracts, or null if no person found</returns>
     Task<PersonDetailDto?> GetPersonWithMostContractsAsync(int skip = 0);
+
+    /// <summary>
+    /// Searches persons by query across person_id, external_id, and name columns.
+    /// Returns lightweight results limited to the specified count.
+    /// </summary>
+    Task<IEnumerable<PersonSearchResultDto>> SearchAsync(string query, int limit = 20);
 }

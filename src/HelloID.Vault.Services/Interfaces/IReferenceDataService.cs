@@ -1,4 +1,5 @@
 using HelloID.Vault.Core.Models.Entities;
+using PersonSearchResultDto = HelloID.Vault.Core.Models.DTOs.PersonSearchResultDto;
 
 namespace HelloID.Vault.Services.Interfaces;
 
@@ -69,6 +70,12 @@ public interface IReferenceDataService
 
     // Persons
     Task<IEnumerable<Person>> GetPersonsAsync();
+
+    /// <summary>
+    /// Searches persons by query across person_id, external_id, and name columns.
+    /// Returns lightweight results limited to the specified count.
+    /// </summary>
+    Task<IEnumerable<PersonSearchResultDto>> SearchPersonsAsync(string query, int limit = 20);
 
     // Cache Management
     /// <summary>

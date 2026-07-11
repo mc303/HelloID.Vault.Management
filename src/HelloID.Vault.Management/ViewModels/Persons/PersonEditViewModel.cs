@@ -36,11 +36,15 @@ public partial class PersonEditViewModel : ObservableValidator
     private readonly IPersonService _personService;
     private readonly ICustomFieldRepository _customFieldRepository;
     private readonly ISourceSystemRepository _sourceSystemRepository;
+    private readonly IReferenceDataService _referenceDataService;
     private readonly bool _isEditMode;
     private readonly string? _existingPersonId;
     private readonly string? _existingExternalId;
+    private readonly string? _pendingManagerPersonId;
 
     public event Action<bool>? CloseRequested;
+
+    public ManagerSearchViewModel ManagerSearch { get; }
 
     [ObservableProperty]
     private string _windowTitle = "Add Person";
@@ -152,11 +156,13 @@ public partial class PersonEditViewModel : ObservableValidator
     /// <summary>
     /// Constructor for adding a new person.
     /// </summary>
-    public PersonEditViewModel(IPersonService personService, ICustomFieldRepository customFieldRepository, ISourceSystemRepository sourceSystemRepository)
+    public PersonEditViewModel(IPersonService personService, ICustomFieldRepository customFieldRepository, ISourceSystemRepository sourceSystemRepository, IReferenceDataService referenceDataService)
     {
         _personService = personService ?? throw new ArgumentNullException(nameof(personService));
         _customFieldRepository = customFieldRepository ?? throw new ArgumentNullException(nameof(customFieldRepository));
         _sourceSystemRepository = sourceSystemRepository ?? throw new ArgumentNullException(nameof(sourceSystemRepository));
+        _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
+        ManagerSearch = new ManagerSearchViewModel(_referenceDataService);
         _isEditMode = false;
         WindowTitle = "Add Person";
     }
@@ -164,11 +170,13 @@ public partial class PersonEditViewModel : ObservableValidator
     /// <summary>
     /// Constructor for editing an existing person.
     /// </summary>
-    public PersonEditViewModel(IPersonService personService, ICustomFieldRepository customFieldRepository, ISourceSystemRepository sourceSystemRepository, Person existingPerson)
+    public PersonEditViewModel(IPersonService personService, ICustomFieldRepository customFieldRepository, ISourceSystemRepository sourceSystemRepository, IReferenceDataService referenceDataService, Person existingPerson)
     {
         _personService = personService ?? throw new ArgumentNullException(nameof(personService));
         _customFieldRepository = customFieldRepository ?? throw new ArgumentNullException(nameof(customFieldRepository));
         _sourceSystemRepository = sourceSystemRepository ?? throw new ArgumentNullException(nameof(sourceSystemRepository));
+        _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
+        ManagerSearch = new ManagerSearchViewModel(_referenceDataService);
         _isEditMode = true;
         _existingPersonId = existingPerson.PersonId;
         _existingExternalId = existingPerson.ExternalId;
@@ -197,9 +205,11 @@ public partial class PersonEditViewModel : ObservableValidator
         Excluded = existingPerson.Excluded;
         HrExcluded = existingPerson.HrExcluded;
         ManualExcluded = existingPerson.ManualExcluded;
-        PrimaryManagerPersonId = existingPerson.PrimaryManagerPersonId;
-        PrimaryManagerUpdatedAt = existingPerson.PrimaryManagerUpdatedAt;
-        Source = existingPerson.Source;
+         PrimaryManagerPersonId = existingPerson.PrimaryManagerPersonId;
+         PrimaryManagerUpdatedAt = existingPerson.PrimaryManagerUpdatedAt;
+         Source = existingPerson.Source;
+
+        _pendingManagerPersonId = existingPerson.PrimaryManagerPersonId;
     }
 
     /// <summary>
@@ -270,7 +280,7 @@ public partial class PersonEditViewModel : ObservableValidator
                 Excluded = Excluded,
                 HrExcluded = HrExcluded,
                 ManualExcluded = ManualExcluded,
-                PrimaryManagerPersonId = string.IsNullOrWhiteSpace(PrimaryManagerPersonId) ? null : PrimaryManagerPersonId,
+                PrimaryManagerPersonId = ManagerSearch.SelectedPerson?.PersonId,
                 PrimaryManagerUpdatedAt = PrimaryManagerUpdatedAt,
                 Source = Source
             };
@@ -333,6 +343,12 @@ public partial class PersonEditViewModel : ObservableValidator
     public async Task InitializeAsync()
     {
         await LoadSourceSystemsAsync();
+
+        if (!string.IsNullOrWhiteSpace(_pendingManagerPersonId))
+        {
+            await ManagerSearch.ResolveManagerNameAsync(_pendingManagerPersonId);
+        }
+
         if (_isEditMode)
         {
             await LoadCustomFieldsAsync();

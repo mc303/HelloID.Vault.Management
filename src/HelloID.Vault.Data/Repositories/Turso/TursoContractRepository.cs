@@ -321,7 +321,10 @@ public class TursoContractRepository : IContractRepository
                 organization_source = ?
             WHERE contract_id = ?";
 
-        return await _client.ExecuteAsync(sql, new
+        // Disable FK constraints during update to allow edits where reference data sources may differ
+        await _client.ExecuteAsync("PRAGMA foreign_keys = OFF");
+
+        var rowsAffected = await _client.ExecuteAsync(sql, new
         {
             contract.ExternalId,
             contract.PersonId,
@@ -354,6 +357,10 @@ public class TursoContractRepository : IContractRepository
             contract.OrganizationSource,
             contract.ContractId
         });
+
+        await _client.ExecuteAsync("PRAGMA foreign_keys = ON");
+
+        return rowsAffected;
     }
 
     public async Task<int> DeleteAsync(int contractId)
@@ -440,7 +447,7 @@ public class TursoContractRepository : IContractRepository
         if (result == null)
             return null;
 
-        return new ContractJsonDto
+        var dto = new ContractJsonDto
         {
             Context = new Context { InConditions = false },
             ExternalId = result.ExternalId,
@@ -469,6 +476,20 @@ public class TursoContractRepository : IContractRepository
             Title = new HelloID.Vault.Core.Models.DTOs.Title { ExternalId = result.TitleExternalId, Code = result.TitleCode, Name = result.TitleName },
             Organization = new HelloID.Vault.Core.Models.DTOs.Organization { ExternalId = result.OrganizationExternalId, Code = result.OrganizationCode, Name = result.OrganizationName }
         };
+
+        // Load custom fields
+        var cfResult = await _client.QueryFirstOrDefaultAsync<string>(
+            "SELECT custom_fields FROM contracts WHERE contract_id = ?",
+            new { contractId });
+
+        var customFieldsJson = cfResult;
+        if (!string.IsNullOrWhiteSpace(customFieldsJson) && customFieldsJson != "{}")
+        {
+            dto.Custom = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(
+                customFieldsJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+        }
+
+        return dto;
     }
 
     public async Task<IEnumerable<ContractDetailDto>> GetAllDetailsAsync()

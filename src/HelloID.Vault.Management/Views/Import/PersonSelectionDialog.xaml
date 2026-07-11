@@ -1,0 +1,116 @@
+<Window x:Class="HelloID.Vault.Management.Views.Import.PersonSelectionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        ui:WindowHelper.UseModernWindowStyle="True"
+        Title="Select Persons to Import"
+        Width="600" Height="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        MinWidth="400" MinHeight="300">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0"
+                   Text="Select persons to import"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,12"/>
+
+        <!-- Search + action buttons -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0"
+                     ui:ControlHelper.PlaceholderText="Search by name or external ID..."
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    Content="Select All"
+                    Command="{Binding SelectAllCommand}"
+                    FontSize="12"
+                    Margin="8,0,0,0"
+                    Padding="8,2"/>
+            <Button Grid.Column="2"
+                    Content="Deselect All"
+                    Command="{Binding DeselectAllCommand}"
+                    FontSize="12"
+                    Margin="8,0,0,0"
+                    Padding="8,2"/>
+        </Grid>
+
+        <!-- Person list -->
+        <ListView Grid.Row="2"
+                  ItemsSource="{Binding FilteredPersons}"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  BorderThickness="1"
+                  BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <CheckBox IsChecked="{Binding IsSelected}"
+                              FontSize="12"
+                              VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding DisplayName}" FontSize="12"/>
+                            <TextBlock Text="{Binding ExternalId, StringFormat=' ({0})'}" FontSize="10"
+                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                        </StackPanel>
+                    </CheckBox>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <!-- Import options -->
+        <StackPanel Grid.Row="3" Margin="0,8,0,0">
+            <CheckBox IsChecked="{Binding CascadeImportManagers}"
+                      Content="Also import referenced managers (cascade)"
+                      FontSize="12"
+                      ToolTip="Recursively import persons who are referenced as managers by the selected persons"/>
+            <CheckBox IsChecked="{Binding ClearMissingManagerReferences}"
+                      Content="Clear manager references for persons not imported"
+                      FontSize="12"
+                      Margin="0,4,0,0"
+                      ToolTip="Set manager references to NULL if the referenced person was not imported"/>
+        </StackPanel>
+
+        <!-- Footer -->
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       VerticalAlignment="Center"
+                       FontSize="12">
+                <Run Text="Selected: "/>
+                <Run Text="{Binding SelectedCount, Mode=OneWay}" FontWeight="SemiBold"/>
+            </TextBlock>
+            <Button Grid.Column="1"
+                    Content="Import Selected"
+                    Command="{Binding ConfirmCommand}"
+                    Style="{StaticResource AccentButtonStyle}"
+                    FontSize="12"
+                    Width="120"
+                    Margin="0,0,8,0"/>
+            <Button Grid.Column="2"
+                    Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    FontSize="12"
+                    Width="80"
+                    IsCancel="True"/>
+        </Grid>
+    </Grid>
+</Window>

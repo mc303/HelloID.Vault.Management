@@ -316,7 +316,7 @@ public abstract class AbstractContractRepository : IContractRepository
 
     public async Task<int> UpdateAsync(Contract contract)
     {
-        using var connection = _connectionFactory.CreateConnection();
+        using var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false);
 
         Debug.WriteLine($"[ContractRepository] UpdateAsync - Contract ID: {contract.ContractId}, External ID: {contract.ExternalId}");
         Debug.WriteLine($"  Manager: {contract.ManagerPersonExternalId}");
@@ -549,12 +549,12 @@ public abstract class AbstractContractRepository : IContractRepository
             FROM contract_json_view
             WHERE contract_id = @ContractId";
 
-        var result = await connection.QuerySingleOrDefaultAsync<dynamic>(sql, new { ContractId = contractId }).ConfigureAwait(false);
+        var result = await connection.QuerySingleOrDefaultAsync<ContractJsonViewRow>(sql, new { ContractId = contractId }).ConfigureAwait(false);
 
         if (result == null)
             return null;
 
-        return new ContractJsonDto
+        var dto = new ContractJsonDto
         {
             Context = new Context { InConditions = false },
             ExternalId = result.ExternalId,
@@ -570,7 +570,7 @@ public abstract class AbstractContractRepository : IContractRepository
                 Fte = result.Fte,
                 HoursPerWeek = result.HoursPerWeek,
                 Percentage = result.Percentage,
-                Sequence = result.Sequence != null ? (int?)result.Sequence : null
+                Sequence = result.Sequence
             },
             Location = new HelloID.Vault.Core.Models.DTOs.Location
             {
@@ -633,8 +633,20 @@ public abstract class AbstractContractRepository : IContractRepository
                 Name = result.OrganizationName
             }
         };
-    }
 
+        // Load custom fields
+        var customFieldsJson = await connection.QuerySingleOrDefaultAsync<string>(
+            "SELECT custom_fields FROM contracts WHERE contract_id = @ContractId",
+            new { ContractId = contractId }).ConfigureAwait(false);
+
+        if (!string.IsNullOrWhiteSpace(customFieldsJson) && customFieldsJson != "{}")
+        {
+            dto.Custom = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(
+                customFieldsJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+        }
+
+        return dto;
+    }
     public async Task<IEnumerable<ContractDetailDto>> GetAllDetailsAsync()
     {
         using var connection = _connectionFactory.CreateConnection();
@@ -915,4 +927,52 @@ public abstract class AbstractContractRepository : IContractRepository
     /// Database-specific implementation for refreshing a contract cache item.
     /// </summary>
     protected abstract Task RefreshContractCacheItemInternalAsync(int contractId, IDbConnection connection);
+
+    /// <summary>
+    /// Intermediate mapping class for contract_json_view query results.
+    /// Dapper maps case-insensitively for typed classes (works across SQLite, PostgreSQL, Turso).
+    /// </summary>
+    private class ContractJsonViewRow
+    {
+        public string? ExternalId { get; set; }
+        public string? PersonId { get; set; }
+        public string? StartDate { get; set; }
+        public string? EndDate { get; set; }
+        public string? TypeCode { get; set; }
+        public string? TypeDescription { get; set; }
+        public double? Fte { get; set; }
+        public double? HoursPerWeek { get; set; }
+        public double? Percentage { get; set; }
+        public int? Sequence { get; set; }
+        public string? ManagerPersonExternalId { get; set; }
+        public string? ManagerExternalId { get; set; }
+        public string? ManagerDisplayName { get; set; }
+        public string? ManagerEmail { get; set; }
+        public string? LocationExternalId { get; set; }
+        public string? LocationCode { get; set; }
+        public string? LocationName { get; set; }
+        public string? CostCenterExternalId { get; set; }
+        public string? CostCenterCode { get; set; }
+        public string? CostCenterName { get; set; }
+        public string? CostBearerExternalId { get; set; }
+        public string? CostBearerCode { get; set; }
+        public string? CostBearerName { get; set; }
+        public string? EmployerExternalId { get; set; }
+        public string? EmployerCode { get; set; }
+        public string? EmployerName { get; set; }
+        public string? TeamExternalId { get; set; }
+        public string? TeamCode { get; set; }
+        public string? TeamName { get; set; }
+        public string? DepartmentExternalId { get; set; }
+        public string? DepartmentDisplayName { get; set; }
+        public string? DivisionExternalId { get; set; }
+        public string? DivisionCode { get; set; }
+        public string? DivisionName { get; set; }
+        public string? TitleExternalId { get; set; }
+        public string? TitleCode { get; set; }
+        public string? TitleName { get; set; }
+        public string? OrganizationExternalId { get; set; }
+        public string? OrganizationCode { get; set; }
+        public string? OrganizationName { get; set; }
+    }
 }

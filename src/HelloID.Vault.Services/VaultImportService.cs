@@ -41,6 +41,7 @@ public class VaultImportService : IVaultImportService
     private readonly PrimaryManagerDetector _primaryManagerDetector;
     private readonly ITursoClient? _tursoClient;
     private readonly string? _sqliteSchemaPath;
+    private HashSet<string>? _personFilter;
 
     public VaultImportService(
         IDatabaseConnectionFactory connectionFactory,
@@ -78,6 +79,70 @@ public class VaultImportService : IVaultImportService
     }
 
     public DatabaseType DatabaseType => _connectionFactory.DatabaseType;
+
+    public async Task<ImportResult> ImportWithPersonSelectionAsync(string filePath, HashSet<string> selectedPersonIds, PrimaryManagerLogic primaryManagerLogic, bool createBackup = false, IProgress<ImportProgress>? progress = null)
+    {
+        if (selectedPersonIds == null || selectedPersonIds.Count == 0)
+        {
+            return new ImportResult { Success = false, ErrorMessage = "No persons selected for import." };
+        }
+
+        _personFilter = selectedPersonIds;
+        try
+        {
+            return await ImportAsync(filePath, primaryManagerLogic, createBackup, progress);
+        }
+        finally
+        {
+            _personFilter = null;
+        }
+    }
+
+    public async Task ClearMissingManagerReferencesAsync(IProgress<ImportProgress>? progress = null)
+    {
+        progress?.Report(new ImportProgress { CurrentOperation = "Clearing dangling manager references..." });
+
+        if (_connectionFactory.DatabaseType == DatabaseType.Turso && _tursoClient != null)
+        {
+            await _tursoClient.ExecuteAsync("PRAGMA foreign_keys = OFF");
+
+            await _tursoClient.ExecuteAsync(@"
+                UPDATE persons
+                SET primary_manager_person_id = NULL,
+                    primary_manager_source = NULL,
+                    primary_manager_updated_at = NULL
+                WHERE primary_manager_person_id IS NOT NULL
+                  AND primary_manager_person_id NOT IN (SELECT person_id FROM persons)");
+
+            await _tursoClient.ExecuteAsync(@"
+                UPDATE contracts
+                SET manager_person_external_id = NULL
+                WHERE manager_person_external_id IS NOT NULL
+                  AND manager_person_external_id NOT IN (SELECT person_id FROM persons)");
+
+            await _tursoClient.ExecuteAsync("PRAGMA foreign_keys = ON");
+        }
+        else
+        {
+            using var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false);
+
+            await connection.ExecuteAsync(@"
+                UPDATE persons
+                SET primary_manager_person_id = NULL,
+                    primary_manager_source = NULL,
+                    primary_manager_updated_at = NULL
+                WHERE primary_manager_person_id IS NOT NULL
+                  AND primary_manager_person_id NOT IN (SELECT person_id FROM persons)");
+
+            await connection.ExecuteAsync(@"
+                UPDATE contracts
+                SET manager_person_external_id = NULL
+                WHERE manager_person_external_id IS NOT NULL
+                  AND manager_person_external_id NOT IN (SELECT person_id FROM persons)");
+        }
+
+        progress?.Report(new ImportProgress { CurrentOperation = "Manager references cleared." });
+    }
 
     public async Task<bool> HasDataAsync()
     {
@@ -274,17 +339,23 @@ public class VaultImportService : IVaultImportService
 
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
-                foreach (var (systemId, (displayName, identificationKey)) in sourceSystems)
+                // Batch insert source systems (single round-trip)
+                if (sourceSystems.Count > 0)
                 {
+                    var sourceSystemRows = sourceSystems.Select(kvp => new
+                    {
+                        SystemId = kvp.Key,
+                        DisplayName = kvp.Value.DisplayName,
+                        IdentificationKey = kvp.Value.IdentificationKey
+                    }).ToList();
                     var sql = GetInsertIgnoreSql("source_system", "system_id, display_name, identification_key", "@SystemId, @DisplayName, @IdentificationKey");
-                    var rowsAffected = await connection.ExecuteAsync(sql,
-                        new { SystemId = systemId, DisplayName = displayName, IdentificationKey = identificationKey });
-                    result.SourceSystemsImported += rowsAffected;
+                    result.SourceSystemsImported = await connection.ExecuteAsync(sql, sourceSystemRows);
                 }
             }
 
             // Create source lookup dictionary for mapping
             var sourceLookup = sourceSystems.Keys.ToDictionary(id => id, id => id);
+            var defaultSource = sourceSystems.Keys.FirstOrDefault() ?? "unknown";
 
             // Step 3: Collect all lookup tables from contracts
             progress?.Report(new ImportProgress { CurrentOperation = "Collecting lookup table data..." });
@@ -292,103 +363,98 @@ public class VaultImportService : IVaultImportService
             var context = ReferenceDataCollector.Collect(vaultData, sourceLookup);
             Debug.WriteLine($"[Import] Collected {context.Employers.Count} unique employers");
 
-            // Step 3: Import lookup tables (no dependencies)
+            // Step 3: Import lookup tables (batch inserts - one round-trip per table)
             progress?.Report(new ImportProgress { CurrentOperation = "Importing lookup tables..." });
 
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
-                // Insert organizations
-                foreach (var org in context.Organizations)
+                var lookupSql = GetInsertIgnoreSql("organizations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                var lookupRows = context.Organizations.Select(o => new
                 {
-                    var source = context.OrganizationSources.TryGetValue(org.ExternalId ?? string.Empty, out var orgSource) ? orgSource : null;
-                    var sql = GetInsertIgnoreSql("organizations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
-                    var rowsAffected = await connection.ExecuteAsync(sql,
-                        new { org.ExternalId, org.Code, org.Name, Source = source });
-                    result.OrganizationsImported += rowsAffected;
-                }
+                    o.ExternalId,
+                    o.Code,
+                    o.Name,
+                    Source = context.OrganizationSources.TryGetValue(o.ExternalId ?? string.Empty, out var s) ? s ?? defaultSource : defaultSource
+                }).ToList();
+                if (lookupRows.Count > 0)
+                    result.OrganizationsImported = await connection.ExecuteAsync(lookupSql, lookupRows);
 
-                // Insert locations
-                foreach (var loc in context.Locations)
+                lookupSql = GetInsertIgnoreSql("locations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                lookupRows = context.Locations.Select(l => new
                 {
-                    var source = context.LocationSources.TryGetValue(loc.ExternalId ?? string.Empty, out var locSource) ? locSource : null;
-                    var sql = GetInsertIgnoreSql("locations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
-                    var rowsAffected = await connection.ExecuteAsync(sql,
-                        new { loc.ExternalId, loc.Code, loc.Name, Source = source });
-                    result.LocationsImported += rowsAffected;
-                }
+                    l.ExternalId,
+                    l.Code,
+                    l.Name,
+                    Source = context.LocationSources.TryGetValue(l.ExternalId ?? string.Empty, out var s) ? s ?? defaultSource : defaultSource
+                }).ToList();
+                if (lookupRows.Count > 0)
+                    result.LocationsImported = await connection.ExecuteAsync(lookupSql, lookupRows);
 
-                // Insert employers
-                Debug.WriteLine($"[Import] Normal Import - About to insert {context.Employers.Count} employers:");
-                Debug.WriteLine($"[Import] employerSources contains {context.EmployerSources.Count} entries:");
-                foreach (var kvp in context.EmployerSources)
+                lookupSql = GetInsertIgnoreSql("employers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                lookupRows = context.Employers.Select(e => new
                 {
-                    Debug.WriteLine($"[Import]   Key: '{kvp.Key}' -> Source: {kvp.Value}");
-                }
+                    e.ExternalId,
+                    e.Code,
+                    e.Name,
+                    Source = context.EmployerNameToSourceMap.TryGetValue($"{e.ExternalId ?? string.Empty}|{e.Name ?? string.Empty}", out var s) ? s ?? defaultSource : defaultSource
+                }).ToList();
+                if (lookupRows.Count > 0)
+                    result.EmployersImported = await connection.ExecuteAsync(lookupSql, lookupRows);
 
-                foreach (var emp in context.Employers)
+                lookupSql = GetInsertIgnoreSql("cost_centers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                lookupRows = context.CostCenters.Select(c => new
                 {
-                    // Find the correct source for this employer using the name-to-source mapping
-                    var employerNameKey = $"{emp.ExternalId ?? string.Empty}|{emp.Name ?? string.Empty}";
-                    context.EmployerNameToSourceMap.TryGetValue(employerNameKey, out var source);
+                    c.ExternalId,
+                    c.Code,
+                    c.Name,
+                    Source = context.CostCenterSources.TryGetValue(c.ExternalId ?? string.Empty, out var s) ? s ?? defaultSource : defaultSource
+                }).ToList();
+                if (lookupRows.Count > 0)
+                    result.CostCentersImported = await connection.ExecuteAsync(lookupSql, lookupRows);
 
-                    Debug.WriteLine($"[Import] Normal Import - Inserting employer: {emp.ExternalId} ({emp.Code}) {emp.Name} - Source: {source}");
-                    var sql = GetInsertIgnoreSql("employers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
-                    var rowsAffected = await connection.ExecuteAsync(sql,
-                        new { emp.ExternalId, emp.Code, emp.Name, Source = source });
-                    result.EmployersImported += rowsAffected;
-                    Debug.WriteLine($"[Import] Normal Import - Employer insert result: {rowsAffected} rows affected");
-                }
-                Debug.WriteLine($"[Import] Normal Import - Total employers imported: {result.EmployersImported}");
-
-                // Insert cost centers
-                foreach (var cc in context.CostCenters)
+                lookupSql = GetInsertIgnoreSql("cost_bearers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                lookupRows = context.CostBearers.Select(c => new
                 {
-                    var source = context.CostCenterSources.TryGetValue(cc.ExternalId ?? string.Empty, out var ccSource) ? ccSource : null;
-                    var sql = GetInsertIgnoreSql("cost_centers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
-                    var rowsAffected = await connection.ExecuteAsync(sql,
-                        new { cc.ExternalId, cc.Code, cc.Name, Source = source });
-                    result.CostCentersImported += rowsAffected;
-                }
+                    c.ExternalId,
+                    c.Code,
+                    c.Name,
+                    Source = context.CostBearerSources.TryGetValue(c.ExternalId ?? string.Empty, out var s) ? s ?? defaultSource : defaultSource
+                }).ToList();
+                if (lookupRows.Count > 0)
+                    result.CostBearersImported = await connection.ExecuteAsync(lookupSql, lookupRows);
 
-                // Insert cost bearers
-                foreach (var cb in context.CostBearers)
+                lookupSql = GetInsertIgnoreSql("teams", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                lookupRows = context.Teams.Select(t => new
                 {
-                    var source = context.CostBearerSources.TryGetValue(cb.ExternalId ?? string.Empty, out var cbSource) ? cbSource : null;
-                    var sql = GetInsertIgnoreSql("cost_bearers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
-                    var rowsAffected = await connection.ExecuteAsync(sql,
-                        new { cb.ExternalId, cb.Code, cb.Name, Source = source });
-                    result.CostBearersImported += rowsAffected;
-                }
+                    t.ExternalId,
+                    t.Code,
+                    t.Name,
+                    Source = context.TeamSources.TryGetValue(t.ExternalId ?? string.Empty, out var s) ? s ?? defaultSource : defaultSource
+                }).ToList();
+                if (lookupRows.Count > 0)
+                    result.TeamsImported = await connection.ExecuteAsync(lookupSql, lookupRows);
 
-                // Insert teams
-                foreach (var team in context.Teams)
+                lookupSql = GetInsertIgnoreSql("divisions", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                lookupRows = context.Divisions.Select(d => new
                 {
-                    var source = context.TeamSources.TryGetValue(team.ExternalId ?? string.Empty, out var teamSource) ? teamSource : null;
-                    var sql = GetInsertIgnoreSql("teams", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
-                    var rowsAffected = await connection.ExecuteAsync(sql,
-                        new { team.ExternalId, team.Code, team.Name, Source = source });
-                    result.TeamsImported += rowsAffected;
-                }
+                    d.ExternalId,
+                    d.Code,
+                    d.Name,
+                    Source = context.DivisionSources.TryGetValue(d.ExternalId ?? string.Empty, out var s) ? s ?? defaultSource : defaultSource
+                }).ToList();
+                if (lookupRows.Count > 0)
+                    result.DivisionsImported = await connection.ExecuteAsync(lookupSql, lookupRows);
 
-                // Insert divisions
-                foreach (var div in context.Divisions)
+                lookupSql = GetInsertIgnoreSql("titles", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
+                lookupRows = context.Titles.Select(t => new
                 {
-                    var source = context.DivisionSources.TryGetValue(div.ExternalId ?? string.Empty, out var divSource) ? divSource : null;
-                    var sql = GetInsertIgnoreSql("divisions", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
-                    var rowsAffected = await connection.ExecuteAsync(sql,
-                        new { div.ExternalId, div.Code, div.Name, Source = source });
-                    result.DivisionsImported += rowsAffected;
-                }
-
-                // Insert titles
-                foreach (var title in context.Titles)
-                {
-                    var source = context.TitleSources.TryGetValue(title.ExternalId ?? string.Empty, out var titleSource) ? titleSource : null;
-                    var sql = GetInsertIgnoreSql("titles", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
-                    var rowsAffected = await connection.ExecuteAsync(sql,
-                        new { title.ExternalId, title.Code, title.Name, Source = source });
-                    result.TitlesImported += rowsAffected;
-                }
+                    t.ExternalId,
+                    t.Code,
+                    t.Name,
+                    Source = context.TitleSources.TryGetValue(t.ExternalId ?? string.Empty, out var s) ? s ?? defaultSource : defaultSource
+                }).ToList();
+                if (lookupRows.Count > 0)
+                    result.TitlesImported = await connection.ExecuteAsync(lookupSql, lookupRows);
             }
 
             // Step 4: Import persons (no FK dependencies)
@@ -443,6 +509,10 @@ public class VaultImportService : IVaultImportService
                         foreach (var vaultPerson in vaultData.Persons)
                         {
                             if (string.IsNullOrWhiteSpace(vaultPerson.PersonId) || !personExternalIds.Contains(vaultPerson.PersonId))
+                            {
+                                continue;
+                            }
+                            if (_personFilter != null && !_personFilter.Contains(vaultPerson.PersonId))
                             {
                                 continue;
                             }
@@ -652,44 +722,39 @@ public class VaultImportService : IVaultImportService
                 {
                     try
                     {
-                        int processedCount = 0;
-                        const int progressBatchSize = 100;
+                        // Collect all contacts first, then batch insert
+                        var allContacts = new List<Contact>();
 
                         foreach (var vaultPerson in vaultData.Persons)
                         {
-                            processedCount++;
+                            if (_personFilter != null && !_personFilter.Contains(vaultPerson.PersonId)) continue;
 
                             if (vaultPerson.Contact != null)
                             {
-                                // Only insert Personal contact if it has at least one field with data
                                 if (vaultPerson.Contact.Personal != null && !IsEmptyContact(vaultPerson.Contact.Personal))
                                 {
-                                    var personalContact = MapContact(vaultPerson.PersonId, "Personal", vaultPerson.Contact.Personal);
-                                    await _contactRepository.InsertAsync(personalContact, connection, transaction);
-                                    result.ContactsImported++;
+                                    allContacts.Add(MapContact(vaultPerson.PersonId, "Personal", vaultPerson.Contact.Personal));
                                 }
 
-                                // Only insert Business contact if it has at least one field with data
                                 if (vaultPerson.Contact.Business != null && !IsEmptyContact(vaultPerson.Contact.Business))
                                 {
-                                    var businessContact = MapContact(vaultPerson.PersonId, "Business", vaultPerson.Contact.Business);
-                                    await _contactRepository.InsertAsync(businessContact, connection, transaction);
-                                    result.ContactsImported++;
+                                    allContacts.Add(MapContact(vaultPerson.PersonId, "Business", vaultPerson.Contact.Business));
                                 }
                             }
-
-                            // Report progress in batches
-                            if (processedCount % progressBatchSize == 0 || processedCount == totalPersons)
-                            {
-                                progress?.Report(new ImportProgress
-                                {
-                                    CurrentOperation = $"Importing contacts... ({processedCount}/{totalPersons})",
-                                    TotalItems = totalPersons,
-                                    ProcessedItems = processedCount
-                                });
-                                await Task.Yield();
-                            }
                         }
+
+                        // Bulk insert all contacts (COPY for PostgreSQL, batch for SQLite)
+                        if (allContacts.Count > 0)
+                        {
+                            result.ContactsImported = await PostgresBulkInsertHelper.BulkInsertContactsAsync(allContacts, connection, transaction);
+                        }
+
+                        progress?.Report(new ImportProgress
+                        {
+                            CurrentOperation = $"Imported {result.ContactsImported} contacts",
+                            TotalItems = 1,
+                            ProcessedItems = 1
+                        });
 
                         transaction.Commit();
                     }
@@ -737,11 +802,19 @@ public class VaultImportService : IVaultImportService
                 {
                     try
                     {
+                        // Pre-load all valid reference IDs to avoid per-contract queries
+                        var fkCache = await LoadFkValidationCacheAsync(connection, transaction);
+
                         int processedCount = 0;
                         const int progressBatchSize = 100;
 
+                        // Collect all contracts, validate FKs, then bulk insert
+                        var allContracts = new List<Contract>();
+
                         foreach (var vaultPerson in vaultData.Persons)
                         {
+                            if (_personFilter != null && !_personFilter.Contains(vaultPerson.PersonId)) continue;
+
                             processedCount++;
 
                             foreach (var vaultContract in vaultPerson.Contracts)
@@ -770,18 +843,10 @@ public class VaultImportService : IVaultImportService
 
                                 var contract = ContractMapper.Map(vaultPerson.PersonId, vaultContract, contractContext);
 
-                                // Validate FK references and set invalid ones to NULL
-                                // This is needed for managed PostgreSQL where FK constraints can't be disabled
-                                await ValidateContractFkReferencesAsync(contract, connection, transaction);
+                                // Validate FK references using cached data (in-memory, no DB queries)
+                                ValidateContractFkReferencesCached(contract, fkCache);
 
-                                // Debug: Log first few insert attempts
-                                if (result.ContractsImported < 10)
-                                {
-                                    Debug.WriteLine($"[Insert Contract #{result.ContractsImported + 1}] ExternalId={contract.ExternalId}, PersonId={contract.PersonId}");
-                                }
-
-                                await _contractRepository.InsertAsync(contract, connection, transaction);
-                                result.ContractsImported++;
+                                allContracts.Add(contract);
                             }
 
                             // Report progress in batches
@@ -789,12 +854,18 @@ public class VaultImportService : IVaultImportService
                             {
                                 progress?.Report(new ImportProgress
                                 {
-                                    CurrentOperation = $"Importing contracts... ({processedCount}/{totalPersons})",
+                                    CurrentOperation = $"Collecting contracts... ({processedCount}/{totalPersons})",
                                     TotalItems = totalPersons,
                                     ProcessedItems = processedCount
                                 });
-                                await Task.Yield();
                             }
+                        }
+
+                        // Bulk insert all contracts (COPY for PostgreSQL, batch for SQLite)
+                        if (allContracts.Count > 0)
+                        {
+                            result.ContractsImported = await PostgresBulkInsertHelper.BulkInsertContractsAsync(allContracts, connection, transaction);
+                            Debug.WriteLine($"[Import] Bulk inserted {result.ContractsImported} contracts");
                         }
 
                         transaction.Commit();
@@ -989,54 +1060,60 @@ public class VaultImportService : IVaultImportService
             int cfPersonCount = 0;
             int cfTotalPersons = vaultData.Persons.Count();
 
-            // Batch custom field imports - collect all fields per entity, then do ONE update per entity
+            // Batch custom field imports - collect all updates, then execute in batch
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
                 using (var transaction = connection.BeginTransaction())
                 {
                     try
                     {
+                        var personCustomFieldUpdates = new List<(string ExternalId, string Json)>();
+                        var contractCustomFieldUpdates = new List<(string ExternalId, string Json)>();
+
                         foreach (var vaultPerson in vaultData.Persons)
                         {
+                            if (_personFilter != null && !_personFilter.Contains(vaultPerson.PersonId)) continue;
+
                             cfPersonCount++;
 
-                            // Person custom fields - batch update with entire JSON
                             if (vaultPerson.Custom != null && vaultPerson.Custom.Count > 0 && !string.IsNullOrWhiteSpace(vaultPerson.ExternalId))
                             {
                                 var customFieldsJson = System.Text.Json.JsonSerializer.Serialize(vaultPerson.Custom);
-                                var sql = _connectionFactory.DatabaseType == DatabaseType.PostgreSql
-                                    ? "UPDATE persons SET custom_fields = @Json::jsonb WHERE external_id = @ExternalId"
-                                    : "UPDATE persons SET custom_fields = json(@Json) WHERE external_id = @ExternalId";
-
-                                await connection.ExecuteAsync(sql, new { Json = customFieldsJson, ExternalId = vaultPerson.ExternalId }, transaction);
+                                personCustomFieldUpdates.Add((vaultPerson.ExternalId, customFieldsJson));
                                 personCustomFields += vaultPerson.Custom.Count;
                             }
 
-                            // Contract custom fields - batch update with entire JSON
                             foreach (var vaultContract in vaultPerson.Contracts)
                             {
                                 if (vaultContract.Custom != null && vaultContract.Custom.Count > 0 && !string.IsNullOrWhiteSpace(vaultContract.ExternalId))
                                 {
                                     var customFieldsJson = System.Text.Json.JsonSerializer.Serialize(vaultContract.Custom);
-                                    var sql = _connectionFactory.DatabaseType == DatabaseType.PostgreSql
-                                        ? "UPDATE contracts SET custom_fields = @Json::jsonb WHERE external_id = @ExternalId"
-                                        : "UPDATE contracts SET custom_fields = json(@Json) WHERE external_id = @ExternalId";
-
-                                    await connection.ExecuteAsync(sql, new { Json = customFieldsJson, ExternalId = vaultContract.ExternalId }, transaction);
+                                    contractCustomFieldUpdates.Add((vaultContract.ExternalId, customFieldsJson));
                                     contractCustomFields += vaultContract.Custom.Count;
                                 }
                             }
 
-                            // Report progress every 100 persons
                             if (cfPersonCount % 100 == 0)
                             {
                                 progress?.Report(new ImportProgress
                                 {
-                                    CurrentOperation = $"Importing custom fields... ({cfPersonCount}/{cfTotalPersons})",
+                                    CurrentOperation = $"Collecting custom fields... ({cfPersonCount}/{cfTotalPersons})",
                                     TotalItems = cfTotalPersons,
                                     ProcessedItems = cfPersonCount
                                 });
                             }
+                        }
+
+                        // Bulk update person custom fields (COPY + JOIN for PostgreSQL, batch for SQLite)
+                        if (personCustomFieldUpdates.Count > 0)
+                        {
+                            await PostgresBulkInsertHelper.BulkUpdateCustomFieldsAsync("persons", personCustomFieldUpdates, connection, transaction);
+                        }
+
+                        // Bulk update contract custom fields (COPY + JOIN for PostgreSQL, batch for SQLite)
+                        if (contractCustomFieldUpdates.Count > 0)
+                        {
+                            await PostgresBulkInsertHelper.BulkUpdateCustomFieldsAsync("contracts", contractCustomFieldUpdates, connection, transaction);
                         }
 
                         transaction.Commit();
@@ -1288,12 +1365,15 @@ public class VaultImportService : IVaultImportService
             // Step 4: Import company data tables
             progress?.Report(new ImportProgress { CurrentOperation = "Importing company data..." });
 
+            var defaultSource = sourceSystems.Keys.FirstOrDefault() ?? "unknown";
+
             using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
             {
                 // Insert organizations
                 foreach (var org in context.Organizations)
                 {
                     var source = context.OrganizationSources.TryGetValue(org.ExternalId ?? string.Empty, out var orgSource) ? orgSource : null;
+                    source ??= defaultSource;
                     var sql = GetInsertIgnoreSql("organizations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
                     var rowsAffected = await connection.ExecuteAsync(sql,
                         new { org.ExternalId, org.Code, org.Name, Source = source });
@@ -1304,6 +1384,7 @@ public class VaultImportService : IVaultImportService
                 foreach (var loc in context.Locations)
                 {
                     var source = context.LocationSources.TryGetValue(loc.ExternalId ?? string.Empty, out var locSource) ? locSource : null;
+                    source ??= defaultSource;
                     var sql = GetInsertIgnoreSql("locations", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
                     var rowsAffected = await connection.ExecuteAsync(sql,
                         new { loc.ExternalId, loc.Code, loc.Name, Source = source });
@@ -1314,7 +1395,9 @@ public class VaultImportService : IVaultImportService
                 Debug.WriteLine($"[Import CompanyOnly] About to insert {context.Employers.Count} employers:");
                 foreach (var emp in context.Employers)
                 {
-                    var source = context.EmployerSources.TryGetValue(emp.ExternalId ?? string.Empty, out var empSource) ? empSource : null;
+                    var employerNameKey = $"{emp.ExternalId ?? string.Empty}|{emp.Name ?? string.Empty}";
+                    context.EmployerNameToSourceMap.TryGetValue(employerNameKey, out var source);
+                    source ??= defaultSource;
                     Debug.WriteLine($"[Import CompanyOnly] Inserting employer: {emp.ExternalId} ({emp.Code}) {emp.Name} - Source: {source}");
                     var sql = GetInsertIgnoreSql("employers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
                     var rowsAffected = await connection.ExecuteAsync(sql,
@@ -1328,6 +1411,7 @@ public class VaultImportService : IVaultImportService
                 foreach (var cc in context.CostCenters)
                 {
                     var source = context.CostCenterSources.TryGetValue(cc.ExternalId ?? string.Empty, out var ccSource) ? ccSource : null;
+                    source ??= defaultSource;
                     var sql = GetInsertIgnoreSql("cost_centers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
                     var rowsAffected = await connection.ExecuteAsync(sql,
                         new { cc.ExternalId, cc.Code, cc.Name, Source = source });
@@ -1338,6 +1422,7 @@ public class VaultImportService : IVaultImportService
                 foreach (var cb in context.CostBearers)
                 {
                     var source = context.CostBearerSources.TryGetValue(cb.ExternalId ?? string.Empty, out var cbSource) ? cbSource : null;
+                    source ??= defaultSource;
                     var sql = GetInsertIgnoreSql("cost_bearers", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
                     var rowsAffected = await connection.ExecuteAsync(sql,
                         new { cb.ExternalId, cb.Code, cb.Name, Source = source });
@@ -1348,6 +1433,7 @@ public class VaultImportService : IVaultImportService
                 foreach (var team in context.Teams)
                 {
                     var source = context.TeamSources.TryGetValue(team.ExternalId ?? string.Empty, out var teamSource) ? teamSource : null;
+                    source ??= defaultSource;
                     var sql = GetInsertIgnoreSql("teams", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
                     var rowsAffected = await connection.ExecuteAsync(sql,
                         new { team.ExternalId, team.Code, team.Name, Source = source });
@@ -1358,6 +1444,7 @@ public class VaultImportService : IVaultImportService
                 foreach (var div in context.Divisions)
                 {
                     var source = context.DivisionSources.TryGetValue(div.ExternalId ?? string.Empty, out var divSource) ? divSource : null;
+                    source ??= defaultSource;
                     var sql = GetInsertIgnoreSql("divisions", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
                     var rowsAffected = await connection.ExecuteAsync(sql,
                         new { div.ExternalId, div.Code, div.Name, Source = source });
@@ -1368,6 +1455,7 @@ public class VaultImportService : IVaultImportService
                 foreach (var title in context.Titles)
                 {
                     var source = context.TitleSources.TryGetValue(title.ExternalId ?? string.Empty, out var titleSource) ? titleSource : null;
+                    source ??= defaultSource;
                     var sql = GetInsertIgnoreSql("titles", "external_id, code, name, source", "@ExternalId, @Code, @Name, @Source");
                     var rowsAffected = await connection.ExecuteAsync(sql,
                         new { title.ExternalId, title.Code, title.Name, Source = source });
@@ -1442,6 +1530,12 @@ public class VaultImportService : IVaultImportService
 
                 // Cleanup after import (re-enable FK constraints)
                 await strategy.CleanupAfterImportAsync(connection);
+            }
+
+            // Step 6: Import custom field schemas (schemas only, not values)
+            if (vaultData.Persons != null && vaultData.Persons.Count > 0)
+            {
+                await ImportCustomFieldSchemasAsync(vaultData, result, progress);
             }
 
             progress?.Report(new ImportProgress
@@ -1527,12 +1621,173 @@ public class VaultImportService : IVaultImportService
     }
 
     /// <summary>
+    /// Cached FK validation data to avoid per-contract database queries.
+    /// Loaded once at the start of contract import.
+    /// </summary>
+    private class FkValidationCache
+    {
+        public HashSet<string> PersonIds { get; set; } = new();
+        public HashSet<string> TitleKeys { get; set; } = new();
+        public HashSet<string> LocationKeys { get; set; } = new();
+        public HashSet<string> EmployerKeys { get; set; } = new();
+        public HashSet<string> DepartmentKeys { get; set; } = new();
+        public HashSet<string> CostCenterKeys { get; set; } = new();
+        public HashSet<string> CostBearerKeys { get; set; } = new();
+        public HashSet<string> TeamKeys { get; set; } = new();
+        public HashSet<string> DivisionKeys { get; set; } = new();
+        public HashSet<string> OrganizationKeys { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Loads all valid reference data IDs from the database in a single batch.
+    /// </summary>
+    private async Task<FkValidationCache> LoadFkValidationCacheAsync(IDbConnection connection, IDbTransaction transaction)
+    {
+        Debug.WriteLine("[Import] Loading FK validation cache...");
+
+        var cache = new FkValidationCache();
+
+        cache.PersonIds = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT person_id FROM persons", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        cache.TitleKeys = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT external_id || '|' || source FROM titles", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        cache.LocationKeys = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT external_id || '|' || source FROM locations", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        cache.EmployerKeys = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT external_id || '|' || source FROM employers", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        cache.DepartmentKeys = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT external_id || '|' || source FROM departments", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        cache.CostCenterKeys = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT external_id || '|' || source FROM cost_centers", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        cache.CostBearerKeys = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT external_id || '|' || source FROM cost_bearers", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        cache.TeamKeys = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT external_id || '|' || source FROM teams", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        cache.DivisionKeys = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT external_id || '|' || source FROM divisions", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        cache.OrganizationKeys = new HashSet<string>(
+            await connection.QueryAsync<string>("SELECT external_id || '|' || source FROM organizations", transaction: transaction),
+            StringComparer.OrdinalIgnoreCase);
+
+        Debug.WriteLine($"[Import] FK cache loaded: {cache.PersonIds.Count} persons, {cache.TitleKeys.Count} titles, {cache.DepartmentKeys.Count} departments, etc.");
+        return cache;
+    }
+
+    /// <summary>
+    /// Validates and fixes FK references for a contract using cached data (no DB queries).
+    /// </summary>
+    private void ValidateContractFkReferencesCached(Contract contract, FkValidationCache cache)
+    {
+        if (!string.IsNullOrWhiteSpace(contract.ManagerPersonExternalId) &&
+            !cache.PersonIds.Contains(contract.ManagerPersonExternalId))
+        {
+            contract.ManagerPersonExternalId = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.TitleExternalId) &&
+            !cache.TitleKeys.Contains($"{contract.TitleExternalId}|{contract.TitleSource}"))
+        {
+            contract.TitleExternalId = null;
+            contract.TitleSource = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.LocationExternalId) &&
+            !cache.LocationKeys.Contains($"{contract.LocationExternalId}|{contract.LocationSource}"))
+        {
+            contract.LocationExternalId = null;
+            contract.LocationSource = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.EmployerExternalId) &&
+            !cache.EmployerKeys.Contains($"{contract.EmployerExternalId}|{contract.EmployerSource}"))
+        {
+            contract.EmployerExternalId = null;
+            contract.EmployerSource = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.DepartmentExternalId) &&
+            !cache.DepartmentKeys.Contains($"{contract.DepartmentExternalId}|{contract.DepartmentSource}"))
+        {
+            contract.DepartmentExternalId = null;
+            contract.DepartmentSource = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.CostCenterExternalId) &&
+            !cache.CostCenterKeys.Contains($"{contract.CostCenterExternalId}|{contract.CostCenterSource}"))
+        {
+            contract.CostCenterExternalId = null;
+            contract.CostCenterSource = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.CostBearerExternalId) &&
+            !cache.CostBearerKeys.Contains($"{contract.CostBearerExternalId}|{contract.CostBearerSource}"))
+        {
+            contract.CostBearerExternalId = null;
+            contract.CostBearerSource = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.TeamExternalId) &&
+            !cache.TeamKeys.Contains($"{contract.TeamExternalId}|{contract.TeamSource}"))
+        {
+            contract.TeamExternalId = null;
+            contract.TeamSource = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.DivisionExternalId) &&
+            !cache.DivisionKeys.Contains($"{contract.DivisionExternalId}|{contract.DivisionSource}"))
+        {
+            contract.DivisionExternalId = null;
+            contract.DivisionSource = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.OrganizationExternalId) &&
+            !cache.OrganizationKeys.Contains($"{contract.OrganizationExternalId}|{contract.OrganizationSource}"))
+        {
+            contract.OrganizationExternalId = null;
+            contract.OrganizationSource = null;
+        }
+    }
+
+    /// <summary>
     /// Validates and fixes FK references for a contract before insert.
     /// Sets invalid references to NULL to avoid FK constraint violations.
     /// This is needed for managed PostgreSQL where FK constraints can't be disabled.
     /// </summary>
     private async Task ValidateContractFkReferencesAsync(Contract contract, IDbConnection connection, IDbTransaction transaction)
     {
+        // Check manager person reference
+        if (!string.IsNullOrWhiteSpace(contract.ManagerPersonExternalId))
+        {
+            var managerExists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM persons WHERE person_id = @PersonId)",
+                new { PersonId = contract.ManagerPersonExternalId },
+                transaction);
+
+            if (!managerExists)
+            {
+                Debug.WriteLine($"[Import] Contract {contract.ExternalId} has invalid manager reference ({contract.ManagerPersonExternalId}) - setting to NULL");
+                contract.ManagerPersonExternalId = null;
+            }
+        }
+
         // Check title reference
         if (!string.IsNullOrWhiteSpace(contract.TitleExternalId))
         {
@@ -1700,6 +1955,148 @@ public class VaultImportService : IVaultImportService
     }
 
     /// <summary>
+    /// Collects and imports custom field schemas from vault data.
+    /// Used by both full import and company-only import.
+    /// </summary>
+    private async Task ImportCustomFieldSchemasAsync(VaultRoot vaultData, ImportResult result, IProgress<ImportProgress>? progress)
+    {
+        progress?.Report(new ImportProgress { CurrentOperation = "Creating custom field schemas..." });
+        Debug.WriteLine($"[Import] Starting custom field schema creation...");
+
+        var customFieldSchemas = new Dictionary<(string TableName, string FieldKey), (string DataType, HashSet<object> SampleValues)>();
+
+        foreach (var vaultPerson in vaultData.Persons)
+        {
+            if (vaultPerson.Custom != null)
+            {
+                foreach (var (key, value) in vaultPerson.Custom)
+                {
+                    var schemaKey = ("persons", key);
+                    if (!customFieldSchemas.ContainsKey(schemaKey))
+                    {
+                        customFieldSchemas[schemaKey] = ("text", new HashSet<object>());
+                    }
+                    if (value != null)
+                    {
+                        customFieldSchemas[schemaKey].SampleValues.Add(value);
+                    }
+                }
+            }
+
+            foreach (var vaultContract in vaultPerson.Contracts)
+            {
+                if (vaultContract.Custom != null)
+                {
+                    foreach (var (key, value) in vaultContract.Custom)
+                    {
+                        var schemaKey = ("contracts", key);
+                        if (!customFieldSchemas.ContainsKey(schemaKey))
+                        {
+                            customFieldSchemas[schemaKey] = ("text", new HashSet<object>());
+                        }
+                        if (value != null)
+                        {
+                            customFieldSchemas[schemaKey].SampleValues.Add(value);
+                        }
+                    }
+                }
+            }
+        }
+
+        Debug.WriteLine($"[Import] Found {customFieldSchemas.Count} unique custom field schemas");
+
+        using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
+        {
+            int sortOrder = 1;
+            foreach (var ((tableName, fieldKey), (_, sampleValues)) in customFieldSchemas)
+            {
+                var displayName = FormatDisplayName(fieldKey);
+                var sql = GetInsertIgnoreSql("custom_field_schemas", "table_name, field_key, display_name, sort_order", "@TableName, @FieldKey, @DisplayName, @SortOrder");
+                var rowsAffected = await connection.ExecuteAsync(sql,
+                    new { TableName = tableName, FieldKey = fieldKey, DisplayName = displayName, SortOrder = sortOrder++ });
+
+                if (tableName == "persons")
+                {
+                    result.CustomFieldPersonsImported += rowsAffected;
+                }
+                else if (tableName == "contracts")
+                {
+                    result.CustomFieldContractsImported += rowsAffected;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Collects and imports custom field schemas to a specific connection factory (for Turso temp DB).
+    /// </summary>
+    private async Task ImportCustomFieldSchemasToSqliteAsync(VaultRoot vaultData, ImportResult result, SqliteConnectionFactory connectionFactory, IProgress<ImportProgress>? progress)
+    {
+        progress?.Report(new ImportProgress { CurrentOperation = "Creating custom field schemas..." });
+
+        var customFieldSchemas = new Dictionary<(string TableName, string FieldKey), (string DataType, HashSet<object> SampleValues)>();
+
+        foreach (var vaultPerson in vaultData.Persons)
+        {
+            if (vaultPerson.Custom != null)
+            {
+                foreach (var (key, value) in vaultPerson.Custom)
+                {
+                    var schemaKey = ("persons", key);
+                    if (!customFieldSchemas.ContainsKey(schemaKey))
+                    {
+                        customFieldSchemas[schemaKey] = ("text", new HashSet<object>());
+                    }
+                    if (value != null)
+                    {
+                        customFieldSchemas[schemaKey].SampleValues.Add(value);
+                    }
+                }
+            }
+
+            foreach (var vaultContract in vaultPerson.Contracts)
+            {
+                if (vaultContract.Custom != null)
+                {
+                    foreach (var (key, value) in vaultContract.Custom)
+                    {
+                        var schemaKey = ("contracts", key);
+                        if (!customFieldSchemas.ContainsKey(schemaKey))
+                        {
+                            customFieldSchemas[schemaKey] = ("text", new HashSet<object>());
+                        }
+                        if (value != null)
+                        {
+                            customFieldSchemas[schemaKey].SampleValues.Add(value);
+                        }
+                    }
+                }
+            }
+        }
+
+        using (var connection = connectionFactory.CreateConnection(enforceForeignKeys: false))
+        {
+            int sortOrder = 1;
+            foreach (var ((tableName, fieldKey), _) in customFieldSchemas)
+            {
+                var displayName = FormatDisplayName(fieldKey);
+                var sql = "INSERT OR IGNORE INTO custom_field_schemas (table_name, field_key, display_name, sort_order) VALUES (@TableName, @FieldKey, @DisplayName, @SortOrder)";
+                var rowsAffected = await connection.ExecuteAsync(sql,
+                    new { TableName = tableName, FieldKey = fieldKey, DisplayName = displayName, SortOrder = sortOrder++ });
+
+                if (tableName == "persons")
+                {
+                    result.CustomFieldPersonsImported += rowsAffected;
+                }
+                else if (tableName == "contracts")
+                {
+                    result.CustomFieldContractsImported += rowsAffected;
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Generates database-agnostic INSERT IGNORE SQL.
     /// SQLite uses INSERT OR IGNORE, PostgreSQL uses INSERT ... ON CONFLICT DO NOTHING.
     /// For PostgreSQL, uses ON CONFLICT DO NOTHING without specifying columns (implicitly uses primary key).
@@ -1810,9 +2207,32 @@ public class VaultImportService : IVaultImportService
             var fileInfo = new FileInfo(tempDbPath);
             Debug.WriteLine($"[TursoImport] Temp database size: {fileInfo.Length / 1024} KB");
 
-            // Upload to Turso (throws TursoConnectionException on failure)
+            // Upload to Turso with retries (database may need time to be ready for uploads)
             Debug.WriteLine($"[TursoImport] Starting upload to Turso...");
-            await _tursoClient.UploadDatabaseAsync(tempDbPath);
+            Exception? lastUploadEx = null;
+            bool uploaded = false;
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                try
+                {
+                    Debug.WriteLine($"[TursoImport] Upload attempt {attempt}/3");
+                    progress?.Report(new ImportProgress { CurrentOperation = $"Uploading database to Turso... (attempt {attempt}/3)" });
+                    await _tursoClient.UploadDatabaseAsync(tempDbPath);
+                    uploaded = true;
+                    break;
+                }
+                catch (Exception uploadEx)
+                {
+                    lastUploadEx = uploadEx;
+                    Debug.WriteLine($"[TursoImport] Upload attempt {attempt} failed: {uploadEx.Message}");
+                    if (attempt < 3) await Task.Delay(3000);
+                }
+            }
+
+            if (!uploaded && lastUploadEx != null)
+            {
+                throw lastUploadEx;
+            }
 
             Debug.WriteLine($"[TursoImport] Upload successful!");
             progress?.Report(new ImportProgress { CurrentOperation = "Upload complete!" });
@@ -2034,12 +2454,33 @@ public class VaultImportService : IVaultImportService
 
             progress?.Report(new ImportProgress { CurrentOperation = "Uploading database to new Turso database..." });
 
-            // Retry the upload
-            var uploadSuccess = await _tursoClient!.UploadDatabaseAsync(tempDbPath);
+            // Retry the upload (new database may need time to be ready for uploads)
+            bool uploadSuccess = false;
+            Exception? lastUploadError = null;
+            for (int attempt = 1; attempt <= 5; attempt++)
+            {
+                try
+                {
+                    Debug.WriteLine($"[TursoImport] Upload attempt {attempt}/5");
+                    progress?.Report(new ImportProgress { CurrentOperation = $"Uploading database... (attempt {attempt}/5)" });
+                    uploadSuccess = await _tursoClient!.UploadDatabaseAsync(tempDbPath);
+                    if (uploadSuccess) break;
+                }
+                catch (Exception uploadEx)
+                {
+                    lastUploadError = uploadEx;
+                    Debug.WriteLine($"[TursoImport] Upload attempt {attempt} failed: {uploadEx.Message}");
+                }
+
+                if (attempt < 5)
+                {
+                    await Task.Delay(3000);
+                }
+            }
 
             if (!uploadSuccess)
             {
-                result.ErrorMessage = "Upload to new database failed";
+                result.ErrorMessage = $"Failed to upload database: {lastUploadError?.Message ?? "Upload returned false"}";
                 return result;
             }
 
@@ -2364,6 +2805,7 @@ public class VaultImportService : IVaultImportService
                 foreach (var vaultPerson in vaultData.Persons)
                 {
                     if (string.IsNullOrWhiteSpace(vaultPerson.PersonId)) continue;
+                    if (_personFilter != null && !_personFilter.Contains(vaultPerson.PersonId)) continue;
 
                     var personSource = vaultPerson.Source?.SystemId ?? string.Empty;
 
@@ -2643,11 +3085,24 @@ public class VaultImportService : IVaultImportService
             bool uploadSuccess = false;
             try
             {
-                uploadSuccess = await _tursoClient.UploadDatabaseAsync(tempDbPath);
+                for (int attempt = 1; attempt <= 3; attempt++)
+                {
+                    try
+                    {
+                        Debug.WriteLine($"[TursoCompanyImport] Upload attempt {attempt}/3");
+                        uploadSuccess = await _tursoClient.UploadDatabaseAsync(tempDbPath);
+                        if (uploadSuccess) break;
+                    }
+                    catch (Exception uploadEx)
+                    {
+                        Debug.WriteLine($"[TursoCompanyImport] Upload attempt {attempt} failed: {uploadEx.Message}");
+                        if (attempt < 3) await Task.Delay(3000);
+                    }
+                }
             }
             catch (Exception uploadEx)
             {
-                Debug.WriteLine($"[TursoCompanyImport] Upload failed: {uploadEx.Message}");
+                Debug.WriteLine($"[TursoCompanyImport] Upload failed after retries: {uploadEx.Message}");
             }
 
             if (uploadSuccess)
@@ -2877,6 +3332,12 @@ public class VaultImportService : IVaultImportService
                         processedDepts.Add(dept.ExternalId);
                     }
                 }
+            }
+
+            // Step 5: Import custom field schemas (schemas only, not values)
+            if (vaultData.Persons != null && vaultData.Persons.Count > 0)
+            {
+                await ImportCustomFieldSchemasToSqliteAsync(vaultData, result, connectionFactory, progress);
             }
 
             stopwatch.Stop();

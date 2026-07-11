@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace HelloID.Vault.Core.Models.DTOs;
 
 /// <summary>
@@ -21,6 +23,7 @@ public class ContractJsonDto
     public Division Division { get; set; } = new();
     public Title Title { get; set; } = new();
     public Organization Organization { get; set; } = new();
+    public Dictionary<string, object?> Custom { get; set; } = new();
 }
 
 public class Context

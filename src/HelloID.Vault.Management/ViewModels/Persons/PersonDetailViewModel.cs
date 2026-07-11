@@ -203,7 +203,7 @@ public partial class PersonDetailViewModel : ObservableObject
     [RelayCommand]
     private async Task AddPersonAsync()
     {
-        var editViewModel = new PersonEditViewModel(_personService, _customFieldRepository, _sourceSystemRepository);
+        var editViewModel = new PersonEditViewModel(_personService, _customFieldRepository, _sourceSystemRepository, _serviceProvider.GetRequiredService<IReferenceDataService>());
         await editViewModel.InitializeAsync();
 
         var editWindow = new PersonEditWindow();
@@ -236,7 +236,7 @@ public partial class PersonDetailViewModel : ObservableObject
                 return;
             }
 
-            var editViewModel = new PersonEditViewModel(_personService, _customFieldRepository, _sourceSystemRepository, personEntity);
+            var editViewModel = new PersonEditViewModel(_personService, _customFieldRepository, _sourceSystemRepository, _serviceProvider.GetRequiredService<IReferenceDataService>(), personEntity);
             await editViewModel.InitializeAsync();
 
             var editWindow = new PersonEditWindow();
@@ -345,6 +345,7 @@ public partial class PersonDetailViewModel : ObservableObject
             if (editWindow.ShowDialog() == true)
             {
                 await LoadAsync();
+                PersonChangedEvent?.Invoke();
             }
         }
         catch (Exception ex)

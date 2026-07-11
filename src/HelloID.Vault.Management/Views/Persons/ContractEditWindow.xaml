@@ -4,9 +4,9 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ui="http://schemas.modernwpf.com/2019"
-        xmlns:dotNetKitControls="clr-namespace:DotNetKit.Windows.Controls;assembly=DotNetKit.Wpf.AutoCompleteComboBox"
+        xmlns:controls="clr-namespace:HelloID.Vault.Management.Controls"
         mc:Ignorable="d"
-        Title="{Binding Title}" SizeToContent="Height" Width="600"
+        Title="{Binding Title}" SizeToContent="Height" Width="750"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
 
@@ -181,18 +181,9 @@
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Manager" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
-                        <dotNetKitControls:AutoCompleteComboBox Grid.Row="0" Grid.Column="1"
-                            ItemsSource="{Binding Managers}"
-                            SelectedItem="{Binding SelectedManager}"
-                            TextSearch.TextPath="DisplayName"
-                            DisplayMemberPath="DisplayName"
-                            FontSize="12" Margin="0,0,0,6">
-                            <dotNetKitControls:AutoCompleteComboBox.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <VirtualizingStackPanel />
-                                </ItemsPanelTemplate>
-                            </dotNetKitControls:AutoCompleteComboBox.ItemsPanel>
-                        </dotNetKitControls:AutoCompleteComboBox>
+                        <controls:ManagerSearchControl Grid.Row="0" Grid.Column="1"
+                            DataContext="{Binding ManagerSearch}"
+                            Margin="0,0,0,6"/>
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Department" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
                         <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Departments}" SelectedValue="{Binding Contract.DepartmentExternalId}" SelectedValuePath="ExternalId" DisplayMemberPath="DisplayName" FontSize="12" Margin="0,0,0,6"/>

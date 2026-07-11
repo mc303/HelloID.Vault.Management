@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Dapper;
 using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Data.Repositories.Interfaces;
+using HelloID.Vault.Services.Import.Utilities;
 
 namespace HelloID.Vault.Services.Import.Strategies;
 
@@ -82,36 +83,55 @@ public class PostgresManagedImportStrategy : BaseImportStrategy
             progressCallback?.Invoke(count);
         }
 
-        // === PASS 2: Update parent references (all departments now exist) ===
+        // === PASS 2: Update parent references (batch) ===
         Debug.WriteLine($"[{StrategyName}] Pass 2: Updating parent references...");
 
-        foreach (var kvp in parentRefs)
+        var parentUpdates = parentRefs
+            .Where(kvp => !string.IsNullOrWhiteSpace(kvp.Value))
+            .Select(kvp => new { ExternalId = kvp.Key, ParentExternalId = kvp.Value })
+            .ToList();
+
+        if (parentUpdates.Count > 0)
         {
-            if (!string.IsNullOrWhiteSpace(kvp.Value))
-            {
-                await connection.ExecuteAsync(@"
-                    UPDATE departments
-                    SET parent_external_id = @ParentExternalId
-                    WHERE external_id = @ExternalId",
-                    new { ExternalId = kvp.Key, ParentExternalId = kvp.Value },
-                    transaction);
-            }
+            await connection.ExecuteAsync(@"
+                UPDATE departments
+                SET parent_external_id = @ParentExternalId
+                WHERE external_id = @ExternalId",
+                parentUpdates, transaction);
         }
 
-        // === PASS 2b: Update manager references ===
+        // === PASS 2b: Update manager references (batch) ===
         Debug.WriteLine($"[{StrategyName}] Pass 2b: Updating manager references...");
+
+        // Get valid person IDs from the database to avoid FK violations
+        var validManagerIds = await connection.QueryAsync<string>(
+            "SELECT person_id FROM persons", transaction: transaction);
+        var validManagerSet = new HashSet<string>(validManagerIds, StringComparer.OrdinalIgnoreCase);
+
+        var managerUpdates = new List<object>();
 
         foreach (var kvp in managerRefs)
         {
             if (!string.IsNullOrWhiteSpace(kvp.Value))
             {
-                await connection.ExecuteAsync(@"
-                    UPDATE departments
-                    SET manager_person_id = @ManagerPersonId
-                    WHERE external_id = @ExternalId",
-                    new { ExternalId = kvp.Key, ManagerPersonId = kvp.Value },
-                    transaction);
+                if (!validManagerSet.Contains(kvp.Value))
+                {
+                    Debug.WriteLine($"[{StrategyName}] Skipping manager reference for department {kvp.Key}: person '{kvp.Value}' does not exist");
+                    _invalidManagerReferences++;
+                    continue;
+                }
+
+                managerUpdates.Add(new { ExternalId = kvp.Key, ManagerPersonId = kvp.Value });
             }
+        }
+
+        if (managerUpdates.Count > 0)
+        {
+            await connection.ExecuteAsync(@"
+                UPDATE departments
+                SET manager_person_id = @ManagerPersonId
+                WHERE external_id = @ExternalId",
+                managerUpdates, transaction);
         }
 
         // Final validation (detects any remaining orphaned refs)
@@ -130,19 +150,13 @@ public class PostgresManagedImportStrategy : BaseImportStrategy
         Action<int, int>? progressCallback = null)
     {
         var personList = persons.ToList();
-        var count = 0;
 
-        // === PASS 1: Insert all persons (no FK refs that need deferred) ===
-        // Persons only have primary_manager_person_id which is a self-reference
-        // Since we insert all persons before updating refs, this works with DEFERRABLE
-        Debug.WriteLine($"[{StrategyName}] Inserting {personList.Count} persons...");
+        Debug.WriteLine($"[{StrategyName}] Inserting {personList.Count} persons via bulk insert...");
 
-        foreach (var person in personList)
-        {
-            await personRepository.InsertAsync(person, connection, transaction);
-            count++;
-            progressCallback?.Invoke(count, personList.Count);
-        }
+        // Use COPY for PostgreSQL (single round-trip), fallback for other DBs
+        var count = await PostgresBulkInsertHelper.BulkInsertPersonsAsync(personList, connection, transaction);
+
+        progressCallback?.Invoke(count, personList.Count);
 
         // Validate and fix any orphaned manager references
         await ValidatePersonManagersAsync(connection, transaction);

@@ -4,10 +4,11 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:ui="http://schemas.modernwpf.com/2019"
+        xmlns:controls="clr-namespace:HelloID.Vault.Management.Controls"
         mc:Ignorable="d"
         ui:WindowHelper.UseModernWindowStyle="True"
          Title="{Binding WindowTitle}"
-         SizeToContent="Height" Width="540"
+         SizeToContent="Height" Width="750"
          WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
 
@@ -58,7 +59,7 @@
 
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="140"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
@@ -98,8 +99,10 @@
                             <ComboBoxItem Content="X"/>
                         </ComboBox>
 
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Manager Person ID" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
-                        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding PrimaryManagerPersonId, UpdateSourceTrigger=PropertyChanged}" FontSize="12" Margin="0,0,0,6"/>
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Manager" FontSize="12" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <controls:ManagerSearchControl Grid.Row="5" Grid.Column="1"
+                            DataContext="{Binding ManagerSearch}"
+                            Margin="0,0,0,6"/>
                     </Grid>
 
                     <!-- Personal Details Section -->
@@ -110,7 +113,7 @@
 
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="140"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
@@ -148,7 +151,7 @@
 
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="140"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
@@ -214,7 +217,7 @@
                         <DataTemplate>
                             <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="170"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 

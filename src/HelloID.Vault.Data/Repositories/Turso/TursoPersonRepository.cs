@@ -1,7 +1,7 @@
 using System.Data;
 using System.Diagnostics;
-using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.DTOs;
+using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.Filters;
 using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Data.Repositories.Interfaces;
@@ -297,6 +297,7 @@ public class TursoPersonRepository : IPersonRepository
     public async Task<int> UpdateAsync(Person person)
     {
         Debug.WriteLine($"[TursoPersonRepository] UpdateAsync: {person.PersonId}");
+        Debug.WriteLine($"[TursoPersonRepository]   PrimaryManagerPersonId: '{person.PrimaryManagerPersonId}'");
         var sql = @"
             UPDATE persons SET
                 display_name = ?,
@@ -325,8 +326,10 @@ public class TursoPersonRepository : IPersonRepository
                 primary_manager_updated_at = ?
             WHERE person_id = ?";
 
-        // Use anonymous object with only the parameters needed, in correct order
-        return await _client.ExecuteAsync(sql, new
+        // Disable FK constraints during update (primary_manager_person_id is a self-referencing FK)
+        await _client.ExecuteAsync("PRAGMA foreign_keys = OFF");
+
+        var rowsAffected = await _client.ExecuteAsync(sql, new
         {
             person.DisplayName,
             person.UserName,
@@ -354,6 +357,10 @@ public class TursoPersonRepository : IPersonRepository
             person.PrimaryManagerUpdatedAt,
             person.PersonId
         });
+
+        await _client.ExecuteAsync("PRAGMA foreign_keys = ON");
+
+        return rowsAffected;
     }
 
     public async Task<int> DeleteAsync(string personId)
@@ -423,6 +430,48 @@ public class TursoPersonRepository : IPersonRepository
             return null;
 
         return await GetPersonDetailAsync(person.PersonId);
+    }
+
+    public async Task<IEnumerable<PersonSearchResultDto>> SearchAsync(string query, int limit = 20)
+    {
+        Debug.WriteLine($"[TursoPersonRepository] SearchAsync: query='{query}', limit={limit}");
+
+        var sql = @"
+            SELECT
+                person_id AS PersonId,
+                display_name AS DisplayName,
+                external_id AS ExternalId,
+                user_name AS UserName
+            FROM persons
+            WHERE person_id LIKE ?
+                OR external_id LIKE ?
+                OR display_name LIKE ?
+                OR given_name LIKE ?
+                OR family_name LIKE ?
+                OR family_name_prefix LIKE ?
+                OR nick_name LIKE ?
+                OR family_name_partner LIKE ?
+                OR user_name LIKE ?
+            ORDER BY display_name
+            LIMIT ?";
+
+        var searchTerm = $"%{query}%";
+        var parameters = new Dictionary<string, object?>
+        {
+            ["Search1"] = searchTerm,
+            ["Search2"] = searchTerm,
+            ["Search3"] = searchTerm,
+            ["Search4"] = searchTerm,
+            ["Search5"] = searchTerm,
+            ["Search6"] = searchTerm,
+            ["Search7"] = searchTerm,
+            ["Search8"] = searchTerm,
+            ["Search9"] = searchTerm,
+            ["Limit"] = limit
+        };
+
+        var result = await _client.QueryAsync<PersonSearchResultDto>(sql, parameters);
+        return result.Rows;
     }
 }
 

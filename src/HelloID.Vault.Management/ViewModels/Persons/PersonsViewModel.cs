@@ -538,7 +538,7 @@ public partial class PersonsViewModel : ObservableObject
     [RelayCommand]
     private async Task AddPersonAsync()
     {
-        var editViewModel = new ViewModels.Persons.PersonEditViewModel(_personService, _customFieldRepository, _sourceSystemRepository);
+        var editViewModel = new ViewModels.Persons.PersonEditViewModel(_personService, _customFieldRepository, _sourceSystemRepository, _serviceProvider.GetRequiredService<IReferenceDataService>());
         await editViewModel.InitializeAsync();
 
         var editWindow = new PersonEditWindow();
@@ -579,6 +579,8 @@ public partial class PersonsViewModel : ObservableObject
                 {
                     await DetailViewModel.LoadAsync();
                 }
+
+                await LoadPersonsAsync();
             }
         }
         catch (Exception ex)

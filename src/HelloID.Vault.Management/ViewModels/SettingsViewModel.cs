@@ -416,8 +416,8 @@ public partial class SettingsViewModel : ObservableObject
             }
             else
             {
-                StatusMessage = "✗ Connection failed. Please check your credentials.";
-                Debug.WriteLine("[SettingsViewModel] Turso connection test failed");
+                StatusMessage = "✗ Connection test returned no results. Please check your database URL.";
+                Debug.WriteLine("[SettingsViewModel] Turso connection test returned false (no rows)");
             }
         }
         catch (TursoAuthException authEx)
@@ -614,10 +614,10 @@ public partial class SettingsViewModel : ObservableObject
                 }
 
                 // Test connection before saving
-                var testResult = await TestTursoConnectionInternalAsync();
-                if (!testResult)
+                var connectionError = await TestTursoConnectionInternalAsync();
+                if (connectionError != null)
                 {
-                    StatusMessage = "✗ Error: Cannot save. Connection test failed. Please verify your credentials.";
+                    StatusMessage = $"✗ Error: Cannot save. {connectionError}";
                     IsLoading = false;
                     return;
                 }
@@ -737,18 +737,52 @@ public partial class SettingsViewModel : ObservableObject
 
     /// <summary>
     /// Internal connection test for Turso without UI updates.
+    /// Returns the error message if the test fails, or null on success.
+    /// Includes retry logic to handle token propagation delays.
     /// </summary>
-    private async Task<bool> TestTursoConnectionInternalAsync()
+    private async Task<string?> TestTursoConnectionInternalAsync()
     {
-        try
+        const int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            using var client = new TursoClient(TursoDatabaseUrl, TursoAuthToken);
-            return await client.TestConnectionAsync();
+            try
+            {
+                using var client = new TursoClient(TursoDatabaseUrl, TursoAuthToken);
+                var success = await client.TestConnectionAsync();
+                if (success)
+                {
+                    return null;
+                }
+
+                if (attempt < maxRetries)
+                {
+                    Debug.WriteLine($"[Settings] Turso connection test attempt {attempt}/{maxRetries} failed, retrying in 2s...");
+                    await Task.Delay(2000);
+                }
+            }
+            catch (TursoAuthException authEx)
+            {
+                var msg = authEx.IsTokenExpired ? "Auth token has expired" : $"Auth failed: {authEx.Message}";
+                Debug.WriteLine($"[Settings] Turso connection test auth error on attempt {attempt}: {msg}");
+                if (attempt == maxRetries) return msg;
+                await Task.Delay(2000);
+            }
+            catch (TursoNetworkException netEx)
+            {
+                var msg = netEx.IsOffline ? "No internet connection" : $"Network error: {netEx.Message}";
+                Debug.WriteLine($"[Settings] Turso connection test network error on attempt {attempt}: {msg}");
+                if (attempt == maxRetries) return msg;
+                await Task.Delay(2000);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Settings] Turso connection test error on attempt {attempt}: {ex.GetType().Name} - {ex.Message}");
+                if (attempt == maxRetries) return ex.Message;
+                await Task.Delay(2000);
+            }
         }
-        catch
-        {
-            return false;
-        }
+
+        return "Connection test failed after multiple attempts. Please verify your URL and token.";
     }
 
     /// <summary>
@@ -978,20 +1012,7 @@ public partial class SettingsViewModel : ObservableObject
             {
                 Debug.WriteLine($"[SettingsViewModel] Database '{databaseName}' already exists");
 
-                // Prompt user to reinitialize schema
-                var result = _dialogService.ShowConfirm(
-                    $"Database '{databaseName}' already exists.\n\n" +
-                    "Do you want to reinitialize the schema? This will replace all data in the database.",
-                    "Database Exists");
-
-                if (result != true)
-                {
-                    StatusMessage = "Operation cancelled. Database was not modified.";
-                    IsLoading = false;
-                    return;
-                }
-
-                // User confirmed - get URL and token for existing database
+                // Get URL and token for existing database
                 StatusMessage = "Getting database credentials...";
                 var existingUrl = await platformService.GetDatabaseUrlAsync(databaseName, organization);
                 var existingToken = await platformService.CreateDatabaseTokenAsync(databaseName, organization);
@@ -1003,12 +1024,121 @@ public partial class SettingsViewModel : ObservableObject
                     return;
                 }
 
-                // Update the URL and token fields
-                TursoDatabaseUrl = existingUrl;
-                TursoAuthToken = existingToken;
+                // Test the connection to see if the database is actually alive
+                StatusMessage = "Testing existing database connection...";
+                bool dbAlive = false;
+                try
+                {
+                    await Task.Delay(2000);
+                    using var testClient = new TursoClient(existingUrl, existingToken);
+                    dbAlive = await testClient.TestConnectionAsync();
+                }
+                catch (Exception testEx)
+                {
+                    Debug.WriteLine($"[SettingsViewModel] Existing database connection test failed: {testEx.Message}");
+                }
 
-                StatusMessage = "Database credentials updated. Schema will be initialized on next import.";
-                HasUnsavedChanges = true;
+                if (dbAlive)
+                {
+                    // Prompt user to reinitialize schema
+                    var result = _dialogService.ShowConfirm(
+                        $"Database '{databaseName}' already exists and is reachable.\n\n" +
+                        "Do you want to reinitialize the schema? This will replace all data in the database.",
+                        "Database Exists");
+
+                    if (result != true)
+                    {
+                        StatusMessage = "Operation cancelled. Database was not modified.";
+                        IsLoading = false;
+                        return;
+                    }
+
+                    TursoDatabaseUrl = existingUrl;
+                    TursoAuthToken = existingToken;
+                    StatusMessage = "Database credentials updated. Schema will be initialized on next import.";
+                    HasUnsavedChanges = true;
+                }
+                else
+                {
+                    // Database exists in the platform list but the actual DB is unreachable/dead
+                    // Offer to delete and recreate it
+                    var result = _dialogService.ShowConfirm(
+                        $"Database '{databaseName}' exists but is unreachable (the database namespace may have been deleted).\n\n" +
+                        "Do you want to delete and recreate it? This will create a fresh database.",
+                        "Database Unreachable");
+
+                    if (result != true)
+                    {
+                        StatusMessage = "Operation cancelled. Database was not modified.";
+                        IsLoading = false;
+                        return;
+                    }
+
+                    // Delete the dead database
+                    StatusMessage = "Deleting unreachable database...";
+                    try
+                    {
+                        await platformService.DeleteDatabaseAsync(databaseName, organization);
+                        Debug.WriteLine($"[SettingsViewModel] Deleted dead database '{databaseName}'");
+                        await Task.Delay(2000);
+                    }
+                    catch (Exception deleteEx)
+                    {
+                        Debug.WriteLine($"[SettingsViewModel] Failed to delete database: {deleteEx.Message}");
+                    }
+
+                    // Create a fresh database
+                    StatusMessage = $"Creating new database '{databaseName}'...";
+                    var dbResult = await platformService.CreateDatabaseAsync(databaseName, "default", organization);
+
+                    if (dbResult == null || string.IsNullOrEmpty(dbResult.Hostname))
+                    {
+                        StatusMessage = "Failed to create database.";
+                        IsLoading = false;
+                        return;
+                    }
+
+                    var newToken = await platformService.CreateDatabaseTokenAsync(databaseName, organization);
+
+                    if (string.IsNullOrEmpty(newToken))
+                    {
+                        StatusMessage = "Database created, but failed to create token.";
+                        IsLoading = false;
+                        return;
+                    }
+
+                    // Wait for database to be ready with retries
+                    bool connectionReady = false;
+                    for (int attempt = 1; attempt <= 5; attempt++)
+                    {
+                        StatusMessage = $"Waiting for database to be ready... (attempt {attempt}/5)";
+                        await Task.Delay(2000);
+
+                        try
+                        {
+                            using var client = new TursoClient(dbResult.Url, newToken);
+                            connectionReady = await client.TestConnectionAsync();
+                            if (connectionReady) break;
+                        }
+                        catch (Exception testEx)
+                        {
+                            Debug.WriteLine($"[SettingsViewModel] Connection test {attempt} failed: {testEx.Message}");
+                        }
+                    }
+
+                    TursoDatabaseUrl = dbResult.Url;
+                    TursoAuthToken = newToken;
+
+                    if (connectionReady)
+                    {
+                        StatusMessage = $"Database recreated and ready: {dbResult.Url}";
+                    }
+                    else
+                    {
+                        StatusMessage = "Database recreated but not yet ready. Please wait and try 'Test Connection'.";
+                    }
+                    HasUnsavedChanges = true;
+                }
             }
             else
             {

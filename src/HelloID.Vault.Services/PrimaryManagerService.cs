@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Dapper;
 using HelloID.Vault.Core.Models.DTOs;
 using HelloID.Vault.Core.Models.Entities;
@@ -16,16 +17,21 @@ public class PrimaryManagerService : IPrimaryManagerService
     private readonly IDatabaseConnectionFactory _connectionFactory;
     private readonly IPersonRepository _personRepository;
     private readonly IPrimaryContractConfigRepository _primaryContractConfigRepository;
+    private readonly ITursoClient? _tursoClient;
 
     public PrimaryManagerService(
         IDatabaseConnectionFactory connectionFactory,
         IPersonRepository personRepository,
-        IPrimaryContractConfigRepository primaryContractConfigRepository)
+        IPrimaryContractConfigRepository primaryContractConfigRepository,
+        ITursoClient? tursoClient = null)
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _personRepository = personRepository ?? throw new ArgumentNullException(nameof(personRepository));
         _primaryContractConfigRepository = primaryContractConfigRepository ?? throw new ArgumentNullException(nameof(primaryContractConfigRepository));
+        _tursoClient = tursoClient;
     }
+
+    private bool IsTurso => _connectionFactory.DatabaseType == DatabaseType.Turso && _tursoClient != null;
 
     public async Task<string?> CalculatePrimaryManagerAsync(string personId, PrimaryManagerLogic logic)
     {
@@ -64,8 +70,6 @@ public class PrimaryManagerService : IPrimaryManagerService
         var source = GetSourceFromLogic(logic);
         var updatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-        using var connection = _connectionFactory.CreateConnection();
-
         var sql = @"
             UPDATE persons
             SET primary_manager_person_id = @PrimaryManagerPersonId,
@@ -73,13 +77,29 @@ public class PrimaryManagerService : IPrimaryManagerService
                 primary_manager_updated_at = @PrimaryManagerUpdatedAt
             WHERE person_id = @PersonId";
 
-        await connection.ExecuteAsync(sql, new
+        var parameters = new Dictionary<string, object?>
         {
-            PersonId = personId,
-            PrimaryManagerPersonId = (object?)managerId ?? DBNull.Value,
-            PrimaryManagerSource = (object?)source ?? DBNull.Value,
-            PrimaryManagerUpdatedAt = updatedAt
-        }).ConfigureAwait(false);
+            ["PersonId"] = personId,
+            ["PrimaryManagerPersonId"] = managerId,
+            ["PrimaryManagerSource"] = source,
+            ["PrimaryManagerUpdatedAt"] = updatedAt
+        };
+
+        if (IsTurso)
+        {
+            await _tursoClient!.ExecuteAsync(sql, parameters);
+        }
+        else
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            await connection.ExecuteAsync(sql, new
+            {
+                PersonId = personId,
+                PrimaryManagerPersonId = (object?)managerId ?? DBNull.Value,
+                PrimaryManagerSource = (object?)source ?? DBNull.Value,
+                PrimaryManagerUpdatedAt = updatedAt
+            }).ConfigureAwait(false);
+        }
     }
 
     public async Task UpdatePrimaryManagerForDepartmentAsync(string departmentExternalId, string source, PrimaryManagerLogic logic)
@@ -89,8 +109,6 @@ public class PrimaryManagerService : IPrimaryManagerService
             throw new ArgumentException("Department external ID cannot be null or empty.", nameof(departmentExternalId));
         }
 
-        using var connection = _connectionFactory.CreateConnection();
-
         // Find all persons whose primary contract has this department
         var sql = @"
             SELECT DISTINCT p.person_id
@@ -99,11 +117,26 @@ public class PrimaryManagerService : IPrimaryManagerService
             WHERE c.department_external_id = @DepartmentId
             AND c.source = @Source";
 
-        var personIds = await connection.QueryAsync<string>(sql, new
+        List<string> personIds;
+
+        if (IsTurso)
         {
-            DepartmentId = departmentExternalId,
-            Source = source
-        }).ConfigureAwait(false);
+            var result = await _tursoClient!.QueryAsync<string>(sql, new
+            {
+                DepartmentId = departmentExternalId,
+                Source = source
+            });
+            personIds = result.Rows.ToList();
+        }
+        else
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            personIds = (await connection.QueryAsync<string>(sql, new
+            {
+                DepartmentId = departmentExternalId,
+                Source = source
+            }).ConfigureAwait(false)).ToList();
+        }
 
         // Update each person's primary manager
         foreach (var personId in personIds)
@@ -114,11 +147,20 @@ public class PrimaryManagerService : IPrimaryManagerService
 
     public async Task<int> RefreshAllPrimaryManagersAsync(PrimaryManagerLogic logic)
     {
-        using var connection = _connectionFactory.CreateConnection();
-
         // Get all person IDs
-        var personIds = await connection.QueryAsync<string>(
-            "SELECT person_id FROM persons").ConfigureAwait(false);
+        List<string> personIds;
+
+        if (IsTurso)
+        {
+            var result = await _tursoClient!.QueryAsync<string>("SELECT person_id FROM persons");
+            personIds = result.Rows.ToList();
+        }
+        else
+        {
+            using var connection = _connectionFactory.CreateConnection();
+            personIds = (await connection.QueryAsync<string>(
+                "SELECT person_id FROM persons").ConfigureAwait(false)).ToList();
+        }
 
         var updateCount = 0;
 
@@ -133,31 +175,50 @@ public class PrimaryManagerService : IPrimaryManagerService
 
     public async Task<Core.Models.DTOs.PrimaryManagerStatisticsDto> GetStatisticsAsync()
     {
+        if (IsTurso)
+        {
+            var totalPersons = await _tursoClient!.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM persons");
+            var personsWithManager = await _tursoClient.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM persons WHERE primary_manager_person_id IS NOT NULL");
+            var contractBasedCount = await _tursoClient.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'contract'");
+            var departmentBasedCount = await _tursoClient.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'department'");
+            var fromJsonCount = await _tursoClient.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'import'");
+
+            return new Core.Models.DTOs.PrimaryManagerStatisticsDto
+            {
+                TotalPersons = totalPersons,
+                PersonsWithManager = personsWithManager,
+                PersonsWithoutManager = totalPersons - personsWithManager,
+                ContractBasedCount = contractBasedCount,
+                DepartmentBasedCount = departmentBasedCount,
+                FromJsonCount = fromJsonCount
+            };
+        }
+
         using var connection = _connectionFactory.CreateConnection();
 
-        var totalPersons = await connection.QuerySingleOrDefaultAsync<int>(
+        var totalPersons2 = await connection.QuerySingleOrDefaultAsync<int>(
             "SELECT COUNT(*) FROM persons").ConfigureAwait(false);
 
-        var personsWithManager = await connection.QuerySingleOrDefaultAsync<int>(
+        var personsWithManager2 = await connection.QuerySingleOrDefaultAsync<int>(
             "SELECT COUNT(*) FROM persons WHERE primary_manager_person_id IS NOT NULL").ConfigureAwait(false);
 
-        var contractBasedCount = await connection.QuerySingleOrDefaultAsync<int>(
+        var contractBasedCount2 = await connection.QuerySingleOrDefaultAsync<int>(
             "SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'contract'").ConfigureAwait(false);
 
-        var departmentBasedCount = await connection.QuerySingleOrDefaultAsync<int>(
+        var departmentBasedCount2 = await connection.QuerySingleOrDefaultAsync<int>(
             "SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'department'").ConfigureAwait(false);
 
-        var fromJsonCount = await connection.QuerySingleOrDefaultAsync<int>(
+        var fromJsonCount2 = await connection.QuerySingleOrDefaultAsync<int>(
             "SELECT COUNT(*) FROM persons WHERE primary_manager_source = 'import'").ConfigureAwait(false);
 
         return new Core.Models.DTOs.PrimaryManagerStatisticsDto
         {
-            TotalPersons = totalPersons,
-            PersonsWithManager = personsWithManager,
-            PersonsWithoutManager = totalPersons - personsWithManager,
-            ContractBasedCount = contractBasedCount,
-            DepartmentBasedCount = departmentBasedCount,
-            FromJsonCount = fromJsonCount
+            TotalPersons = totalPersons2,
+            PersonsWithManager = personsWithManager2,
+            PersonsWithoutManager = totalPersons2 - personsWithManager2,
+            ContractBasedCount = contractBasedCount2,
+            DepartmentBasedCount = departmentBasedCount2,
+            FromJsonCount = fromJsonCount2
         };
     }
 
@@ -166,13 +227,7 @@ public class PrimaryManagerService : IPrimaryManagerService
     /// </summary>
     private async Task<List<ContractDto>> GetContractsWithPrimaryAsync(string personId)
     {
-        using var connection = _connectionFactory.CreateConnection();
-
-        var isPostgres = _connectionFactory.DatabaseType == DatabaseType.PostgreSql;
-        var currentDateSql = isPostgres ? "CURRENT_DATE" : "date('now')";
-        var dateCast = isPostgres ? "::date" : "";
-
-        var sql = $@"
+        var sql = @"
             SELECT
                 contract_id AS ContractId,
                 external_id AS ExternalId,
@@ -188,8 +243,8 @@ public class PrimaryManagerService : IPrimaryManagerService
                 department_manager_person_id AS DepartmentManagerPersonId,
                 CASE
                     WHEN start_date IS NULL THEN 'No Dates'
-                    WHEN start_date{dateCast} > {currentDateSql} THEN 'Future'
-                    WHEN end_date{dateCast} IS NOT NULL AND end_date{dateCast} < {currentDateSql} THEN 'Past'
+                    WHEN start_date > date('now') THEN 'Future'
+                    WHEN end_date IS NOT NULL AND end_date < date('now') THEN 'Past'
                     ELSE 'Active'
                 END AS ContractStatus
             FROM contract_details_view
@@ -197,15 +252,62 @@ public class PrimaryManagerService : IPrimaryManagerService
             ORDER BY
                 CASE
                     WHEN start_date IS NULL THEN 1
-                    WHEN start_date{dateCast} > {currentDateSql} THEN 2
-                    WHEN end_date{dateCast} IS NOT NULL AND end_date{dateCast} < {currentDateSql} THEN 3
+                    WHEN start_date > date('now') THEN 2
+                    WHEN end_date IS NOT NULL AND end_date < date('now') THEN 3
                     ELSE 0
                 END,
                 sequence DESC,
                 start_date ASC";
 
-        var contracts = await connection.QueryAsync<ContractDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
-        var contractsList = contracts.ToList();
+        List<ContractDto> contractsList;
+
+        if (IsTurso)
+        {
+            var result = await _tursoClient!.QueryAsync<ContractDto>(sql, new { PersonId = personId });
+            contractsList = result.Rows.ToList();
+        }
+        else
+        {
+            var isPostgres = _connectionFactory.DatabaseType == DatabaseType.PostgreSql;
+            var currentDateSql = isPostgres ? "CURRENT_DATE" : "date('now')";
+            var dateCast = isPostgres ? "::date" : "";
+
+            var pgSql = $@"
+                SELECT
+                    contract_id AS ContractId,
+                    external_id AS ExternalId,
+                    person_id AS PersonId,
+                    start_date AS StartDate,
+                    end_date AS EndDate,
+                    fte AS Fte,
+                    hours_per_week AS HoursPerWeek,
+                    sequence AS Sequence,
+                    manager_person_external_id AS ManagerPersonExternalId,
+                    department_external_id AS DepartmentExternalId,
+                    source AS Source,
+                    department_manager_person_id AS DepartmentManagerPersonId,
+                    CASE
+                        WHEN start_date IS NULL THEN 'No Dates'
+                        WHEN start_date{dateCast} > {currentDateSql} THEN 'Future'
+                        WHEN end_date{dateCast} IS NOT NULL AND end_date{dateCast} < {currentDateSql} THEN 'Past'
+                        ELSE 'Active'
+                    END AS ContractStatus
+                FROM contract_details_view
+                WHERE person_id = @PersonId
+                ORDER BY
+                    CASE
+                        WHEN start_date IS NULL THEN 1
+                        WHEN start_date{dateCast} > {currentDateSql} THEN 2
+                        WHEN end_date{dateCast} IS NOT NULL AND end_date{dateCast} < {currentDateSql} THEN 3
+                        ELSE 0
+                    END,
+                    sequence DESC,
+                    start_date ASC";
+
+            using var connection = _connectionFactory.CreateConnection();
+            var contracts = await connection.QueryAsync<ContractDto>(pgSql, new { PersonId = personId }).ConfigureAwait(false);
+            contractsList = contracts.ToList();
+        }
 
         if (!contractsList.Any())
             return contractsList;
@@ -293,7 +395,7 @@ public class PrimaryManagerService : IPrimaryManagerService
     }
 
     /// <summary>
-    /// Contract-Based Logic: Priority = contract manager → null
+    /// Contract-Based Logic: Priority = contract manager -> null
     /// </summary>
     private string? CalculateContractBased(ContractDto primaryContract)
     {
@@ -308,7 +410,7 @@ public class PrimaryManagerService : IPrimaryManagerService
     }
 
     /// <summary>
-    /// Department-Based Logic: Priority = department manager → null
+    /// Department-Based Logic: Priority = department manager -> null
     /// Note: Parent department manager support can be added later if needed.
     /// </summary>
     private string? CalculateDepartmentBased(ContractDto primaryContract)

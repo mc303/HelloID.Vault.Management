@@ -26,7 +26,6 @@ public partial class ContractEditViewModel : ObservableValidator
     [StringLength(50, ErrorMessage = "Source cannot exceed 50 characters.")]
     private string? _contractSource;
 
-    // Expose Contract.Source for binding with validation
     public string? ContractSource
     {
         get => _contractSource ?? Contract?.Source;
@@ -74,19 +73,12 @@ public partial class ContractEditViewModel : ObservableValidator
     public ObservableCollection<CostCenter> CostCenters { get; } = new();
 
     public ObservableCollection<CostBearer> CostBearers { get; } = new();
-    public ObservableCollection<Person> Managers { get; } = new();
     public ObservableCollection<SourceSystemDto> SourceSystems { get; } = new();
 
     [ObservableProperty]
     private SourceSystemDto? _selectedSourceSystem;
 
-    [ObservableProperty]
-    private Person? _selectedManager;
-
-    partial void OnSelectedManagerChanged(Person? value)
-    {
-        Contract.ManagerPersonExternalId = value?.PersonId;
-    }
+    public ManagerSearchViewModel ManagerSearch { get; }
 
     [ObservableProperty]
     private Location? _selectedLocation;
@@ -216,7 +208,6 @@ public partial class ContractEditViewModel : ObservableValidator
     {
     }
 
-    // Main constructor
     public ContractEditViewModel(
         IContractService contractService,
         IReferenceDataService referenceDataService,
@@ -230,6 +221,8 @@ public partial class ContractEditViewModel : ObservableValidator
         _customFieldRepository = customFieldRepository ?? throw new ArgumentNullException(nameof(customFieldRepository));
         _sourceSystemRepository = sourceSystemRepository ?? throw new ArgumentNullException(nameof(sourceSystemRepository));
         _personId = personId ?? throw new ArgumentNullException(nameof(personId));
+
+        ManagerSearch = new ManagerSearchViewModel(_referenceDataService);
 
         if (existingContract != null)
         {
@@ -267,6 +260,7 @@ public partial class ContractEditViewModel : ObservableValidator
             Contract = new Contract
             {
                 PersonId = _personId,
+                ExternalId = $"{_personId}~{Guid.NewGuid()}",
                 StartDate = DateTime.Today.ToString("yyyy-MM-dd")
             };
             IsEditing = false;
@@ -292,7 +286,6 @@ public partial class ContractEditViewModel : ObservableValidator
                 LoadLookup(Employers, _referenceDataService.GetEmployersAsync),
                 LoadLookup(CostCenters, _referenceDataService.GetCostCentersAsync),
                 LoadLookup(CostBearers, _referenceDataService.GetCostBearersAsync),
-                LoadLookup(Managers, _referenceDataService.GetPersonsAsync),
                 LoadSourceSystemsAsync()
             );
 
@@ -313,7 +306,7 @@ public partial class ContractEditViewModel : ObservableValidator
             // Set selected manager after loading
             if (!string.IsNullOrWhiteSpace(Contract.ManagerPersonExternalId))
             {
-                SelectedManager = Managers.FirstOrDefault(m => m.PersonId == Contract.ManagerPersonExternalId);
+                await ManagerSearch.ResolveManagerNameAsync(Contract.ManagerPersonExternalId);
             }
 
             // Set selected source system after loading
@@ -403,6 +396,9 @@ public partial class ContractEditViewModel : ObservableValidator
 
             // Ensure all source fields are populated before save
             PopulateSourceFields();
+
+            // Set manager from search selection
+            Contract.ManagerPersonExternalId = ManagerSearch.SelectedPerson?.PersonId;
 
             await _contractService.SaveAsync(Contract);
 

@@ -1,6 +1,6 @@
 using Dapper;
-using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.DTOs;
+using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.Filters;
 using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Data.Repositories.Interfaces;
@@ -327,7 +327,7 @@ public class PersonRepository : IPersonRepository
 
     public async Task<int> UpdateAsync(Person person)
     {
-        using var connection = _connectionFactory.CreateConnection();
+        using var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false);
 
         var sql = @"
             UPDATE persons SET
@@ -467,5 +467,32 @@ public class PersonRepository : IPersonRepository
 
         // Now get the full PersonDetailDto with contracts
         return await GetPersonDetailAsync(person.PersonId);
+    }
+
+    public async Task<IEnumerable<PersonSearchResultDto>> SearchAsync(string query, int limit = 20)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var searchTerm = $"%{query}%";
+        var sql = @"
+            SELECT
+                person_id AS PersonId,
+                display_name AS DisplayName,
+                external_id AS ExternalId,
+                user_name AS UserName
+            FROM persons
+            WHERE person_id LIKE @SearchTerm
+                OR external_id LIKE @SearchTerm
+                OR display_name LIKE @SearchTerm
+                OR given_name LIKE @SearchTerm
+                OR family_name LIKE @SearchTerm
+                OR family_name_prefix LIKE @SearchTerm
+                OR nick_name LIKE @SearchTerm
+                OR family_name_partner LIKE @SearchTerm
+                OR user_name LIKE @SearchTerm
+            ORDER BY display_name
+            LIMIT @Limit";
+
+        return await connection.QueryAsync<PersonSearchResultDto>(sql, new { SearchTerm = searchTerm, Limit = limit }).ConfigureAwait(false);
     }
 }

@@ -43,6 +43,24 @@ public interface IVaultImportService
     /// <param name="progress">Progress reporter for tracking import status.</param>
     /// <returns>Import statistics for company data only.</returns>
     Task<ImportResult> ImportCompanyOnlyAsync(string filePath, PrimaryManagerLogic primaryManagerLogic, bool createBackup = false, IProgress<ImportProgress>? progress = null);
+
+    /// <summary>
+    /// Imports a vault.json file into the database, but only for the selected persons.
+    /// Company/reference data is imported fully. Only persons and their contracts are filtered.
+    /// </summary>
+    /// <param name="filePath">Path to the vault.json file.</param>
+    /// <param name="selectedPersonIds">Set of PersonId values to import. If null or empty, imports all.</param>
+    /// <param name="primaryManagerLogic">Logic for determining Primary Manager.</param>
+    /// <param name="createBackup">Whether to backup the existing database before import.</param>
+    /// <param name="progress">Progress reporter for tracking import status.</param>
+    /// <returns>Import statistics.</returns>
+    Task<ImportResult> ImportWithPersonSelectionAsync(string filePath, HashSet<string> selectedPersonIds, PrimaryManagerLogic primaryManagerLogic, bool createBackup = false, IProgress<ImportProgress>? progress = null);
+
+    /// <summary>
+    /// Clears manager references that point to persons that don't exist in the database.
+    /// Should be called after ImportWithPersonSelectionAsync when not all persons are imported.
+    /// </summary>
+    Task ClearMissingManagerReferencesAsync(IProgress<ImportProgress>? progress = null);
 }
 
 /// <summary>

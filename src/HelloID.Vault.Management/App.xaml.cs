@@ -22,6 +22,7 @@ using HelloID.Vault.Management.ViewModels.Import;
 using HelloID.Vault.Management.ViewModels.ReferenceData;
 using HelloID.Vault.Management.Services;
 using HelloID.Vault.Services;
+using HelloID.Vault.Services.Anonymization;
 using HelloID.Vault.Services.Database;
 using HelloID.Vault.Services.Interfaces;
 using HelloID.Vault.Services.Security;
@@ -325,6 +326,7 @@ public partial class App : Application
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IColumnLayoutManager, ColumnLayoutManager>();
         services.AddSingleton<IDatabaseManager, DatabaseManager>();
+        services.AddSingleton<IVaultAnonymizerService, VaultAnonymizerService>();
 
         // ViewModels
         services.AddSingleton<MainWindowViewModel>();

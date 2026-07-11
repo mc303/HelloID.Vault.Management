@@ -24,22 +24,23 @@ public partial class ContractViewViewModel : ObservableObject
     {
         var contractJson = new
         {
-            Context = contract.Context,
-            ExternalId = contract.ExternalId,
-            StartDate = contract.StartDate, // Keep as yyyy-MM-dd
-            EndDate = contract.EndDate,     // Keep as yyyy-MM-dd
-            Type = contract.Type,
-            Details = contract.Details,
-            Location = contract.Location,
-            CostCenter = contract.CostCenter,
-            CostBearer = contract.CostBearer,
-            Employer = contract.Employer,
-            Manager = contract.Manager,
-            Team = contract.Team,
-            Department = contract.Department,
-            Division = contract.Division,
-            Title = contract.Title,
-            Organization = contract.Organization
+            context = contract.Context,
+            externalId = contract.ExternalId,
+            startDate = contract.StartDate,
+            endDate = contract.EndDate,
+            type = contract.Type,
+            details = contract.Details,
+            location = contract.Location,
+            costCenter = contract.CostCenter,
+            costBearer = contract.CostBearer,
+            employer = contract.Employer,
+            manager = contract.Manager,
+            team = contract.Team,
+            department = contract.Department,
+            division = contract.Division,
+            title = contract.Title,
+            organization = contract.Organization,
+            custom = contract.Custom
         };
 
         var options = new JsonSerializerOptions

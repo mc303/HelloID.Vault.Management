@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -34,7 +35,7 @@ public class TursoClient : ITursoClient, IDisposable
         if (string.IsNullOrWhiteSpace(authToken))
             throw new ArgumentException("Auth token cannot be null or empty.", nameof(authToken));
 
-        _databaseUrl = databaseUrl;
+        _databaseUrl = NormalizeDatabaseUrl(databaseUrl);
         _authToken = authToken;
 
         _httpClient = new HttpClient
@@ -49,7 +50,7 @@ public class TursoClient : ITursoClient, IDisposable
         };
 
         UpdateHttpClientHeaders();
-        Debug.WriteLine("[TursoClient] Initialized with database URL");
+        Debug.WriteLine($"[TursoClient] Initialized with database URL: {_databaseUrl}");
     }
 
     private void UpdateHttpClientHeaders()
@@ -65,10 +66,10 @@ public class TursoClient : ITursoClient, IDisposable
         if (string.IsNullOrWhiteSpace(authToken))
             throw new ArgumentException("Auth token cannot be null or empty.", nameof(authToken));
 
-        _databaseUrl = databaseUrl;
+        _databaseUrl = NormalizeDatabaseUrl(databaseUrl);
         _authToken = authToken;
         UpdateHttpClientHeaders();
-        Debug.WriteLine("[TursoClient] Credentials updated");
+        Debug.WriteLine($"[TursoClient] Credentials updated, URL: {_databaseUrl}");
     }
 
     public async Task<TursoQueryResult<T>> QueryAsync<T>(string sql, object? parameters = null, CancellationToken cancellationToken = default)
@@ -169,7 +170,7 @@ public class TursoClient : ITursoClient, IDisposable
         {
             Debug.WriteLine($"[TursoClient] TestConnectionAsync failed: {ex.GetType().Name} - {ex.Message}");
             SetConnectionStatus(false);
-            return false;
+            throw;
         }
     }
 
@@ -365,7 +366,9 @@ public class TursoClient : ITursoClient, IDisposable
         {
             foreach (var kvp in dict)
             {
-                args.Add(ConvertToTursoValue(kvp.Value));
+                var tursoValue = ConvertToTursoValue(kvp.Value);
+                Debug.WriteLine($"[TursoClient] Param: {kvp.Key} = \"{kvp.Value}\" (type={kvp.Value?.GetType().Name ?? "null"}, turso={tursoValue.Type})");
+                args.Add(tursoValue);
             }
         }
         else
@@ -375,7 +378,9 @@ public class TursoClient : ITursoClient, IDisposable
             foreach (var prop in properties)
             {
                 var value = prop.GetValue(parameters);
-                args.Add(ConvertToTursoValue(value));
+                var tursoValue = ConvertToTursoValue(value);
+                Debug.WriteLine($"[TursoClient] Param: {prop.Name} = \"{value}\" (type={value?.GetType().Name ?? "null"}, turso={tursoValue.Type})");
+                args.Add(tursoValue);
             }
         }
 
@@ -385,6 +390,9 @@ public class TursoClient : ITursoClient, IDisposable
     private static TursoValue ConvertToTursoValue(object? value)
     {
         if (value == null || value == DBNull.Value)
+            return TursoValue.Null();
+
+        if (value is string str && string.IsNullOrWhiteSpace(str))
             return TursoValue.Null();
 
         return value switch
@@ -399,6 +407,7 @@ public class TursoClient : ITursoClient, IDisposable
             DateTime dt => TursoValue.Text(dt.ToString("O")),
             DateTimeOffset dto => TursoValue.Text(dto.ToString("O")),
             Guid g => TursoValue.Text(g.ToString()),
+            string s => TursoValue.Text(s),
             _ => TursoValue.Text(value.ToString() ?? string.Empty)
         };
     }
@@ -502,7 +511,8 @@ public class TursoClient : ITursoClient, IDisposable
         {
             var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
             Debug.WriteLine($"[TursoClient] Error response: {response.StatusCode} - {errorContent}");
-            throw new TursoConnectionException($"Request failed with status {response.StatusCode}", (int)response.StatusCode);
+            Debug.WriteLine($"[TursoClient] Request URL was: {url}");
+            throw new TursoConnectionException($"Request failed with status {response.StatusCode}. Response: {errorContent}. URL: {url}", (int)response.StatusCode);
         }
 
         var pipelineResponse = await response.Content.ReadFromJsonAsync<TursoPipelineResponse>(_jsonOptions, cancellationToken);
@@ -770,6 +780,25 @@ public class TursoClient : ITursoClient, IDisposable
 
         var parts = snakeCase.Split('_');
         return string.Concat(parts.Select(p => char.ToUpper(p[0]) + p[1..].ToLower()));
+    }
+
+    private static string NormalizeDatabaseUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return url;
+
+        url = url.Trim();
+
+        if (url.StartsWith("libsql://", StringComparison.OrdinalIgnoreCase))
+            return "https://" + url[9..];
+
+        if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return url;
+
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            return "https://" + url[7..];
+
+        return "https://" + url;
     }
 
     private static string ConvertLibSqlToHttps(string url)

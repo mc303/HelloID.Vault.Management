@@ -279,7 +279,7 @@ public class TursoValueConverter : JsonConverter<TursoValue>
         }
         else if (value.Type == TursoValueType.Float && value.Value is double d)
         {
-            writer.WriteString("value", d.ToString(CultureInfo.InvariantCulture));
+            writer.WriteNumber("value", d);
         }
         else if (value.Type == TursoValueType.Text && value.Value is string s)
         {

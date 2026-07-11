@@ -2,6 +2,7 @@ using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Data.Repositories.Interfaces;
 using HelloID.Vault.Services.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
+using PersonSearchResultDto = HelloID.Vault.Core.Models.DTOs.PersonSearchResultDto;
 
 namespace HelloID.Vault.Services;
 
@@ -310,6 +311,11 @@ public class ReferenceDataService : IReferenceDataService
             entry.SetOptions(_cacheOptions);
             return await _personRepository.GetAllAsync();
         });
+    }
+
+    public async Task<IEnumerable<PersonSearchResultDto>> SearchPersonsAsync(string query, int limit = 20)
+    {
+        return await _personRepository.SearchAsync(query, limit);
     }
 
     /// <summary>
