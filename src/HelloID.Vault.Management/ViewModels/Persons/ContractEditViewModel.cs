@@ -397,6 +397,10 @@ public partial class ContractEditViewModel : ObservableValidator
             // Ensure all source fields are populated before save
             PopulateSourceFields();
 
+            // Convert empty strings to null for date fields
+            Contract.StartDate = string.IsNullOrWhiteSpace(Contract.StartDate) ? null : Contract.StartDate;
+            Contract.EndDate = string.IsNullOrWhiteSpace(Contract.EndDate) ? null : Contract.EndDate;
+
             // Set manager from search selection
             Contract.ManagerPersonExternalId = ManagerSearch.SelectedPerson?.PersonId;
 

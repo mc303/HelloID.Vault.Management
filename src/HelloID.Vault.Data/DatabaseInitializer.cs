@@ -130,7 +130,35 @@ public class DatabaseInitializer
         // Verify schema version
         await VerifySchemaAsync();
 
+        // Clean up empty string date values that cause PostgreSQL date cast errors
+        await CleanupEmptyDateValuesAsync();
+
         System.Diagnostics.Debug.WriteLine("PostgreSQL database initialized.");
+    }
+
+    /// <summary>
+    /// Converts empty string date values to NULL in all date columns.
+    /// Empty strings in date columns cause "invalid input syntax for type date" errors
+    /// when views cast TEXT columns to DATE.
+    /// </summary>
+    private async Task CleanupEmptyDateValuesAsync()
+    {
+        try
+        {
+            using var connection = _connectionFactory.CreateConnection();
+
+            var cleanupSql = @"
+                UPDATE persons SET birth_date = NULL WHERE birth_date = '';
+                UPDATE contracts SET start_date = NULL WHERE start_date = '';
+                UPDATE contracts SET end_date = NULL WHERE end_date = '';";
+
+            await connection.ExecuteAsync(cleanupSql);
+            System.Diagnostics.Debug.WriteLine("[DatabaseInitializer] Cleaned up empty date values");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Date cleanup skipped: {ex.Message}");
+        }
     }
 
     private async Task InitializeTursoAsync()

@@ -405,9 +405,9 @@ WITH primary_contracts AS (
                 -- 1. Contract status priority (Active=1, Future=2, Past=3)
                 CASE
                     WHEN c.start_date IS NULL THEN 4
-                    WHEN c.start_date::date <= CURRENT_DATE AND (c.end_date::date > CURRENT_DATE OR c.end_date IS NULL) THEN 1
-                    WHEN c.start_date::date > CURRENT_DATE THEN 2
-                    WHEN c.end_date::date < CURRENT_DATE THEN 3
+                    WHEN NULLIF(c.start_date, '')::date <= CURRENT_DATE AND (NULLIF(c.end_date, '')::date > CURRENT_DATE OR c.end_date IS NULL) THEN 1
+                    WHEN NULLIF(c.start_date, '')::date > CURRENT_DATE THEN 2
+                    WHEN NULLIF(c.end_date, '')::date < CURRENT_DATE THEN 3
                     ELSE 4
                 END ASC,
                 -- 2. Highest FTE
@@ -417,9 +417,9 @@ WITH primary_contracts AS (
                 -- 4. Sequence descending
                 COALESCE(c.sequence, 0) DESC,
                 -- 5. End date descending (null treated as 2999-01-01)
-                COALESCE(c.end_date::date, '2999-01-01'::date) DESC,
+                COALESCE(NULLIF(c.end_date, '')::date, '2999-01-01'::date) DESC,
                 -- 6. Start date ascending
-                COALESCE(c.start_date::date, '9999-12-31'::date) ASC,
+                COALESCE(NULLIF(c.start_date, '')::date, '9999-12-31'::date) ASC,
                 -- 7. Contract ID ascending (tie-breaker)
                 c.contract_id ASC
         ) AS rn
@@ -528,8 +528,8 @@ SELECT
     CASE
         WHEN pc.contract_id IS NULL THEN 'No Contract'
         WHEN pc.start_date IS NULL THEN 'No Contract'
-        WHEN pc.start_date::date > CURRENT_DATE THEN 'Future'
-        WHEN pc.end_date IS NOT NULL AND pc.end_date::date < CURRENT_DATE THEN 'Past'
+        WHEN NULLIF(pc.start_date, '')::date > CURRENT_DATE THEN 'Future'
+        WHEN pc.end_date IS NOT NULL AND NULLIF(pc.end_date, '')::date < CURRENT_DATE THEN 'Past'
         ELSE 'Active'
     END AS person_status,
 
@@ -538,9 +538,9 @@ SELECT
         WHEN pc.start_date IS NOT NULL THEN
             CASE
                 WHEN pc.end_date IS NOT NULL THEN
-                    TO_CHAR(pc.start_date::date, 'YYYY-MM-DD') || ' until ' || TO_CHAR(pc.end_date::date, 'YYYY-MM-DD')
+                    TO_CHAR(NULLIF(pc.start_date, '')::date, 'YYYY-MM-DD') || ' until ' || TO_CHAR(NULLIF(pc.end_date, '')::date, 'YYYY-MM-DD')
                 ELSE
-                    TO_CHAR(pc.start_date::date, 'YYYY-MM-DD') || ' until ongoing'
+                    TO_CHAR(NULLIF(pc.start_date, '')::date, 'YYYY-MM-DD') || ' until ongoing'
             END
         ELSE NULL
     END AS primary_contract_date_range,
@@ -682,8 +682,8 @@ SELECT
     -- Contract status
     CASE
         WHEN c.start_date IS NULL THEN 'No Dates'
-        WHEN c.start_date::date > CURRENT_DATE THEN 'Future'
-        WHEN c.end_date IS NOT NULL AND c.end_date::date < CURRENT_DATE THEN 'Past'
+        WHEN NULLIF(c.start_date, '')::date > CURRENT_DATE THEN 'Future'
+        WHEN c.end_date IS NOT NULL AND NULLIF(c.end_date, '')::date < CURRENT_DATE THEN 'Past'
         ELSE 'Active'
     END AS contract_status,
 
@@ -692,9 +692,9 @@ SELECT
         WHEN c.start_date IS NOT NULL THEN
             CASE
                 WHEN c.end_date IS NOT NULL THEN
-                    TO_CHAR(c.start_date::date, 'YYYY-MM-DD') || ' until ' || TO_CHAR(c.end_date::date, 'YYYY-MM-DD')
+                    TO_CHAR(NULLIF(c.start_date, '')::date, 'YYYY-MM-DD') || ' until ' || TO_CHAR(NULLIF(c.end_date, '')::date, 'YYYY-MM-DD')
                 ELSE
-                    TO_CHAR(c.start_date::date, 'YYYY-MM-DD') || ' until ongoing'
+                    TO_CHAR(NULLIF(c.start_date, '')::date, 'YYYY-MM-DD') || ' until ongoing'
             END
         ELSE NULL
     END AS contract_date_range,
@@ -1385,15 +1385,15 @@ SELECT
         WHEN EXISTS (
             SELECT 1 FROM contracts c
             WHERE c.person_id = p.person_id
-            AND c.start_date::date <= CURRENT_DATE
-            AND (c.end_date::date > CURRENT_DATE OR c.end_date IS NULL)
+            AND NULLIF(c.start_date, '')::date <= CURRENT_DATE
+            AND (NULLIF(c.end_date, '')::date > CURRENT_DATE OR c.end_date IS NULL)
         ) THEN 'Active'
 
         -- Has future contract (and no active)
         WHEN EXISTS (
             SELECT 1 FROM contracts c
             WHERE c.person_id = p.person_id
-            AND c.start_date::date > CURRENT_DATE
+            AND NULLIF(c.start_date, '')::date > CURRENT_DATE
         ) THEN 'Future'
 
         -- All contracts are past
