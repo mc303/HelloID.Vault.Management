@@ -12,6 +12,9 @@ public class PersonAnonymizer
     private readonly ReferenceMappingTable _mappings;
     private readonly EmailDomainGenerator _domainGenerator;
     private readonly NamePool _namePool;
+    private int _externalIdCounter;
+    private Queue<int>? _randomExternalIdQueue;
+    private int _externalIdPadWidth;
 
     public PersonAnonymizer(
         MultiLocaleFaker multiLocaleFaker, 
@@ -48,8 +51,7 @@ public class PersonAnonymizer
         {
             if (!_mappings.PersonExternalIds.ContainsKey(person.ExternalId))
             {
-                _mappings.PersonExternalIds[person.ExternalId] =
-                    $"emp-{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+                _mappings.PersonExternalIds[person.ExternalId] = GenerateExternalId(options);
             }
             person.ExternalId = _mappings.PersonExternalIds[person.ExternalId];
         }
@@ -235,5 +237,57 @@ public class PersonAnonymizer
         var randomDay = _faker.Random.Int(1, DateTime.DaysInMonth(originalDate.Year, randomMonth));
 
         details.BirthDate = new DateTime(originalDate.Year, randomMonth, randomDay);
+    }
+
+    /// <summary>
+    /// Generates an anonymized External ID based on options.
+    /// Supports custom range (sequential or random) with optional padding.
+    /// </summary>
+    private string GenerateExternalId(AnonymizationOptions options)
+    {
+        if (!options.UseCustomExternalIdRange)
+        {
+            return $"emp-{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+        }
+
+        // Initialize on first use
+        if (_randomExternalIdQueue == null && options.UseRandomExternalIds)
+        {
+            var rng = new Random(options.Seed.GetHashCode());
+            var numbers = Enumerable.Range(options.ExternalIdMin, options.ExternalIdMax - options.ExternalIdMin + 1).ToList();
+            // Fisher-Yates shuffle
+            for (int i = numbers.Count - 1; i > 0; i--)
+            {
+                var j = rng.Next(i + 1);
+                (numbers[i], numbers[j]) = (numbers[j], numbers[i]);
+            }
+            _randomExternalIdQueue = new Queue<int>(numbers);
+        }
+
+        if (_externalIdPadWidth == 0)
+        {
+            _externalIdPadWidth = options.ExternalIdMax.ToString().Length;
+        }
+
+        int value;
+
+        if (options.UseRandomExternalIds && _randomExternalIdQueue!.Count > 0)
+        {
+            value = _randomExternalIdQueue.Dequeue();
+        }
+        else
+        {
+            // Sequential (or random queue exhausted, fall back to sequential with wrap)
+            value = _externalIdCounter;
+            _externalIdCounter++;
+            if (_externalIdCounter > options.ExternalIdMax)
+                _externalIdCounter = options.ExternalIdMin;
+            if (_externalIdCounter < options.ExternalIdMin)
+                _externalIdCounter = options.ExternalIdMin;
+        }
+
+        return options.PadExternalId
+            ? value.ToString($"D{_externalIdPadWidth}")
+            : value.ToString();
     }
 }

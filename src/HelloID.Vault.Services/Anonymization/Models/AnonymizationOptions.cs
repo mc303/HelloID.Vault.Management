@@ -24,6 +24,12 @@ public class AnonymizationOptions
     public bool AnonymizePersonExternalIds { get; set; } = true;
     public bool AnonymizeReferenceExternalIds { get; set; } = true;
 
+    public bool UseCustomExternalIdRange { get; set; } = false;
+    public int ExternalIdMin { get; set; } = 100000;
+    public int ExternalIdMax { get; set; } = 200000;
+    public bool PadExternalId { get; set; } = false;
+    public bool UseRandomExternalIds { get; set; } = false;
+
     public bool AnonymizeDepartments { get; set; } = true;
     public bool AnonymizeLocations { get; set; } = true;
     public bool AnonymizeEmployers { get; set; } = true;

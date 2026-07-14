@@ -90,6 +90,21 @@ public partial class ImportViewModel : ObservableObject
     [ObservableProperty]
     private string _seed = "default";
 
+    [ObservableProperty]
+    private bool _useCustomExternalIdRange;
+
+    [ObservableProperty]
+    private int _externalIdMin = 100000;
+
+    [ObservableProperty]
+    private int _externalIdMax = 200000;
+
+    [ObservableProperty]
+    private bool _useSequentialExternalIds = true;
+
+    [ObservableProperty]
+    private bool _padExternalId;
+
     public ImportViewModel(
         IVaultImportService importService,
         IUserPreferencesService userPreferencesService,
@@ -329,7 +344,12 @@ public partial class ImportViewModel : ObservableObject
             ForeignNamePercentage = 0, // Not needed - European pool includes all locales
             ForeignNameMix = ForeignNameMix.EasternEuropean | ForeignNameMix.WesternEuropean, // Not needed - European pool includes all
             MaxPersonsToImport = LimitDatasetSize ? MaxPersonsToImport : 0,
-            Seed = Seed
+            Seed = Seed,
+            UseCustomExternalIdRange = UseCustomExternalIdRange,
+            ExternalIdMin = ExternalIdMin,
+            ExternalIdMax = ExternalIdMax,
+            PadExternalId = PadExternalId,
+            UseRandomExternalIds = !UseSequentialExternalIds
         };
     }
 

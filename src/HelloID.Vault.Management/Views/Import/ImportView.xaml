@@ -196,11 +196,43 @@
                              <TextBox Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
                                      Width="100" ui:ControlHelper.PlaceholderText="optional"/>
                          </StackPanel>
-                         <TextBlock Text="ℹ Same seed = same subset every time. Managers auto-included (not counted toward limit)."
-                                   FontSize="11" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                          <TextBlock Text="ℹ Same seed = same subset every time. Managers auto-included (not counted toward limit)."
+                                    FontSize="11" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                    Margin="0,0,0,8"
+                                    Visibility="{Binding LimitDatasetSize, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    TextWrapping="Wrap"/>
+
+                         <Separator Margin="0,8,0,8"/>
+
+                         <CheckBox Content="Use custom External ID range"
+                                   IsChecked="{Binding UseCustomExternalIdRange}"
                                    Margin="0,0,0,8"
-                                   Visibility="{Binding LimitDatasetSize, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                   TextWrapping="Wrap"/>
+                                   ToolTip="Generate numeric External IDs instead of random GUIDs"/>
+
+                         <StackPanel Margin="0,0,0,8"
+                                    Visibility="{Binding UseCustomExternalIdRange, Converter={StaticResource BooleanToVisibilityConverter}}">
+                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                 <TextBlock Text="Mode:" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                 <RadioButton Content="Sequential" IsChecked="{Binding UseSequentialExternalIds}" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                                 <RadioButton Content="Random" VerticalAlignment="Center"/>
+                             </StackPanel>
+
+                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                 <TextBlock Text="Min:" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                 <TextBox Text="{Binding ExternalIdMin, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="120" TextAlignment="Right"
+                                         ui:TextBoxHelper.IsDeleteButtonVisible="False"/>
+                                 <TextBlock Text="Max:" VerticalAlignment="Center" Margin="16,0,12,0"/>
+                                 <TextBox Text="{Binding ExternalIdMax, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="120" TextAlignment="Right"
+                                         ui:TextBoxHelper.IsDeleteButtonVisible="False"/>
+                             </StackPanel>
+
+                             <CheckBox Content="Pad numbers to max digit count (e.g. 956 becomes 000956)"
+                                       IsChecked="{Binding PadExternalId}"
+                                       Margin="0,4,0,4"
+                                       ToolTip="Pads with leading zeros based on the max value's digit count"/>
+                         </StackPanel>
                      </StackPanel>
 
                     <!-- Info about what gets anonymized -->

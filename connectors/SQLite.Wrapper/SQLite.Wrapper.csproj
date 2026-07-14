@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <AssemblyName>SQLite.Wrapper</AssemblyName>
-    <RootNamespace>SQLite.Wrapper</RootNamespace>
+    <RootNamespace>HelloID.SQLite</RootNamespace>
     <OutputType>Library</OutputType>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 
-namespace PostgreSQL.Wrapper
+namespace HelloID.PostgreSQL
 {
     public static class Query
     {

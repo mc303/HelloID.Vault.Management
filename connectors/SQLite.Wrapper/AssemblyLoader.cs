@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace SQLite.Wrapper
+namespace HelloID.SQLite
 {
     internal static class AssemblyLoader
     {
