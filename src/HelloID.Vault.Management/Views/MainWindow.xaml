@@ -87,6 +87,12 @@
                 <DataTemplate DataType="{x:Type referenceDataVM:CustomFieldsViewModel}">
                     <referenceData:CustomFieldsView />
                 </DataTemplate>
+                <DataTemplate DataType="{x:Type referenceDataVM:PersonCustomFieldDataViewModel}">
+                    <referenceData:CustomFieldDataView />
+                </DataTemplate>
+                <DataTemplate DataType="{x:Type referenceDataVM:ContractCustomFieldDataViewModel}">
+                    <referenceData:CustomFieldDataView />
+                </DataTemplate>
                 <DataTemplate DataType="{x:Type referenceDataVM:PrimaryContractConfigViewModel}">
                     <referenceData:PrimaryContractConfigView />
                 </DataTemplate>

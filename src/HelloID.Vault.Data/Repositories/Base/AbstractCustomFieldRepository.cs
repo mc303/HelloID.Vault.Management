@@ -1,5 +1,6 @@
 using Dapper;
 using HelloID.Vault.Core.Models.Entities;
+using HelloID.Vault.Core.Models.Filters;
 using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Data.Repositories.Interfaces;
 using System.Data;
@@ -181,4 +182,171 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
     /// Database-specific implementation for backfilling a new field to existing records.
     /// </summary>
     protected abstract Task BackfillNewFieldAsync(CustomFieldSchema schema, IDbConnection connection);
+
+    /// <inheritdoc />
+    public virtual async Task<DataTable> GetPivotDataAsync(string tableName, int page, int pageSize, string? searchTerm = null, List<FieldFilterCriteria>? advancedFilters = null)
+    {
+        var schemas = (await GetSchemasAsync(tableName)).OrderBy(s => s.SortOrder).ThenBy(s => s.DisplayName).ToList();
+        var offset = (page - 1) * pageSize;
+        var isPostgres = _connectionFactory.DatabaseType == DatabaseType.PostgreSql;
+        var alias = tableName == "persons" ? "p" : "c";
+
+        var columns = new List<string>();
+        if (tableName == "persons")
+        {
+            columns.Add("p.person_id");
+            columns.Add("p.display_name");
+            columns.Add("p.external_id");
+        }
+        else
+        {
+            columns.Add("c.contract_id");
+            columns.Add("c.external_id");
+            columns.Add("p.display_name AS person_name");
+            columns.Add("c.person_id");
+        }
+
+        foreach (var schema in schemas)
+        {
+            if (isPostgres)
+                columns.Add($"jsonb_extract_path_text({alias}.custom_fields::jsonb, '{schema.FieldKey}') AS \"{schema.FieldKey}\"");
+            else
+                columns.Add($"json_extract({alias}.custom_fields, '$.{schema.FieldKey}') AS \"{schema.FieldKey}\"");
+        }
+
+        var fromClause = tableName == "persons"
+            ? "FROM persons p"
+            : "FROM contracts c LEFT JOIN persons p ON c.person_id = p.person_id";
+
+        var (whereClause, parameters) = BuildWhereClause(tableName, alias, isPostgres, schemas, searchTerm, advancedFilters);
+
+        var sql = $@"
+            SELECT {string.Join(", ", columns)}
+            {fromClause}
+            {whereClause}
+            ORDER BY {(tableName == "persons" ? "p.display_name" : "c.external_id")}
+            LIMIT @PageSize OFFSET @Offset";
+
+        parameters["PageSize"] = pageSize;
+        parameters["Offset"] = offset;
+
+        using var connection = _connectionFactory.CreateConnection();
+        using var reader = await connection.ExecuteReaderAsync(sql, parameters).ConfigureAwait(false);
+
+        var dt = new DataTable();
+        dt.Load(reader);
+        return dt;
+    }
+
+    /// <inheritdoc />
+    public virtual async Task<int> GetPivotCountAsync(string tableName, string? searchTerm = null, List<FieldFilterCriteria>? advancedFilters = null)
+    {
+        var schemas = (await GetSchemasAsync(tableName)).OrderBy(s => s.SortOrder).ThenBy(s => s.DisplayName).ToList();
+        var isPostgres = _connectionFactory.DatabaseType == DatabaseType.PostgreSql;
+        var alias = tableName == "persons" ? "p" : "c";
+
+        var fromClause = tableName == "persons"
+            ? "FROM persons p"
+            : "FROM contracts c LEFT JOIN persons p ON c.person_id = p.person_id";
+
+        var (whereClause, parameters) = BuildWhereClause(tableName, alias, isPostgres, schemas, searchTerm, advancedFilters);
+
+        var sql = $"SELECT COUNT(*) {fromClause} {whereClause}";
+
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.ExecuteScalarAsync<int>(sql, parameters).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Builds a WHERE clause from search term and advanced filters.
+    /// Search term uses OR across all fields; advanced filters use AND between filters.
+    /// </summary>
+    private static (string whereClause, Dictionary<string, object?> parameters) BuildWhereClause(
+        string tableName, string alias, bool isPostgres,
+        List<CustomFieldSchema> schemas, string? searchTerm, List<FieldFilterCriteria>? advancedFilters)
+    {
+        var parameters = new Dictionary<string, object?>();
+        var conditions = new List<string>();
+
+        // Search term (OR across fields)
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            parameters["SearchTerm"] = $"%{searchTerm.ToLower()}%";
+            var searchParts = new List<string>();
+
+            if (isPostgres)
+            {
+                var likeOp = "ILIKE";
+                if (tableName == "persons")
+                {
+                    searchParts.Add($"p.display_name {likeOp} @SearchTerm");
+                    searchParts.Add($"p.external_id {likeOp} @SearchTerm");
+                }
+                else
+                {
+                    searchParts.Add($"c.external_id {likeOp} @SearchTerm");
+                    searchParts.Add($"p.display_name {likeOp} @SearchTerm");
+                }
+
+                foreach (var schema in schemas)
+                    searchParts.Add($"jsonb_extract_path_text({alias}.custom_fields::jsonb, '{schema.FieldKey}') {likeOp} @SearchTerm");
+            }
+            else
+            {
+                if (tableName == "persons")
+                {
+                    searchParts.Add("LOWER(p.display_name) LIKE @SearchTerm");
+                    searchParts.Add("LOWER(p.external_id) LIKE @SearchTerm");
+                }
+                else
+                {
+                    searchParts.Add("LOWER(c.external_id) LIKE @SearchTerm");
+                    searchParts.Add("LOWER(p.display_name) LIKE @SearchTerm");
+                }
+
+                foreach (var schema in schemas)
+                    searchParts.Add($"LOWER(json_extract({alias}.custom_fields, '$.{schema.FieldKey}')) LIKE @SearchTerm");
+            }
+
+            conditions.Add("(" + string.Join(" OR ", searchParts) + ")");
+        }
+
+        // Advanced filters (AND between filters)
+        if (advancedFilters != null && advancedFilters.Count > 0)
+        {
+            for (int i = 0; i < advancedFilters.Count; i++)
+            {
+                var filter = advancedFilters[i];
+                var paramPrefix = $"af{i}";
+                var fieldExpr = isPostgres
+                    ? $"jsonb_extract_path_text({alias}.custom_fields::jsonb, '{filter.FieldName}')"
+                    : $"json_extract({alias}.custom_fields, '$.{filter.FieldName}')";
+                var lowerFieldExpr = $"LOWER({fieldExpr})";
+
+                string condition = filter.Operator switch
+                {
+                    FieldFilterOperators.Contains => isPostgres
+                        ? $"{fieldExpr} ILIKE @{paramPrefix}_Value"
+                        : $"{lowerFieldExpr} LIKE @{paramPrefix}_Value",
+                    FieldFilterOperators.Equals => $"{lowerFieldExpr} = LOWER(@{paramPrefix}_Value)",
+                    FieldFilterOperators.NotEquals => $"({fieldExpr} IS NULL OR {lowerFieldExpr} != LOWER(@{paramPrefix}_Value))",
+                    FieldFilterOperators.IsEmpty => $"({fieldExpr} IS NULL OR {fieldExpr} = '')",
+                    FieldFilterOperators.IsNotEmpty => $"({fieldExpr} IS NOT NULL AND {fieldExpr} != '')",
+                    _ => isPostgres
+                        ? $"{fieldExpr} ILIKE @{paramPrefix}_Value"
+                        : $"{lowerFieldExpr} LIKE @{paramPrefix}_Value"
+                };
+
+                if (filter.Operator is FieldFilterOperators.Contains)
+                    parameters[$"{paramPrefix}_Value"] = $"%{filter.Value.ToLower()}%";
+                else
+                    parameters[$"{paramPrefix}_Value"] = filter.Value;
+
+                conditions.Add(condition);
+            }
+        }
+
+        var whereClause = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
+        return (whereClause, parameters);
+    }
 }

@@ -95,11 +95,11 @@ public abstract class AbstractContractRepository : IContractRepository
 
         if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
         {
-            whereClauses.Add(@"(person_id LIKE @SearchTerm
-                OR person_name LIKE @SearchTerm
-                OR external_id LIKE @SearchTerm
-                OR type_description LIKE @SearchTerm)");
-            parameters.Add("SearchTerm", $"%{filter.SearchTerm}%");
+            whereClauses.Add(@"(LOWER(person_id) LIKE @SearchTerm
+                OR LOWER(person_name) LIKE @SearchTerm
+                OR LOWER(external_id) LIKE @SearchTerm
+                OR LOWER(type_description) LIKE @SearchTerm)");
+            parameters.Add("SearchTerm", $"%{filter.SearchTerm.ToLower()}%");
         }
 
         if (!string.IsNullOrWhiteSpace(filter.PersonId))

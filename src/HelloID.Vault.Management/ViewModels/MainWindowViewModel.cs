@@ -178,6 +178,34 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Navigates to the Person Custom Field Data view.
+    /// </summary>
+    [RelayCommand]
+    private void NavigateToPersonCustomFieldData()
+    {
+        var viewModel = _serviceProvider.GetRequiredService<PersonCustomFieldDataViewModel>();
+        CurrentViewModel = viewModel;
+        if (viewModel.Data == null)
+        {
+            _ = viewModel.ResetAndLoadAsync();
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the Contract Custom Field Data view.
+    /// </summary>
+    [RelayCommand]
+    private void NavigateToContractCustomFieldData()
+    {
+        var viewModel = _serviceProvider.GetRequiredService<ContractCustomFieldDataViewModel>();
+        CurrentViewModel = viewModel;
+        if (viewModel.Data == null)
+        {
+            _ = viewModel.ResetAndLoadAsync();
+        }
+    }
+
+    /// <summary>
     /// Navigates to the Custom Fields view.
     /// </summary>
     [RelayCommand]

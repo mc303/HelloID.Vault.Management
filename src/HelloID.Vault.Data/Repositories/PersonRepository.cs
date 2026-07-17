@@ -30,8 +30,8 @@ public class PersonRepository : IPersonRepository
 
         if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
         {
-            whereClauses.Add("(display_name LIKE @SearchTerm OR external_id LIKE @SearchTerm OR person_id LIKE @SearchTerm)");
-            parameters.Add("SearchTerm", $"%{filter.SearchTerm}%");
+            whereClauses.Add("(LOWER(display_name) LIKE @SearchTerm OR LOWER(external_id) LIKE @SearchTerm OR LOWER(person_id) LIKE @SearchTerm)");
+            parameters.Add("SearchTerm", $"%{filter.SearchTerm.ToLower()}%");
             System.Diagnostics.Debug.WriteLine($"[PersonRepository] Added SearchTerm filter: '%{filter.SearchTerm}%'");
         }
 
@@ -86,8 +86,8 @@ public class PersonRepository : IPersonRepository
 
         if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
         {
-            whereClauses.Add("(display_name LIKE @SearchTerm OR external_id LIKE @SearchTerm OR person_id LIKE @SearchTerm)");
-            parameters.Add("SearchTerm", $"%{filter.SearchTerm}%");
+            whereClauses.Add("(LOWER(display_name) LIKE @SearchTerm OR LOWER(external_id) LIKE @SearchTerm OR LOWER(person_id) LIKE @SearchTerm)");
+            parameters.Add("SearchTerm", $"%{filter.SearchTerm.ToLower()}%");
         }
 
         if (filter.Blocked.HasValue)
@@ -473,7 +473,7 @@ public class PersonRepository : IPersonRepository
     {
         using var connection = _connectionFactory.CreateConnection();
 
-        var searchTerm = $"%{query}%";
+        var searchTerm = $"%{query.ToLower()}%";
         var sql = @"
             SELECT
                 person_id AS PersonId,
@@ -481,15 +481,15 @@ public class PersonRepository : IPersonRepository
                 external_id AS ExternalId,
                 user_name AS UserName
             FROM persons
-            WHERE person_id LIKE @SearchTerm
-                OR external_id LIKE @SearchTerm
-                OR display_name LIKE @SearchTerm
-                OR given_name LIKE @SearchTerm
-                OR family_name LIKE @SearchTerm
-                OR family_name_prefix LIKE @SearchTerm
-                OR nick_name LIKE @SearchTerm
-                OR family_name_partner LIKE @SearchTerm
-                OR user_name LIKE @SearchTerm
+            WHERE LOWER(person_id) LIKE @SearchTerm
+                OR LOWER(external_id) LIKE @SearchTerm
+                OR LOWER(display_name) LIKE @SearchTerm
+                OR LOWER(given_name) LIKE @SearchTerm
+                OR LOWER(family_name) LIKE @SearchTerm
+                OR LOWER(family_name_prefix) LIKE @SearchTerm
+                OR LOWER(nick_name) LIKE @SearchTerm
+                OR LOWER(family_name_partner) LIKE @SearchTerm
+                OR LOWER(user_name) LIKE @SearchTerm
             ORDER BY display_name
             LIMIT @Limit";
 

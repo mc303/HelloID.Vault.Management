@@ -79,6 +79,12 @@ public partial class NavigationSidebar : UserControl
                     case "Contacts":
                         viewModel.NavigateToContactsCommand.Execute(null);
                         break;
+                    case "PersonCustomFieldData":
+                        viewModel.NavigateToPersonCustomFieldDataCommand.Execute(null);
+                        break;
+                    case "ContractCustomFieldData":
+                        viewModel.NavigateToContractCustomFieldDataCommand.Execute(null);
+                        break;
                     case "CustomFields":
                         viewModel.NavigateToCustomFieldsCommand.Execute(null);
                         break;

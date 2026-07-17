@@ -313,10 +313,10 @@ BEGIN
 END;
 
 CREATE TRIGGER validate_contract_custom_fields_json_update
-
-CREATE TRIGGER persons_fts_update AFTER UPDATE ON persons BEGIN
-    INSERT OR REPLACE INTO persons_fts(person_id, display_name, external_id, user_name, family_name, given_name)
-    VALUES (new.person_id, new.display_name, new.external_id, new.user_name, new.family_name, new.given_name);
+    BEFORE UPDATE OF custom_fields ON contracts
+    WHEN json_valid(NEW.custom_fields) = 0
+BEGIN
+    SELECT RAISE(ABORT, 'Invalid JSON in custom_fields');
 END;
 
 -- Create schema version table

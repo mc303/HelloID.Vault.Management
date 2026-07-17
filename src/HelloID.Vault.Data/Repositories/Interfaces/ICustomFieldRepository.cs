@@ -1,4 +1,6 @@
+using System.Data;
 using HelloID.Vault.Core.Models.Entities;
+using HelloID.Vault.Core.Models.Filters;
 
 namespace HelloID.Vault.Data.Repositories.Interfaces;
 
@@ -41,4 +43,20 @@ public interface ICustomFieldRepository
     /// Clears all custom field values for an entity (sets custom_fields to NULL).
     /// </summary>
     Task<int> DeleteValuesAsync(string entityId, string tableName);
+
+    /// <summary>
+    /// Gets a pivot table of custom field values for all entities.
+    /// Returns a DataTable with fixed columns (display_name, external_id) plus
+    /// dynamic columns for each custom field schema.
+    /// </summary>
+    /// <param name="tableName">"persons" or "contracts"</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="pageSize">Rows per page</param>
+    /// <param name="searchTerm">Optional search filter</param>
+    Task<DataTable> GetPivotDataAsync(string tableName, int page, int pageSize, string? searchTerm = null, List<FieldFilterCriteria>? advancedFilters = null);
+
+    /// <summary>
+    /// Gets the total count of entities that have custom field data.
+    /// </summary>
+    Task<int> GetPivotCountAsync(string tableName, string? searchTerm = null, List<FieldFilterCriteria>? advancedFilters = null);
 }

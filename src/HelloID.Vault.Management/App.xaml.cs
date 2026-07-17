@@ -346,6 +346,8 @@ public partial class App : Application
         services.AddTransient<OrganizationsViewModel>();
         services.AddTransient<ContactsViewModel>();
         services.AddTransient<CustomFieldsViewModel>();
+        services.AddSingleton<PersonCustomFieldDataViewModel>();
+        services.AddSingleton<ContractCustomFieldDataViewModel>();
         services.AddTransient<CustomFieldEditViewModel>();
         services.AddTransient<PrimaryContractConfigViewModel>();
         services.AddTransient<SourceSystemsViewModel>();

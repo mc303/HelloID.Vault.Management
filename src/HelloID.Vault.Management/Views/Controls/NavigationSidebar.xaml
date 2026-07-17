@@ -103,6 +103,25 @@
                 </ui:NavigationViewItem.Icon>
             </ui:NavigationViewItem>
 
+            <!-- Custom Field Data -->
+            <ui:NavigationViewItem Content="Custom Fields" Tag="CustomFieldDataParent">
+                <ui:NavigationViewItem.Icon>
+                    <ui:FontIcon Glyph="&#xE8D0;"/> <!-- Table icon -->
+                </ui:NavigationViewItem.Icon>
+                <ui:NavigationViewItem.MenuItems>
+                    <ui:NavigationViewItem Content="Persons" Tag="PersonCustomFieldData">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:FontIcon Glyph="&#xE716;"/> <!-- People icon -->
+                        </ui:NavigationViewItem.Icon>
+                    </ui:NavigationViewItem>
+                    <ui:NavigationViewItem Content="Contracts" Tag="ContractCustomFieldData">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:FontIcon Glyph="&#xE8A5;"/> <!-- Document icon -->
+                        </ui:NavigationViewItem.Icon>
+                    </ui:NavigationViewItem>
+                </ui:NavigationViewItem.MenuItems>
+            </ui:NavigationViewItem>
+
             <!-- Source Systems -->
             <ui:NavigationViewItem Content="Source Systems" Tag="SourceSystems">
                 <ui:NavigationViewItem.Icon>
