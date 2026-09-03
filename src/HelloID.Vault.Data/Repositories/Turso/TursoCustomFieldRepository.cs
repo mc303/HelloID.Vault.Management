@@ -199,7 +199,9 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
 
         foreach (var schema in schemas)
         {
-            columns.Add($"json_extract({alias}.custom_fields, '$.{schema.FieldKey}') AS \"{schema.FieldKey}\"");
+            // CAST to TEXT: json_extract returns mixed types per row when the JSON field
+            // holds mixed value types; DataTable.Load would throw a column type mismatch.
+            columns.Add($"CAST(json_extract({alias}.custom_fields, '$.{schema.FieldKey}') AS TEXT) AS \"{schema.FieldKey}\"");
         }
 
         var fromClause = tableName == "persons"

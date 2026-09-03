@@ -1,4 +1,5 @@
 using System.Data;
+using System.Net.Sockets;
 using Dapper;
 using HelloID.Vault.Data.Connection;
 
@@ -240,6 +241,12 @@ public class DatabaseInitializer
 
             return true;
         }
+        catch (Exception ex) when (IsConnectionFailure(ex))
+        {
+            System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Cannot connect to PostgreSQL while checking critical tables: {ex.Message}");
+            throw new DatabaseConnectionException(
+                $"Cannot connect to the PostgreSQL server. Check your connection settings and network. ({ex.Message})", ex);
+        }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error checking critical tables: {ex.Message}");
@@ -249,6 +256,7 @@ public class DatabaseInitializer
 
     /// <summary>
     /// Checks if the database schema exists by testing for the schema_version table.
+    /// Connection failures are rethrown so they are never mistaken for a missing schema.
     /// </summary>
     /// <returns>True if schema exists, false otherwise.</returns>
     private async Task<bool> CheckSchemaExistsAsync()
@@ -264,11 +272,35 @@ public class DatabaseInitializer
 
             return tableExists == 1;
         }
+        catch (Exception ex) when (IsConnectionFailure(ex))
+        {
+            System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Cannot connect to PostgreSQL while checking schema: {ex.Message}");
+            throw new DatabaseConnectionException(
+                $"Cannot connect to the PostgreSQL server. Check your connection settings and network. ({ex.Message})", ex);
+        }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error checking if schema exists: {ex.Message}");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Determines whether an exception is caused by a connection/network failure
+    /// (DNS errors, refused connections, timeouts) rather than a database error.
+    /// </summary>
+    private static bool IsConnectionFailure(Exception ex)
+    {
+        for (Exception? current = ex; current != null; current = current.InnerException)
+        {
+            if (current is SocketException ||
+                current is TimeoutException ||
+                current is Npgsql.NpgsqlException)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private async Task CreateDatabaseAsync()

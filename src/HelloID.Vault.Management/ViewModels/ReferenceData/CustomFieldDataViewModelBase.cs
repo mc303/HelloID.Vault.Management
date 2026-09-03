@@ -50,6 +50,20 @@ public abstract partial class CustomFieldDataViewModelBase : ObservableObject
 
     public bool HasMoreData => Data != null && Data.Rows.Count < _totalCount;
 
+    /// <summary>
+    /// Clears cached data so the next navigation reloads from the database.
+    /// Called after imports that change the underlying data.
+    /// </summary>
+    public void InvalidateData()
+    {
+        Data = null;
+        _currentOffset = 0;
+        _totalCount = 0;
+        _currentSchemas = new();
+        TotalRecords = 0;
+        SelectedRow = null;
+    }
+
     public event Action<DataTable?, List<CustomFieldSchema>>? DataLoaded;
 
     protected CustomFieldDataViewModelBase(ICustomFieldRepository customFieldRepository)
@@ -150,6 +164,8 @@ public abstract partial class CustomFieldDataViewModelBase : ObservableObject
     {
         try
         {
+            System.Diagnostics.Debug.WriteLine($"[CustomFieldDataVM] LoadBatchAsync START: table={TableName}, isInitialLoad={isInitialLoad}, offset={_currentOffset}, search='{SearchText}', filters={_advancedFilters.Count}");
+
             if (isInitialLoad && (Data == null || _currentOffset == 0))
             {
                 IsLoading = true;
@@ -162,6 +178,7 @@ public abstract partial class CustomFieldDataViewModelBase : ObservableObject
                     .OrderBy(s => s.SortOrder)
                     .ThenBy(s => s.DisplayName)
                     .ToList();
+                System.Diagnostics.Debug.WriteLine($"[CustomFieldDataVM] Loaded {_currentSchemas.Count} schemas for '{TableName}'");
             }
 
             var searchTerm = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText;
@@ -190,10 +207,18 @@ public abstract partial class CustomFieldDataViewModelBase : ObservableObject
             TotalRecords = _totalCount;
             OnPropertyChanged(nameof(HasMoreData));
 
+            System.Diagnostics.Debug.WriteLine($"[CustomFieldDataVM] LoadBatchAsync SUCCESS: batch={batch.Rows.Count} rows x {batch.Columns.Count} cols, total={_totalCount}");
+
             DataLoaded?.Invoke(Data, _currentSchemas);
         }
         catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[CustomFieldDataVM] *** LoadBatchAsync FAILED: {ex.GetType().FullName}: {ex.Message} ***");
+            System.Diagnostics.Debug.WriteLine($"[CustomFieldDataVM] Stack: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CustomFieldDataVM] Inner: {ex.InnerException.GetType().FullName}: {ex.InnerException.Message}");
+            }
             LoadingMessage = $"Error: {ex.Message}";
         }
         finally

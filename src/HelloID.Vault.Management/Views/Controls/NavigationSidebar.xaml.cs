@@ -18,11 +18,41 @@ public partial class NavigationSidebar : UserControl
 
     private void NavigationSidebar_Loaded(object sender, RoutedEventArgs e)
     {
-        // Select first item by default (Persons)
-        if (NavView.MenuItems.Count > 0)
+        // Select initial item based on MainWindowViewModel.InitialNavTag (default: Persons).
+        // Used to land on Database Management when the database is unreachable.
+        var targetTag = "Persons";
+        if (Window.GetWindow(this)?.DataContext is MainWindowViewModel vm && !string.IsNullOrEmpty(vm.InitialNavTag))
         {
-            NavView.SelectedItem = NavView.MenuItems[0];
+            targetTag = vm.InitialNavTag;
         }
+
+        var targetItem = FindMenuItemByTag(NavView.MenuItems, targetTag) ?? NavView.MenuItems[0];
+        NavView.SelectedItem = targetItem;
+    }
+
+    private static object? FindMenuItemByTag(System.Collections.IEnumerable menuItems, string tag)
+    {
+        foreach (var item in menuItems)
+        {
+            if (item is NavigationViewItem navItem)
+            {
+                if (navItem.Tag?.ToString() == tag)
+                {
+                    return navItem;
+                }
+
+                // Search nested menu items (e.g., Administration children)
+                if (navItem.MenuItems != null)
+                {
+                    var nested = FindMenuItemByTag(navItem.MenuItems, tag);
+                    if (nested != null)
+                    {
+                        return nested;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private void NavView_SelectionChanged(ModernWpf.Controls.NavigationView sender, NavigationViewSelectionChangedEventArgs args)

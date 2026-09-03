@@ -35,6 +35,7 @@ namespace HelloID.Vault.Management;
 public partial class App : Application
 {
     private readonly IHost _host;
+    private bool _databaseOffline;
 
     public App()
     {
@@ -374,8 +375,26 @@ public partial class App : Application
             var dbType = preferencesService.DatabaseType;
             if (dbType != Data.Connection.DatabaseType.Turso)
             {
-                var dbInitializer = _host.Services.GetRequiredService<DatabaseInitializer>();
-                await dbInitializer.InitializeAsync();
+                try
+                {
+                    var dbInitializer = _host.Services.GetRequiredService<DatabaseInitializer>();
+                    await dbInitializer.InitializeAsync();
+                }
+                catch (DatabaseConnectionException ex)
+                {
+                    // Database server unreachable (paused/offline) - start app in offline mode
+                    // so the user can switch databases via Database Management
+                    System.Diagnostics.Debug.WriteLine($"[App] Database unreachable: {ex.Message}");
+                    MessageBox.Show(
+                        "Cannot connect to the database - it may be paused or offline.\n\n" +
+                        "The application will start anyway so you can change the database settings.\n" +
+                        "After changing the settings, restart the application.\n\n" +
+                        $"Error: {ex.Message}",
+                        "Database Unreachable",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    _databaseOffline = true;
+                }
             }
             else
             {
@@ -426,6 +445,13 @@ public partial class App : Application
             // Show main window
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
             var mainWindowViewModel = _host.Services.GetRequiredService<MainWindowViewModel>();
+
+            // When the database is unreachable, land on Database Management
+            // so the user can switch databases or fix the connection
+            if (_databaseOffline)
+            {
+                mainWindowViewModel.InitialNavTag = "AppSettings";
+            }
 
             // Initialize dialog service with dispatcher
             var dialogService = (HelloID.Vault.Management.Services.DialogService)_host.Services.GetRequiredService<IDialogService>();

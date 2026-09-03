@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using HelloID.Vault.Core.Models.Json;
 using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Management.Views.Import;
+using HelloID.Vault.Management.ViewModels.ReferenceData;
 using HelloID.Vault.Services.Anonymization.Models;
 using HelloID.Vault.Services.Interfaces;
 using Microsoft.Win32;
@@ -21,6 +22,8 @@ public partial class ImportViewModel : ObservableObject
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly IReferenceDataService _referenceDataService;
     private readonly IVaultAnonymizerService? _anonymizerService;
+    private readonly PersonCustomFieldDataViewModel _personCustomFieldDataViewModel;
+    private readonly ContractCustomFieldDataViewModel _contractCustomFieldDataViewModel;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartImportCommand))]
@@ -109,11 +112,15 @@ public partial class ImportViewModel : ObservableObject
         IVaultImportService importService,
         IUserPreferencesService userPreferencesService,
         IReferenceDataService referenceDataService,
+        PersonCustomFieldDataViewModel personCustomFieldDataViewModel,
+        ContractCustomFieldDataViewModel contractCustomFieldDataViewModel,
         IVaultAnonymizerService? anonymizerService = null)
     {
         _importService = importService ?? throw new ArgumentNullException(nameof(importService));
         _userPreferencesService = userPreferencesService ?? throw new ArgumentNullException(nameof(userPreferencesService));
         _referenceDataService = referenceDataService ?? throw new ArgumentNullException(nameof(referenceDataService));
+        _personCustomFieldDataViewModel = personCustomFieldDataViewModel ?? throw new ArgumentNullException(nameof(personCustomFieldDataViewModel));
+        _contractCustomFieldDataViewModel = contractCustomFieldDataViewModel ?? throw new ArgumentNullException(nameof(contractCustomFieldDataViewModel));
         _anonymizerService = anonymizerService;
     }
 
@@ -279,6 +286,10 @@ public partial class ImportViewModel : ObservableObject
                 // Reset column visibility initialization flag so empty columns will be hidden on next view load
                 _userPreferencesService.ContractsColumnVisibilityInitialized = false;
 
+                // Invalidate cached Custom Field data so views reload after import
+                _personCustomFieldDataViewModel.InvalidateData();
+                _contractCustomFieldDataViewModel.InvalidateData();
+
                 var durationMsg = $"Import completed successfully in {ImportResult.Duration.TotalSeconds:F1} seconds!";
                 if (AnonymizeBeforeImport && AnonymizationResult != null)
                 {
@@ -437,6 +448,10 @@ public partial class ImportViewModel : ObservableObject
             {
                 // Save the selected logic for future use (e.g., default in Primary Manager Admin)
                 _userPreferencesService.LastPrimaryManagerLogic = SelectedPrimaryManagerLogic;
+
+                // Invalidate cached Custom Field data so views reload after import
+                _personCustomFieldDataViewModel.InvalidateData();
+                _contractCustomFieldDataViewModel.InvalidateData();
 
                 StatusMessage = $"Company data import completed successfully in {ImportResult.Duration.TotalSeconds:F1} seconds!";
             }
@@ -634,6 +649,11 @@ public partial class ImportViewModel : ObservableObject
             {
                 _userPreferencesService.LastPrimaryManagerLogic = SelectedPrimaryManagerLogic;
                 _userPreferencesService.ContractsColumnVisibilityInitialized = false;
+
+                // Invalidate cached Custom Field data so views reload after import
+                _personCustomFieldDataViewModel.InvalidateData();
+                _contractCustomFieldDataViewModel.InvalidateData();
+
                 StatusMessage = $"Import completed successfully in {ImportResult.Duration.TotalSeconds:F1} seconds! ({selectedPersonIds.Count} persons selected)";
             }
             else

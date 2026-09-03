@@ -43,7 +43,10 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
             WHERE table_name = @TableName
             ORDER BY sort_order, display_name";
 
-        return await connection.QueryAsync<CustomFieldSchema>(sql, new { TableName = tableName }).ConfigureAwait(false);
+        var result = await connection.QueryAsync<CustomFieldSchema>(sql, new { TableName = tableName }).ConfigureAwait(false);
+        var resultList = result.ToList();
+        System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] GetSchemasAsync('{tableName}') returned {resultList.Count} schemas: {string.Join(", ", resultList.Select(s => s.FieldKey))}");
+        return resultList;
     }
 
     public async Task<IEnumerable<CustomFieldValue>> GetValuesAsync(string entityId, string tableName)
@@ -191,6 +194,8 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
         var isPostgres = _connectionFactory.DatabaseType == DatabaseType.PostgreSql;
         var alias = tableName == "persons" ? "p" : "c";
 
+        System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] GetPivotDataAsync: table={tableName}, page={page}, pageSize={pageSize}, schemas={schemas.Count}, searchTerm='{searchTerm ?? "<null>"}', advancedFilters={advancedFilters?.Count ?? 0}");
+
         var columns = new List<string>();
         if (tableName == "persons")
         {
@@ -211,8 +216,24 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
             if (isPostgres)
                 columns.Add($"jsonb_extract_path_text({alias}.custom_fields::jsonb, '{schema.FieldKey}') AS \"{schema.FieldKey}\"");
             else
-                columns.Add($"json_extract({alias}.custom_fields, '$.{schema.FieldKey}') AS \"{schema.FieldKey}\"");
+                // CAST to TEXT: json_extract returns mixed types per row (NULL/TEXT/INTEGER/BLOB)
+                // when the JSON field holds mixed value types; DataTable.Load infers the column type
+                // from the first row and throws "Type of value has a mismatch with column type" otherwise.
+                columns.Add($"CAST(json_extract({alias}.custom_fields, '$.{schema.FieldKey}') AS TEXT) AS \"{schema.FieldKey}\"");
         }
+
+        // Detect duplicate column aliases (case-insensitive) - DataTable.Load throws on these
+        var aliases = new List<string>();
+        if (tableName == "persons") aliases.AddRange(new[] { "person_id", "display_name", "external_id" });
+        else aliases.AddRange(new[] { "contract_id", "external_id", "person_name", "person_id" });
+        aliases.AddRange(schemas.Select(s => s.FieldKey));
+
+        var duplicates = aliases.GroupBy(a => a, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+        if (duplicates.Count > 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] *** DUPLICATE COLUMN ALIASES DETECTED: {string.Join(", ", duplicates)} ***");
+        }
+        System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] Pivot columns ({aliases.Count}): {string.Join(", ", aliases)}");
 
         var fromClause = tableName == "persons"
             ? "FROM persons p"
@@ -230,12 +251,52 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
         parameters["PageSize"] = pageSize;
         parameters["Offset"] = offset;
 
+        System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] Pivot SQL: {sql.Replace("\r\n", " ").Replace("\n", " ")}");
+
         using var connection = _connectionFactory.CreateConnection();
         using var reader = await connection.ExecuteReaderAsync(sql, parameters).ConfigureAwait(false);
 
-        var dt = new DataTable();
-        dt.Load(reader);
-        return dt;
+        try
+        {
+            // Log the actual result column names from the reader
+            var readerColumns = new List<string>();
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                readerColumns.Add(reader.GetName(i));
+            }
+            System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] Reader returned {reader.FieldCount} columns: {string.Join(", ", readerColumns)}");
+
+            // Build the DataTable manually with explicit string columns.
+            // DataTable.Load(reader) relies on GetSchemaTable() type inference, which is
+            // unreliable for expression columns (json_extract/CAST): Microsoft.Data.Sqlite
+            // may report byte[] and then throw "Type of value has a mismatch with column
+            // type" while loading rows.
+            var dt = new DataTable();
+            foreach (var name in aliases)
+            {
+                dt.Columns.Add(name, typeof(string));
+            }
+
+            while (reader.Read())
+            {
+                var row = dt.NewRow();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    var value = reader.GetValue(i);
+                    row[i] = value is DBNull || value is null ? DBNull.Value : (object)value.ToString()!;
+                }
+                dt.Rows.Add(row);
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] Pivot DataTable built: {dt.Rows.Count} rows, {dt.Columns.Count} columns");
+            return dt;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] *** ERROR loading pivot data: {ex.GetType().FullName}: {ex.Message} ***");
+            System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] Stack: {ex.StackTrace}");
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -254,7 +315,9 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
         var sql = $"SELECT COUNT(*) {fromClause} {whereClause}";
 
         using var connection = _connectionFactory.CreateConnection();
-        return await connection.ExecuteScalarAsync<int>(sql, parameters).ConfigureAwait(false);
+        var count = await connection.ExecuteScalarAsync<int>(sql, parameters).ConfigureAwait(false);
+        System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] GetPivotCountAsync('{tableName}') = {count} (searchTerm='{searchTerm ?? "<null>"}', advancedFilters={advancedFilters?.Count ?? 0})");
+        return count;
     }
 
     /// <summary>

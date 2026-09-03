@@ -25,6 +25,13 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _title = "HR System";
 
+    /// <summary>
+    /// Gets or sets the navigation sidebar tag to select on startup.
+    /// Defaults to "Persons"; set to "AppSettings" to start on Database Management
+    /// (used when the database is unreachable).
+    /// </summary>
+    public string InitialNavTag { get; set; } = "Persons";
+
     public MainWindowViewModel(INavigationService navigationService, IServiceProvider serviceProvider)
     {
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
@@ -185,6 +192,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         var viewModel = _serviceProvider.GetRequiredService<PersonCustomFieldDataViewModel>();
         CurrentViewModel = viewModel;
+        System.Diagnostics.Debug.WriteLine($"[MainWindow] NavigateToPersonCustomFieldData: Data={(viewModel.Data == null ? "NULL (will load)" : $"{viewModel.Data.Rows.Count} rows (SKIPPING load)")}");
         if (viewModel.Data == null)
         {
             _ = viewModel.ResetAndLoadAsync();
@@ -199,6 +207,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         var viewModel = _serviceProvider.GetRequiredService<ContractCustomFieldDataViewModel>();
         CurrentViewModel = viewModel;
+        System.Diagnostics.Debug.WriteLine($"[MainWindow] NavigateToContractCustomFieldData: Data={(viewModel.Data == null ? "NULL (will load)" : $"{viewModel.Data.Rows.Count} rows (SKIPPING load)")}");
         if (viewModel.Data == null)
         {
             _ = viewModel.ResetAndLoadAsync();
