@@ -28,7 +28,7 @@ public class ActiveDirectoryService : IActiveDirectoryService
         try
         {
             using var connection = CreateConnection(config, plainPassword);
-            await connection.BindAsync(BuildCredential(config, plainPassword)).ConfigureAwait(false);
+            await Task.Run(() => BindConnection(connection, config, plainPassword)).ConfigureAwait(false);
 
             var bindIdentity = config.AuthType is "Negotiate" or "Anonymous"
                 ? "integrated/anonymous"
@@ -50,7 +50,7 @@ public class ActiveDirectoryService : IActiveDirectoryService
         var users = new List<AdUserDto>();
 
         using var connection = CreateConnection(config, plainPassword);
-        await connection.BindAsync(BuildCredential(config, plainPassword)).ConfigureAwait(false);
+        await Task.Run(() => BindConnection(connection, config, plainPassword)).ConfigureAwait(false);
 
         // Request base set + configured correlation attribute + any match fields
         var requestedAttributes = BaseAttributes.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -65,7 +65,9 @@ public class ActiveDirectoryService : IActiveDirectoryService
             System.DirectoryServices.Protocols.SearchScope.Subtree,
             requestedAttributes.ToArray());
 
-        var pageControl = new PageResultRequestControl(PageSize);
+        // Non-critical: servers that do not support paging ignore the control and
+        // return a single result set (up to their size limit) instead of erroring.
+        var pageControl = new PageResultRequestControl(PageSize) { IsCritical = false };
         searchRequest.Controls.Add(pageControl);
 
         var page = 0;
@@ -73,7 +75,19 @@ public class ActiveDirectoryService : IActiveDirectoryService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var response = (SearchResponse)await connection.SendRequestAsync(searchRequest, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            SearchResponse response;
+            try
+            {
+                response = await Task.Run(() =>
+                    (SearchResponse)connection.SendRequest(searchRequest, TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+            }
+            catch (DirectoryOperationException ex) when (ex.Message.Contains("successful bind must be completed"))
+            {
+                throw new InvalidOperationException(
+                    "The LDAP session is not authenticated. Integrated (Negotiate) authentication failed for the " +
+                    "current process identity. Enter a domain account (DOMAIN\\user or user@domain) with its password " +
+                    $"in the connection settings and try again. ({ex.Message})", ex);
+            }
 
             page++;
             progress?.Report($"Retrieved {users.Count + response.Entries.Count} AD accounts (page {page})...");
@@ -114,7 +128,7 @@ public class ActiveDirectoryService : IActiveDirectoryService
         }
 
         using var connection = CreateConnection(config, plainPassword);
-        await connection.BindAsync(BuildCredential(config, plainPassword)).ConfigureAwait(false);
+        await Task.Run(() => BindConnection(connection, config, plainPassword)).ConfigureAwait(false);
 
         // LDAP filter with escaped binary objectGUID: each byte as \HH
         var escapedGuid = string.Join(string.Empty, guid.ToByteArray().Select(b => @"\" + b.ToString("X2")));
@@ -132,7 +146,8 @@ public class ActiveDirectoryService : IActiveDirectoryService
             System.DirectoryServices.Protocols.SearchScope.Subtree,
             requestedAttributes.ToArray());
 
-        var response = (SearchResponse)await connection.SendRequestAsync(request, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        var response = await Task.Run(() =>
+            (SearchResponse)connection.SendRequest(request, TimeSpan.FromSeconds(30))).ConfigureAwait(false);
         return response.Entries.Count > 0 ? MapEntry(response.Entries[0], config.CorrelationAttribute) : null;
     }
 
@@ -143,7 +158,7 @@ public class ActiveDirectoryService : IActiveDirectoryService
         {
             AuthType = config.AuthType switch
             {
-                "Simple" => AuthType.Simple,
+                "Simple" => AuthType.Basic, // LDAP simple bind
                 "Anonymous" => AuthType.Anonymous,
                 _ => AuthType.Negotiate
             },
@@ -166,8 +181,32 @@ public class ActiveDirectoryService : IActiveDirectoryService
             "Anonymous" => null,
             "Simple" when !string.IsNullOrEmpty(config.Username) && !string.IsNullOrEmpty(plainPassword)
                 => new NetworkCredential(config.Username, plainPassword),
-            _ => null // Negotiate uses current process credentials
+            // Negotiate: use explicit credentials when provided, otherwise the process
+            // identity (only works when the process runs with domain credentials)
+            "Negotiate" when !string.IsNullOrEmpty(config.Username) && !string.IsNullOrEmpty(plainPassword)
+                => new NetworkCredential(config.Username, plainPassword),
+            _ => null
         };
+    }
+
+    /// <summary>
+    /// Binds the connection with a clear error message when integrated authentication fails -
+    /// a failed Negotiate bind surfaces later as "a successful bind must be completed".
+    /// </summary>
+    private static void BindConnection(LdapConnection connection, AdCorrelationConfig config, string? plainPassword)
+    {
+        try
+        {
+            connection.Bind(BuildCredential(config, plainPassword));
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"LDAP bind failed for '{(string.IsNullOrEmpty(config.Username) ? "integrated (process identity)" : config.Username)}'. " +
+                "If you are running under an impersonated or local account, set Authentication to 'Negotiate' or 'Simple' " +
+                "and enter a domain account (DOMAIN\\user or user@domain) with its password. " +
+                $"({ex.Message})", ex);
+        }
     }
 
     private static AdUserDto MapEntry(SearchResultEntry entry, string correlationAttribute)

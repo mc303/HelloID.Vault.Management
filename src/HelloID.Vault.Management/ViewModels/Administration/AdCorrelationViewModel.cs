@@ -1,10 +1,10 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HelloID.Vault.Core.Models.Ad;
 using HelloID.Vault.Data.Repositories.Interfaces;
 using HelloID.Vault.Services.Interfaces;
+using HelloID.Vault.Services.Security;
 
 namespace HelloID.Vault.Management.ViewModels.Administration;
 
@@ -284,17 +284,7 @@ public partial class AdCorrelationViewModel : ObservableObject
         var fields = ParseMatchFields(config);
         foreach (var field in fields)
         {
-            field.PropertyChanged += OnMatchFieldChanged;
             MatchFields.Add(field);
-        }
-    }
-
-    private void OnMatchFieldChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        // Mark config as dirty so the user knows to save (simple status hint)
-        if (StatusMessage == "Configuration saved." || string.IsNullOrEmpty(StatusMessage))
-        {
-            StatusMessage = "Unsaved configuration changes.";
         }
     }
 

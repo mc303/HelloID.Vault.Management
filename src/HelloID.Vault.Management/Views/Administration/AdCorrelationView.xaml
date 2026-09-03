@@ -34,13 +34,19 @@
                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ui:AppBarButton Icon="Play"
-                                     Label="Run Correlation"
-                                     Command="{Binding RunCorrelationCommand}"/>
-                    <ui:AppBarButton Icon="LightningBolt"
-                                     Label="Generate Recommendations"
+                    <ui:AppBarButton Label="Run Correlation"
+                                     Command="{Binding RunCorrelationCommand}">
+                        <ui:AppBarButton.Icon>
+                            <ui:FontIcon Glyph="&#xE768;"/> <!-- Play icon -->
+                        </ui:AppBarButton.Icon>
+                    </ui:AppBarButton>
+                    <ui:AppBarButton Label="Generate Recommendations"
                                      Command="{Binding GenerateRecommendationsCommand}"
-                                     ToolTip="Suggest matches for uncorrelated persons"/>
+                                     ToolTip="Suggest matches for uncorrelated persons">
+                        <ui:AppBarButton.Icon>
+                            <ui:FontIcon Glyph="&#xE945;"/> <!-- LightningBolt -->
+                        </ui:AppBarButton.Icon>
+                    </ui:AppBarButton>
                 </StackPanel>
             </Grid>
         </Border>

@@ -246,7 +246,7 @@ public class AdCorrelationService : IAdCorrelationService
 
         foreach (var field in enabled)
         {
-            var personValue = GetMatchFieldValue(person, field.VaultField);
+            var personValue = GetVaultFieldValue(person, field.VaultField);
             var adValue = GetAdAttributeValue(ad, field.AdAttribute);
 
             double score;
@@ -274,16 +274,16 @@ public class AdCorrelationService : IAdCorrelationService
         return (weightedSum, breakdown);
     }
 
-    private static string? GetVaultFieldValue(CorrelatablePersonDto person, string vaultField) => vaultField switch
+    private static string? GetVaultFieldValue(CorrelatablePersonDto person, string vaultField) => (vaultField ?? string.Empty).ToLowerInvariant() switch
     {
-        "ExternalId" => person.ExternalId,
-        "DisplayName" => person.DisplayName,
-        "GivenName" => person.GivenName,
-        "FamilyName" => person.FamilyName,
-        "NickName" => person.NickName,
-        "FamilyNamePartner" => person.FamilyNamePartner,
-        "UserName" => person.UserName,
-        "BusinessEmail" => person.BusinessEmail,
+        "external_id" or "externalid" => person.ExternalId,
+        "display_name" or "displayname" => person.DisplayName,
+        "given_name" or "givenname" => person.GivenName,
+        "family_name" or "familyname" => person.FamilyName,
+        "nick_name" or "nickname" => person.NickName,
+        "family_name_partner" or "familynamepartner" => person.FamilyNamePartner,
+        "user_name" or "username" => person.UserName,
+        "businessemail" => person.BusinessEmail,
         _ => null
     };
 
