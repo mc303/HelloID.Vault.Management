@@ -150,11 +150,6 @@
                             <ui:FontIcon Glyph="&#xE77B;"/> <!-- Admin/User icon -->
                         </ui:NavigationViewItem.Icon>
                     </ui:NavigationViewItem>
-                    <ui:NavigationViewItem Content="AD Correlation" Tag="AdCorrelation">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:FontIcon Glyph="&#xE8D0;"/> <!-- Table icon -->
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
                 </ui:NavigationViewItem.MenuItems>
             </ui:NavigationViewItem>
 

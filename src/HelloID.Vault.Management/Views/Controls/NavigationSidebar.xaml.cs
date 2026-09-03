@@ -127,9 +127,6 @@ public partial class NavigationSidebar : UserControl
                     case "PrimaryManagerAdmin":
                         viewModel.NavigateToPrimaryManagerAdminCommand.Execute(null);
                         break;
-                    case "AdCorrelation":
-                        viewModel.NavigateToAdCorrelationCommand.Execute(null);
-                        break;
                     case "AppSettings":
                         viewModel.NavigateToSettingsCommand.Execute(null);
                         break;

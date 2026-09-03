@@ -9,12 +9,10 @@
         xmlns:contracts="clr-namespace:HelloID.Vault.Management.Views.Contracts"
         xmlns:import="clr-namespace:HelloID.Vault.Management.Views.Import"
         xmlns:referenceData="clr-namespace:HelloID.Vault.Management.Views.ReferenceData"
-        xmlns:administration="clr-namespace:HelloID.Vault.Management.Views.Administration"
         xmlns:personsVM="clr-namespace:HelloID.Vault.Management.ViewModels.Persons"
         xmlns:contractsVM="clr-namespace:HelloID.Vault.Management.ViewModels.Contracts"
         xmlns:importVM="clr-namespace:HelloID.Vault.Management.ViewModels.Import"
         xmlns:referenceDataVM="clr-namespace:HelloID.Vault.Management.ViewModels.ReferenceData"
-        xmlns:administrationVM="clr-namespace:HelloID.Vault.Management.ViewModels.Administration"
         xmlns:viewModels="clr-namespace:HelloID.Vault.Management.ViewModels"
         xmlns:views="clr-namespace:HelloID.Vault.Management.Views"
         mc:Ignorable="d"
@@ -100,9 +98,6 @@
                 </DataTemplate>
                 <DataTemplate DataType="{x:Type referenceDataVM:PrimaryManagerAdminViewModel}">
                     <referenceData:PrimaryManagerAdminView />
-                </DataTemplate>
-                <DataTemplate DataType="{x:Type administrationVM:AdCorrelationViewModel}">
-                    <administration:AdCorrelationView />
                 </DataTemplate>
 
                 <!-- Application Settings -->
