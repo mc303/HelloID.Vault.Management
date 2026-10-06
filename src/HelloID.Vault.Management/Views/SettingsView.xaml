@@ -73,6 +73,16 @@
                             <TextBlock Text="Cloud-hosted PostgreSQL database. Requires connection string configuration."
                                         FontSize="12"
                                         Foreground="{DynamicResource SystemControlPageTextBaseMediumBrush}"
+                                        Margin="25,0,0,10"
+                                        TextWrapping="Wrap"/>
+
+                            <RadioButton Content="PostgreSQL (Standard)"
+                                          GroupName="DatabaseType"
+                                          IsChecked="{Binding SelectedDatabaseType, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=PostgreSqlStandard}"
+                                          Margin="0,0,0,10"/>
+                            <TextBlock Text="Self-hosted or local PostgreSQL server (e.g., localhost). Requires connection string configuration."
+                                        FontSize="12"
+                                        Foreground="{DynamicResource SystemControlPageTextBaseMediumBrush}"
                                         Margin="25,0,0,15"
                                         TextWrapping="Wrap"/>
 
@@ -170,6 +180,127 @@
                                 <TextBox Text="{Binding SupabaseUrl, UpdateSourceTrigger=PropertyChanged}"
                                            ui:ControlHelper.PlaceholderText="https://xxx.supabase.co"
                                            Margin="0,0,0,10"/>
+
+                                <!-- Test Connection Button -->
+                                <Button Content="Test Connection"
+                                        Command="{Binding TestConnectionCommand}"
+                                        HorizontalAlignment="Left"
+                                        Padding="15,8"
+                                        Margin="0,0,0,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Standard PostgreSQL Connection Settings (visible only when PostgreSQL (Standard) selected) -->
+                        <Border Background="{DynamicResource SystemControlPageBackgroundChromeLowBrush}"
+                                Padding="15"
+                                CornerRadius="4"
+                                Visibility="{Binding IsPostgreSqlStandardSelected, Converter={StaticResource BoolToVisConverter}}"
+                                Margin="0,15,0,0">
+                            <StackPanel>
+                                <TextBlock Text="PostgreSQL Connection Settings"
+                                           FontWeight="Medium"
+                                           Margin="0,0,0,10"/>
+
+                                <!-- Connection String Input -->
+                                <TextBlock Text="Connection String"
+                                           Margin="0,0,0,5"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- PasswordBox (visible by default) -->
+                                    <PasswordBox x:Name="PostgreSqlConnectionStringBox"
+                                                 Grid.Column="0"
+                                                 ui:ControlHelper.PlaceholderText="Host=localhost;Port=5432;Database=helloid_vault;Username=postgres;Password=***"
+                                                 PasswordChanged="OnPostgreSqlPasswordChanged"
+                                                 Visibility="{Binding ShowPostgreSqlPassword, Converter={StaticResource InverseBoolConverter}}"/>
+                                    <!-- TextBox (visible when toggled) -->
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding PostgreSqlConnectionString, UpdateSourceTrigger=PropertyChanged}"
+                                             ui:ControlHelper.PlaceholderText="Host=localhost;Port=5432;Database=helloid_vault;Username=postgres;Password=***"
+                                             Visibility="{Binding ShowPostgreSqlPassword, Converter={StaticResource BoolToVisConverter}}"/>
+                                    <!-- Toggle Button -->
+                                    <Button Grid.Column="1"
+                                            Margin="5,0,0,0"
+                                            Padding="8,0"
+                                            MinWidth="40"
+                                            Command="{Binding TogglePostgreSqlPasswordVisibilityCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Content" Value="👁"/>
+                                                <Setter Property="ToolTip" Value="Show password"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowPostgreSqlPassword}" Value="True">
+                                                        <Setter Property="Content" Value="🙈"/>
+                                                        <Setter Property="ToolTip" Value="Hide password"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Connection String Format Help -->
+                                <Border Background="{DynamicResource SystemControlPageBackgroundListLowBrush}"
+                                        Padding="10"
+                                        CornerRadius="4"
+                                        Margin="0,0,0,15">
+                                    <StackPanel>
+                                        <TextBlock Text="Accepted Format:"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,5"/>
+                                        <TextBlock FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8">
+                                            <Run Text="Key-Value:"/><LineBreak/>
+                                            <Run FontFamily="Consolas" FontSize="10" Text="Host=localhost;Port=5432;Database=helloid_vault;Username=postgres;Password=***"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" TextWrapping="Wrap">
+                                            <Run Text="SSL is optional for local servers. Add SSL Mode=Disable / SSL Mode=Require to the connection string if needed."/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- URI Conversion (Optional) -->
+                                <Border Background="{DynamicResource SystemControlPageBackgroundListLowBrush}"
+                                        Padding="10"
+                                        CornerRadius="4"
+                                        Margin="0,0,0,15">
+                                    <StackPanel>
+                                        <TextBlock Text="Convert URI (Optional)"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,5"/>
+                                        <TextBlock FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8">
+                                            <Run Text="Paste a URI and convert it to key-value format:"/><LineBreak/>
+                                            <Run FontFamily="Consolas" FontSize="10" Text="postgresql://user:password@localhost:5432/mydatabase"/>
+                                        </TextBlock>
+                                        <Grid Margin="0,0,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0"
+                                                     Text="{Binding PostgreSqlUriInput, UpdateSourceTrigger=PropertyChanged}"
+                                                     ui:ControlHelper.PlaceholderText="postgresql://user:password@localhost:5432/mydatabase"/>
+                                            <Button Grid.Column="1"
+                                                    Content="Convert"
+                                                    Command="{Binding ConvertPostgreSqlUriCommand}"
+                                                    Margin="5,0,0,0"
+                                                    Padding="12,0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
 
                                 <!-- Test Connection Button -->
                                 <Button Content="Test Connection"

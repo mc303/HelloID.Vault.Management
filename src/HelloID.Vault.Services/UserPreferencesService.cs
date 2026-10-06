@@ -793,6 +793,29 @@ public class UserPreferencesService : IUserPreferencesService
     }
 
     /// <summary>
+    /// Gets or sets the standard PostgreSQL connection string (encrypted).
+    /// </summary>
+    public string? PostgreSqlConnectionString
+    {
+        get
+        {
+            var encrypted = _preferences.PostgreSqlConnectionStringEncrypted;
+            return string.IsNullOrEmpty(encrypted) ? null : new WindowsDpapiEncryptionService().Decrypt(encrypted);
+        }
+        set
+        {
+            var encryptionService = new WindowsDpapiEncryptionService();
+            var encrypted = string.IsNullOrEmpty(value) ? null : encryptionService.Encrypt(value);
+
+            if (_preferences.PostgreSqlConnectionStringEncrypted != encrypted)
+            {
+                _preferences.PostgreSqlConnectionStringEncrypted = encrypted;
+                _ = SaveAsync();
+            }
+        }
+    }
+
+    /// <summary>
     /// Gets or sets the Supabase project URL.
     /// </summary>
     public string? SupabaseUrl
@@ -822,6 +845,90 @@ public class UserPreferencesService : IUserPreferencesService
                 _ = SaveAsync();
             }
         }
+    }
+
+    public string? AdLdapHost
+    {
+        get => _preferences.AdLdapHost;
+        set { if (_preferences.AdLdapHost != value) { _preferences.AdLdapHost = value; _ = SaveAsync(); } }
+    }
+
+    public int AdLdapPort
+    {
+        get => _preferences.AdLdapPort;
+        set { if (_preferences.AdLdapPort != value) { _preferences.AdLdapPort = value; _ = SaveAsync(); } }
+    }
+
+    public bool AdUseLdaps
+    {
+        get => _preferences.AdUseLdaps;
+        set { if (_preferences.AdUseLdaps != value) { _preferences.AdUseLdaps = value; _ = SaveAsync(); } }
+    }
+
+    public string AdSearchBase
+    {
+        get => _preferences.AdSearchBase;
+        set { if (_preferences.AdSearchBase != value) { _preferences.AdSearchBase = value; _ = SaveAsync(); } }
+    }
+
+    public string? AdUsername
+    {
+        get => _preferences.AdUsername;
+        set { if (_preferences.AdUsername != value) { _preferences.AdUsername = value; _ = SaveAsync(); } }
+    }
+
+    public string? AdEncryptedPassword
+    {
+        get => _preferences.AdEncryptedPassword;
+        set { if (_preferences.AdEncryptedPassword != value) { _preferences.AdEncryptedPassword = value; _ = SaveAsync(); } }
+    }
+
+    public string AdCorrelationAttribute
+    {
+        get => _preferences.AdCorrelationAttribute;
+        set { if (_preferences.AdCorrelationAttribute != value) { _preferences.AdCorrelationAttribute = value; _ = SaveAsync(); } }
+    }
+
+    public string AdVaultField
+    {
+        get => _preferences.AdVaultField;
+        set { if (_preferences.AdVaultField != value) { _preferences.AdVaultField = value; _ = SaveAsync(); } }
+    }
+
+    public bool AdActiveContractOnly
+    {
+        get => _preferences.AdActiveContractOnly;
+        set { if (_preferences.AdActiveContractOnly != value) { _preferences.AdActiveContractOnly = value; _ = SaveAsync(); } }
+    }
+
+    public int AdFutureContractDays
+    {
+        get => _preferences.AdFutureContractDays;
+        set { if (_preferences.AdFutureContractDays != value) { _preferences.AdFutureContractDays = value; _ = SaveAsync(); } }
+    }
+
+    public string? AdMatchFieldsJson
+    {
+        get => _preferences.AdMatchFieldsJson;
+        set { if (_preferences.AdMatchFieldsJson != value) { _preferences.AdMatchFieldsJson = value; _ = SaveAsync(); } }
+    }
+
+    public int AdMinScore
+    {
+        get => _preferences.AdMinScore;
+        set { if (_preferences.AdMinScore != value) { _preferences.AdMinScore = value; _ = SaveAsync(); } }
+    }
+
+    public int AdMaxCandidates
+    {
+        get => _preferences.AdMaxCandidates;
+        set { if (_preferences.AdMaxCandidates != value) { _preferences.AdMaxCandidates = value; _ = SaveAsync(); } }
+    }
+
+    public int AdAcceptAllThreshold
+    {
+        get => _preferences.AdAcceptAllThreshold;
+        set { if (_preferences.AdAcceptAllThreshold != value) { _preferences.AdAcceptAllThreshold = value; _ = SaveAsync(); } }
     }
 
     /// <summary>
@@ -1113,6 +1220,12 @@ public class UserPreferences
     /// </summary>
     public string? SupabaseConnectionStringEncrypted { get; set; }
 
+    /// <summary>
+    /// Encrypted standard PostgreSQL connection string (self-hosted or local server).
+    /// Format: Host=localhost;Port=5432;Database=helloid_vault;Username=postgres;Password=...
+    /// </summary>
+    public string? PostgreSqlConnectionStringEncrypted { get; set; }
+
     // Turso Database Settings
     /// <summary>
     /// Turso database URL (e.g., libsql://database-org.turso.io).
@@ -1123,6 +1236,22 @@ public class UserPreferences
     /// Encrypted Turso authentication token.
     /// </summary>
     public string? TursoAuthTokenEncrypted { get; set; }
+
+    // AD Correlation Settings
+    public string? AdLdapHost { get; set; }
+    public int AdLdapPort { get; set; } = 636;
+    public bool AdUseLdaps { get; set; } = true;
+    public string AdSearchBase { get; set; } = string.Empty;
+    public string? AdUsername { get; set; }
+    public string? AdEncryptedPassword { get; set; }
+    public string AdCorrelationAttribute { get; set; } = "employeeID";
+    public string AdVaultField { get; set; } = "external_id";
+    public bool AdActiveContractOnly { get; set; } = true;
+    public int AdFutureContractDays { get; set; } = 30;
+    public string? AdMatchFieldsJson { get; set; }
+    public int AdMinScore { get; set; } = 50;
+    public int AdMaxCandidates { get; set; } = 3;
+    public int AdAcceptAllThreshold { get; set; } = 95;
 
     /// <summary>
     /// Turso organization slug (for Platform API token refresh).

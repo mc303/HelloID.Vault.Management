@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using HelloID.Vault.Services;
 using HelloID.Vault.Management.ViewModels.Persons;
 using HelloID.Vault.Management.ViewModels.Contracts;
+using HelloID.Vault.Management.ViewModels.Administration;
 using HelloID.Vault.Management.ViewModels.Import;
 using HelloID.Vault.Management.ViewModels.ReferenceData;
 using HelloID.Vault.Services.Interfaces;
@@ -221,6 +222,39 @@ public partial class MainWindowViewModel : ObservableObject
     private void NavigateToCustomFields()
     {
         var viewModel = _serviceProvider.GetRequiredService<CustomFieldsViewModel>();
+        CurrentViewModel = viewModel;
+        _ = viewModel.InitializeAsync();
+    }
+
+    /// <summary>
+    /// Navigates to the AD Correlation Settings view.
+    /// </summary>
+    [RelayCommand]
+    private void NavigateToAdCorrelationSettings()
+    {
+        var viewModel = _serviceProvider.GetRequiredService<AdSettingsViewModel>();
+        CurrentViewModel = viewModel;
+        _ = viewModel.InitializeAsync();
+    }
+
+    /// <summary>
+    /// Navigates to the AD Correlation Results view.
+    /// </summary>
+    [RelayCommand]
+    private void NavigateToAdCorrelationResults()
+    {
+        var viewModel = _serviceProvider.GetRequiredService<AdResultsViewModel>();
+        CurrentViewModel = viewModel;
+        _ = viewModel.InitializeAsync();
+    }
+
+    /// <summary>
+    /// Navigates to the AD Correlation Recommendations view.
+    /// </summary>
+    [RelayCommand]
+    private void NavigateToAdCorrelationRecommendations()
+    {
+        var viewModel = _serviceProvider.GetRequiredService<AdRecommendationsViewModel>();
         CurrentViewModel = viewModel;
         _ = viewModel.InitializeAsync();
     }

@@ -744,6 +744,41 @@ INSERT INTO primary_contract_config (field_name, display_name, sort_order, prior
 ('end_date', 'End Date', 'DESC', 4, 1),
 ('start_date', 'Start Date', 'ASC', 5, 1);
 
+
+
+-- AD Correlation Results (one row per person)
+CREATE TABLE IF NOT EXISTS ad_correlation_results (
+    person_id TEXT PRIMARY KEY,
+    external_id TEXT,
+    ad_object_guid TEXT,
+    ad_distinguished_name TEXT,
+    ad_sam_account_name TEXT,
+    ad_user_principal_name TEXT,
+    ad_display_name TEXT,
+    ad_mail TEXT,
+    ad_enabled INTEGER,
+    correlation_value TEXT,
+    correlation_attribute TEXT,
+    status TEXT NOT NULL,
+    match_method TEXT,
+    value_status TEXT,
+    correlated_at TEXT
+);
+
+-- AD Match Recommendations (scored suggestions for uncorrelated persons)
+CREATE TABLE IF NOT EXISTS ad_match_recommendations (
+    person_id TEXT NOT NULL,
+    ad_object_guid TEXT NOT NULL,
+    score_percent REAL NOT NULL,
+    field_scores_json TEXT,
+    ad_display_name TEXT,
+    ad_sam_account_name TEXT,
+    ad_user_principal_name TEXT,
+    status TEXT NOT NULL DEFAULT 'Proposed',
+    created_at TEXT,
+    PRIMARY KEY (person_id, ad_object_guid)
+);
+
 -- Contract JSON View
 -- Creates a view that matches the exact structure needed for vault.json export
 CREATE VIEW IF NOT EXISTS contract_json_view AS

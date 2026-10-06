@@ -64,7 +64,7 @@ public class DatabaseManager : IDatabaseManager
             {
                 await DeleteSqliteDatabaseAsync();
             }
-            else if (_connectionFactory.DatabaseType == DatabaseType.PostgreSql)
+            else if (_connectionFactory.DatabaseType.IsPostgreSqlBackend())
             {
                 await DropPostgreSqlTablesAsync();
             }
@@ -110,26 +110,83 @@ public class DatabaseManager : IDatabaseManager
             connection.Close();
         } // Dispose connection here
 
-        // Clear all connections from the pool to release file locks
-        SqliteConnection.ClearAllPools();
+        // Release every possible handle on the file, then delete with retries:
+        // pooled connections (ClearAllPools), connections awaiting finalization (GC),
+        // and background tasks racing to open new connections between attempts.
+        ReleaseSqliteHandles();
 
-        // Wait for file locks to be fully released
-        await Task.Delay(500);
+        var deleted = false;
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= 5 && !deleted; attempt++)
+        {
+            try
+            {
+                File.Delete(dbPath);
+                deleted = true;
+            }
+            catch (IOException ex) when (attempt < 5)
+            {
+                lastError = ex;
+                await Task.Delay(400);
+                ReleaseSqliteHandles();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw new Exception(
+                    $"Cannot delete database '{dbPath}': access denied. Check folder permissions.", ex);
+            }
+        }
 
-        // Delete database files
-        File.Delete(dbPath);
+        if (!deleted)
+        {
+            lastError ??= new IOException("file locked");
+            throw new Exception(
+                $"Cannot delete database '{dbPath}' because it is still locked by a process. " +
+                "Close any program using the file (DB Browser for SQLite, VS Code SQLite extension, another app instance) and try again. " +
+                $"({lastError.Message})", lastError);
+        }
 
         var walPath = dbPath + "-wal";
         var shmPath = dbPath + "-shm";
 
         if (File.Exists(walPath))
         {
-            File.Delete(walPath);
+            TryDeleteWithRetry(walPath);
         }
 
         if (File.Exists(shmPath))
         {
-            File.Delete(shmPath);
+            TryDeleteWithRetry(shmPath);
+        }
+    }
+
+    /// <summary>
+    /// Releases all SQLite file handles: clears the connection pool, forces garbage
+    /// collection, waits for pending finalizers (undisposed connections), then
+    /// clears the pool again for connections closed during finalization.
+    /// </summary>
+    private static void ReleaseSqliteHandles()
+    {
+        SqliteConnection.ClearAllPools();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        SqliteConnection.ClearAllPools();
+    }
+
+    private static void TryDeleteWithRetry(string path)
+    {
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                File.Delete(path);
+                return;
+            }
+            catch (IOException) when (attempt < 3)
+            {
+                Thread.Sleep(300);
+                SqliteConnection.ClearAllPools();
+            }
         }
     }
 
@@ -173,7 +230,7 @@ public class DatabaseManager : IDatabaseManager
         {
             await CreateSqliteBackupAsync();
         }
-        else if (_connectionFactory.DatabaseType == DatabaseType.PostgreSql)
+        else if (_connectionFactory.DatabaseType.IsPostgreSqlBackend())
         {
             await CreatePostgreSqlDumpAsync();
         }

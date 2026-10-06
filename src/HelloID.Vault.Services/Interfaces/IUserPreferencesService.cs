@@ -343,6 +343,11 @@ public interface IUserPreferencesService
     string? SupabaseConnectionString { get; set; }
 
     /// <summary>
+    /// Gets or sets the standard PostgreSQL connection string (encrypted).
+    /// </summary>
+    string? PostgreSqlConnectionString { get; set; }
+
+    /// <summary>
     /// Gets or sets the Supabase project URL.
     /// </summary>
     string? SupabaseUrl { get; set; }
@@ -352,6 +357,22 @@ public interface IUserPreferencesService
     /// Gets or sets the Turso database URL (e.g., libsql://database-org.turso.io).
     /// </summary>
     string? TursoDatabaseUrl { get; set; }
+
+    // AD Correlation Settings
+    string? AdLdapHost { get; set; }
+    int AdLdapPort { get; set; }
+    bool AdUseLdaps { get; set; }
+    string AdSearchBase { get; set; }
+    string? AdUsername { get; set; }
+    string? AdEncryptedPassword { get; set; }
+    string AdCorrelationAttribute { get; set; }
+    string AdVaultField { get; set; }
+    bool AdActiveContractOnly { get; set; }
+    int AdFutureContractDays { get; set; }
+    string? AdMatchFieldsJson { get; set; }
+    int AdMinScore { get; set; }
+    int AdMaxCandidates { get; set; }
+    int AdAcceptAllThreshold { get; set; }
 
     /// <summary>
     /// Gets or sets the Turso authentication token (encrypted).

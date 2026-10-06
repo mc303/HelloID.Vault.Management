@@ -28,6 +28,7 @@ public partial class SettingsView : UserControl
             TursoAuthTokenPasswordBox.Password = ViewModel.TursoAuthToken;
             TursoPlatformApiTokenPasswordBox.Password = ViewModel.TursoPlatformApiToken;
             ConnectionPasswordBox.Password = ViewModel.SupabaseConnectionString;
+            PostgreSqlConnectionStringBox.Password = ViewModel.PostgreSqlConnectionString;
 
             // Subscribe to property changes to sync PasswordBox <-> TextBox
             ViewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -54,6 +55,9 @@ public partial class SettingsView : UserControl
             case nameof(ViewModel.ShowSupabasePassword):
                 SyncSupabasePasswordVisibility(ViewModel.ShowSupabasePassword);
                 break;
+            case nameof(ViewModel.ShowPostgreSqlPassword):
+                SyncPostgreSqlPasswordVisibility(ViewModel.ShowPostgreSqlPassword);
+                break;
             case nameof(ViewModel.ShowTursoAuthToken):
                 SyncTursoAuthTokenVisibility(ViewModel.ShowTursoAuthToken);
                 break;
@@ -74,6 +78,21 @@ public partial class SettingsView : UserControl
         {
             // About to hide TextBox, show PasswordBox - sync ViewModel -> PasswordBox
             ConnectionPasswordBox.Password = ViewModel.SupabaseConnectionString;
+        }
+        // When showing TextBox, the binding automatically syncs PasswordBox -> ViewModel
+    }
+
+    /// <summary>
+    /// Syncs the standard PostgreSQL password between PasswordBox and TextBox when visibility toggles.
+    /// </summary>
+    private void SyncPostgreSqlPasswordVisibility(bool isVisible)
+    {
+        if (ViewModel == null) return;
+
+        if (!isVisible)
+        {
+            // About to hide TextBox, show PasswordBox - sync ViewModel -> PasswordBox
+            PostgreSqlConnectionStringBox.Password = ViewModel.PostgreSqlConnectionString;
         }
         // When showing TextBox, the binding automatically syncs PasswordBox -> ViewModel
     }
@@ -116,6 +135,17 @@ public partial class SettingsView : UserControl
         if (sender is PasswordBox passwordBox && ViewModel != null)
         {
             ViewModel.SupabaseConnectionString = passwordBox.Password;
+        }
+    }
+
+    /// <summary>
+    /// Handles password changes in the standard PostgreSQL PasswordBox (manual binding).
+    /// </summary>
+    private void OnPostgreSqlPasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is PasswordBox passwordBox && ViewModel != null)
+        {
+            ViewModel.PostgreSqlConnectionString = passwordBox.Password;
         }
     }
 

@@ -2103,7 +2103,7 @@ public class VaultImportService : IVaultImportService
     /// </summary>
     private string GetInsertIgnoreSql(string tableName, string columns, string valuesPlaceholder)
     {
-        if (_connectionFactory.DatabaseType == DatabaseType.PostgreSql)
+        if (_connectionFactory.DatabaseType.IsPostgreSqlBackend())
         {
             return $"INSERT INTO {tableName} ({columns}) VALUES ({valuesPlaceholder}) ON CONFLICT DO NOTHING";
         }

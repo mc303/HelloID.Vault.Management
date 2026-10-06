@@ -120,3 +120,7 @@ obj/
 .vs/
 .cache/
 # screenshots/
+
+# Local tool output
+__pycache__/
+graphify-out/

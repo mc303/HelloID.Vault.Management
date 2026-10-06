@@ -191,7 +191,7 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
     {
         var schemas = (await GetSchemasAsync(tableName)).OrderBy(s => s.SortOrder).ThenBy(s => s.DisplayName).ToList();
         var offset = (page - 1) * pageSize;
-        var isPostgres = _connectionFactory.DatabaseType == DatabaseType.PostgreSql;
+        var isPostgres = _connectionFactory.DatabaseType.IsPostgreSqlBackend();
         var alias = tableName == "persons" ? "p" : "c";
 
         System.Diagnostics.Debug.WriteLine($"[CustomFieldRepo] GetPivotDataAsync: table={tableName}, page={page}, pageSize={pageSize}, schemas={schemas.Count}, searchTerm='{searchTerm ?? "<null>"}', advancedFilters={advancedFilters?.Count ?? 0}");
@@ -303,7 +303,7 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
     public virtual async Task<int> GetPivotCountAsync(string tableName, string? searchTerm = null, List<FieldFilterCriteria>? advancedFilters = null)
     {
         var schemas = (await GetSchemasAsync(tableName)).OrderBy(s => s.SortOrder).ThenBy(s => s.DisplayName).ToList();
-        var isPostgres = _connectionFactory.DatabaseType == DatabaseType.PostgreSql;
+        var isPostgres = _connectionFactory.DatabaseType.IsPostgreSqlBackend();
         var alias = tableName == "persons" ? "p" : "c";
 
         var fromClause = tableName == "persons"

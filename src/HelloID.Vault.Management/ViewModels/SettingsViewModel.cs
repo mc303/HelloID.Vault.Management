@@ -30,6 +30,13 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _supabaseUrl = string.Empty;
 
+    // Standard PostgreSQL settings (self-hosted or local server)
+    [ObservableProperty]
+    private string _postgreSqlConnectionString = string.Empty;
+
+    [ObservableProperty]
+    private string _postgreSqlUriInput = string.Empty;
+
     // Turso settings
     [ObservableProperty]
     private string _tursoDatabaseUrl = string.Empty;
@@ -75,6 +82,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _isSupabaseSelected;
 
     [ObservableProperty]
+    private bool _isPostgreSqlStandardSelected;
+
+    [ObservableProperty]
     private bool _isTursoSelected;
 
     [ObservableProperty]
@@ -106,6 +116,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _showSupabasePassword;
 
     [ObservableProperty]
+    private bool _showPostgreSqlPassword;
+
+    [ObservableProperty]
     private bool _showTursoAuthToken;
 
     [ObservableProperty]
@@ -131,7 +144,7 @@ public partial class SettingsViewModel : ObservableObject
         _originalDatabaseType = _selectedDatabaseType;
         _supabaseConnectionString = _preferencesService.SupabaseConnectionString ?? string.Empty;
         _supabaseUrl = _preferencesService.SupabaseUrl ?? string.Empty;
-        _tursoDatabaseUrl = _preferencesService.TursoDatabaseUrl ?? string.Empty;
+        _postgreSqlConnectionString = _preferencesService.PostgreSqlConnectionString ?? string.Empty;        _tursoDatabaseUrl = _preferencesService.TursoDatabaseUrl ?? string.Empty;
         _tursoAuthToken = _preferencesService.TursoAuthToken ?? string.Empty;
         _tursoOrganizationSlug = _preferencesService.TursoOrganizationSlug ?? string.Empty;
         _tursoPlatformApiToken = _preferencesService.TursoPlatformApiToken ?? string.Empty;
@@ -160,6 +173,22 @@ public partial class SettingsViewModel : ObservableObject
     /// Tracks unsaved changes when connection string changes.
     /// </summary>
     partial void OnSupabaseConnectionStringChanged(string value)
+    {
+        HasUnsavedChanges = true;
+    }
+
+    /// <summary>
+    /// Tracks unsaved changes when the standard PostgreSQL connection string changes.
+    /// </summary>
+    partial void OnPostgreSqlConnectionStringChanged(string value)
+    {
+        HasUnsavedChanges = true;
+    }
+
+    /// <summary>
+    /// Tracks unsaved changes when the standard PostgreSQL URI conversion input changes.
+    /// </summary>
+    partial void OnPostgreSqlUriInputChanged(string value)
     {
         HasUnsavedChanges = true;
     }
@@ -207,9 +236,10 @@ public partial class SettingsViewModel : ObservableObject
     private void UpdateVisibility()
     {
         IsSupabaseSelected = SelectedDatabaseType == DatabaseType.PostgreSql;
+        IsPostgreSqlStandardSelected = SelectedDatabaseType == DatabaseType.PostgreSqlStandard;
         IsTursoSelected = SelectedDatabaseType == DatabaseType.Turso;
         IsSqliteSelected = SelectedDatabaseType == DatabaseType.Sqlite;
-        ShowDatabaseWarning = IsSupabaseSelected || IsTursoSelected;
+        ShowDatabaseWarning = IsSupabaseSelected || IsPostgreSqlStandardSelected || IsTursoSelected;
     }
 
     /// <summary>
@@ -218,13 +248,16 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private async Task TestConnectionAsync()
     {
-        if (SelectedDatabaseType != DatabaseType.PostgreSql)
+        if (!SelectedDatabaseType.IsPostgreSqlBackend())
         {
-            StatusMessage = "Connection testing is only applicable for Supabase (PostgreSQL).";
+            StatusMessage = "Connection testing is only applicable for PostgreSQL databases.";
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(SupabaseConnectionString))
+        bool isStandardPostgreSql = SelectedDatabaseType == DatabaseType.PostgreSqlStandard;
+        string connectionStringSource = isStandardPostgreSql ? PostgreSqlConnectionString : SupabaseConnectionString;
+
+        if (string.IsNullOrWhiteSpace(connectionStringSource))
         {
             StatusMessage = "Please enter a connection string first.";
             return;
@@ -236,7 +269,7 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             // Normalize connection string (convert URI to key-value format if needed)
-            var normalizedConnectionString = NormalizePostgreConnectionString(SupabaseConnectionString);
+            var normalizedConnectionString = NormalizePostgreConnectionString(connectionStringSource, enforceSsl: !isStandardPostgreSql);
             if (normalizedConnectionString != SupabaseConnectionString)
             {
                 Debug.WriteLine("[SettingsViewModel] Connection string was normalized from URI to key-value format");
@@ -269,8 +302,9 @@ public partial class SettingsViewModel : ObservableObject
                 }
             }
 
-            // Ensure SSL is enabled for Supabase
-            if (!connectionStringBuilder.ContainsKey("SSL Mode") &&
+            // Ensure SSL is enabled for Supabase (standard servers use their own SSL configuration)
+            if (!isStandardPostgreSql &&
+                !connectionStringBuilder.ContainsKey("SSL Mode") &&
                 !connectionStringBuilder.ContainsKey("SSL Mode") &&
                 !connectionStringBuilder.ContainsKey("SslMode"))
             {
@@ -301,7 +335,9 @@ public partial class SettingsViewModel : ObservableObject
             // Successfully connected
             await connection.CloseAsync();
 
-            StatusMessage = "✓ Connection successful! Supabase is reachable.";
+            StatusMessage = isStandardPostgreSql
+                ? "✓ Connection successful! PostgreSQL server is reachable."
+                : "✓ Connection successful! Supabase is reachable.";
         }
         catch (NpgsqlException npgsqlEx)
         {
@@ -450,8 +486,10 @@ public partial class SettingsViewModel : ObservableObject
     /// Converts PostgreSQL URI format to Npgsql key-value format.
     /// Input: postgresql://user:pass@host:port/database
     /// Output: Host=host;Port=port;Database=database;Username=user;Password=pass;SSL Mode=Require
+    /// When <paramref name="enforceSsl"/> is false, no SSL mode is added and the
+    /// server's own SSL configuration applies.
     /// </summary>
-    private string NormalizePostgreConnectionString(string input)
+    private string NormalizePostgreConnectionString(string input, bool enforceSsl = true)
     {
         if (string.IsNullOrWhiteSpace(input))
             return input;
@@ -476,9 +514,13 @@ public partial class SettingsViewModel : ObservableObject
                     Port = uri.Port > 0 ? uri.Port : 5432,
                     Database = uri.AbsolutePath.TrimStart('/'),
                     Username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "",
-                    Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "",
-                    SslMode = SslMode.Require
+                    Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : ""
                 };
+
+                if (enforceSsl)
+                {
+                    builder.SslMode = SslMode.Require;
+                }
 
                 Debug.WriteLine($"[SettingsViewModel] Converted URI to key-value format: {uri.Host}:{builder.Port}/{builder.Database}");
                 return builder.ConnectionString;
@@ -587,7 +629,27 @@ public partial class SettingsViewModel : ObservableObject
                 }
 
                 // Test connection before saving
-                var testResult = await TestConnectionInternalAsync();
+                var testResult = await TestConnectionInternalAsync(isStandardPostgreSql: false);
+                if (!testResult)
+                {
+                    StatusMessage = "✗ Error: Cannot save. Connection test failed. Please verify your connection string.";
+                    IsLoading = false;
+                    return;
+                }
+            }
+
+            // Validate standard PostgreSQL connection if selected
+            if (SelectedDatabaseType == DatabaseType.PostgreSqlStandard)
+            {
+                if (string.IsNullOrWhiteSpace(PostgreSqlConnectionString))
+                {
+                    StatusMessage = "✗ Error: Connection string is required for PostgreSQL.";
+                    IsLoading = false;
+                    return;
+                }
+
+                // Test connection before saving
+                var testResult = await TestConnectionInternalAsync(isStandardPostgreSql: true);
                 if (!testResult)
                 {
                     StatusMessage = "✗ Error: Cannot save. Connection test failed. Please verify your connection string.";
@@ -653,6 +715,7 @@ public partial class SettingsViewModel : ObservableObject
             _preferencesService.DatabaseType = SelectedDatabaseType;
             _preferencesService.DatabasePath = dbPathToSave;
             _preferencesService.SupabaseConnectionString = NormalizePostgreConnectionString(SupabaseConnectionString);
+            _preferencesService.PostgreSqlConnectionString = NormalizePostgreConnectionString(PostgreSqlConnectionString, enforceSsl: false);
             _preferencesService.SupabaseUrl = SupabaseUrl;
             _preferencesService.TursoDatabaseUrl = TursoDatabaseUrl;
             _preferencesService.TursoAuthToken = TursoAuthToken;
@@ -693,14 +756,16 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Internal connection test for Supabase without UI updates.
+    /// Internal connection test for Supabase or standard PostgreSQL without UI updates.
     /// </summary>
-    private async Task<bool> TestConnectionInternalAsync()
+    private async Task<bool> TestConnectionInternalAsync(bool isStandardPostgreSql = false)
     {
         try
         {
+            var sourceConnectionString = isStandardPostgreSql ? PostgreSqlConnectionString : SupabaseConnectionString;
+
             // Normalize connection string (convert URI to key-value format if needed)
-            var normalizedConnectionString = NormalizePostgreConnectionString(SupabaseConnectionString);
+            var normalizedConnectionString = NormalizePostgreConnectionString(sourceConnectionString, enforceSsl: !isStandardPostgreSql);
 
             // Parse connection string and ensure SSL settings
             var connectionStringBuilder = new NpgsqlConnectionStringBuilder(normalizedConnectionString);
@@ -715,8 +780,9 @@ public partial class SettingsViewModel : ObservableObject
                 }
             }
 
-            // Ensure SSL is enabled
-            if (!connectionStringBuilder.ContainsKey("SSL Mode") &&
+            // Ensure SSL is enabled for Supabase (standard servers use their own SSL configuration)
+            if (!isStandardPostgreSql &&
+                !connectionStringBuilder.ContainsKey("SSL Mode") &&
                 !connectionStringBuilder.ContainsKey("SSL Mode") &&
                 !connectionStringBuilder.ContainsKey("SslMode"))
             {
@@ -794,6 +860,8 @@ public partial class SettingsViewModel : ObservableObject
         SelectedDatabaseType = _preferencesService.DatabaseType;
         SupabaseConnectionString = _preferencesService.SupabaseConnectionString ?? string.Empty;
         SupabaseUrl = _preferencesService.SupabaseUrl ?? string.Empty;
+        PostgreSqlConnectionString = _preferencesService.PostgreSqlConnectionString ?? string.Empty;
+        PostgreSqlUriInput = string.Empty;
         TursoDatabaseUrl = _preferencesService.TursoDatabaseUrl ?? string.Empty;
         TursoAuthToken = _preferencesService.TursoAuthToken ?? string.Empty;
         TursoOrganizationSlug = _preferencesService.TursoOrganizationSlug ?? string.Empty;
@@ -948,6 +1016,41 @@ public partial class SettingsViewModel : ObservableObject
     private void ToggleSupabasePasswordVisibility()
     {
         ShowSupabasePassword = !ShowSupabasePassword;
+    }
+
+    /// <summary>
+    /// Toggles the visibility of the standard PostgreSQL connection password field.
+    /// </summary>
+    [RelayCommand]
+    private void TogglePostgreSqlPasswordVisibility()
+    {
+        ShowPostgreSqlPassword = !ShowPostgreSqlPassword;
+    }
+
+    /// <summary>
+    /// Converts a PostgreSQL URI (postgresql://user:pass@host:port/database) to
+    /// key-value format and fills the standard PostgreSQL connection string field.
+    /// </summary>
+    [RelayCommand]
+    private void ConvertPostgreSqlUri()
+    {
+        if (string.IsNullOrWhiteSpace(PostgreSqlUriInput))
+        {
+            StatusMessage = "Please enter a URI to convert first.";
+            return;
+        }
+
+        var trimmedInput = PostgreSqlUriInput.Trim();
+        var converted = NormalizePostgreConnectionString(trimmedInput, enforceSsl: false);
+        if (converted == trimmedInput)
+        {
+            StatusMessage = "✗ Input is not a valid PostgreSQL URI (expected postgresql://user:pass@host:port/database).";
+            return;
+        }
+
+        PostgreSqlConnectionString = converted;
+        PostgreSqlUriInput = string.Empty;
+        StatusMessage = "✓ URI converted to key-value format. Review the details and test the connection.";
     }
 
     /// <summary>

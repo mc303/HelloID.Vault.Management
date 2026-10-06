@@ -1,0 +1,184 @@
+<UserControl x:Class="HelloID.Vault.Management.Views.Administration.AdSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             mc:Ignorable="d"
+             d:DesignHeight="900" d:DesignWidth="1200">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                Padding="16"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="AD Correlation - Settings"
+                               FontSize="20"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="LDAP connection, correlation attribute, and match field configuration"
+                               FontSize="13"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:AppBarButton Icon="Sync"
+                                     Label="Test Connection"
+                                     Command="{Binding TestConnectionCommand}"/>
+                    <ui:AppBarButton Label="Clear Credentials"
+                                     Command="{Binding ClearCredentialsCommand}"
+                                     ToolTip="Remove the stored AD username and password - the app will connect with your Windows identity">
+                        <ui:AppBarButton.Icon>
+                            <ui:FontIcon Glyph="&#xE74D;"/> <!-- Delete icon -->
+                        </ui:AppBarButton.Icon>
+                    </ui:AppBarButton>
+                    <ui:AppBarButton Icon="Save"
+                                     Label="Save Config"
+                                     Command="{Binding SaveConfigCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="16">
+            <StackPanel>
+                <!-- Connection -->
+                <TextBlock Text="Connection" FontSize="16" FontWeight="SemiBold"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Search Base:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="5" Text="{Binding SearchBase, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,8" VerticalAlignment="Center"
+                             ToolTip="Distinguished name of the search root, e.g. DC=bad-cloud,DC=nl"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Authentication:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="Negotiate (Windows identity, or stored username/password)" VerticalAlignment="Center" Margin="0,0,16,8"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                    <CheckBox Grid.Row="1" Grid.Column="2" Content="Use LDAPS (636)" IsChecked="{Binding UseLdaps}" VerticalAlignment="Center" Margin="0,0,24,8"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Username:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,16,8" VerticalAlignment="Center"
+                             ToolTip="DOMAIN\user or user@domain - leave blank to use your Windows identity (Negotiate only)"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Password:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <PasswordBox Grid.Row="3" Grid.Column="1" Margin="0,0,16,0" VerticalAlignment="Center"
+                                 PasswordChanged="PasswordBox_PasswordChanged"/>
+                </Grid>
+
+                <!-- Correlation -->
+                <TextBlock Text="Correlation" FontSize="16" FontWeight="SemiBold" Margin="0,16,0,0"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="220"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Vault field:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                    <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding VaultFieldOptions}" SelectedItem="{Binding VaultField}" Margin="0,0,16,8" VerticalAlignment="Center"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="AD attribute:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding AdAttributeSuggestions}" Text="{Binding CorrelationAttribute, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Person entitlement filter -->
+                <StackPanel Margin="0,10,0,0">
+                    <CheckBox Content="Only persons entitled to an account (active or upcoming contract)"
+                              IsChecked="{Binding ActiveContractOnly}"/>
+                    <StackPanel Orientation="Horizontal" Margin="24,4,0,0">
+                        <TextBlock Text="Include contracts starting within" VerticalAlignment="Center" Margin="0,0,8,0"
+                                   IsEnabled="{Binding ActiveContractOnly}"/>
+                        <TextBox Width="60"
+                                 Text="{Binding FutureContractDays, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalAlignment="Center"
+                                 ui:TextBoxHelper.IsDeleteButtonVisible="False"
+                                 IsEnabled="{Binding ActiveContractOnly}"/>
+                        <TextBlock Text="days" VerticalAlignment="Center" Margin="6,0,0,0"
+                                   IsEnabled="{Binding ActiveContractOnly}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Recommendation -->
+                <TextBlock Text="Recommendation" FontSize="16" FontWeight="SemiBold" Margin="0,16,0,0"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
+                    <TextBlock Text="Bulk accept score &#8805;:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBox Width="60"
+                             Text="{Binding AcceptAllThreshold, UpdateSourceTrigger=PropertyChanged}"
+                             VerticalAlignment="Center"
+                             ui:TextBoxHelper.IsDeleteButtonVisible="False"
+                             ToolTip="Recommendations at or above this score are highlighted green and accepted by 'Accept All'"/>
+                    <TextBlock Text="%" VerticalAlignment="Center" Margin="6,0,0,0"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                </StackPanel>
+
+                <!-- Match fields -->
+                <TextBlock Text="Recommendation match fields" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,4"/>
+                <TextBlock Text="Enabled field pairs and weights drive the recommendation score. Weights are normalized automatically."
+                           FontSize="12"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           Margin="0,0,0,8"/>
+                <DataGrid ItemsSource="{Binding MatchFields}"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                        <DataGridTextColumn Header="Vault field" Binding="{Binding VaultField, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" Width="160"/>
+                        <DataGridTextColumn Header="AD attribute" Binding="{Binding AdAttribute, UpdateSourceTrigger=PropertyChanged}" Width="180"/>
+                        <DataGridTextColumn Header="Weight" Binding="{Binding Weight, Converter={StaticResource FlexibleDoubleConverter}}" Width="100"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Status bar -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                Padding="16,8"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ui:ProgressRing IsActive="{Binding IsBusy}" Width="20" Height="20" Margin="0,0,8,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,179 @@
+<UserControl x:Class="HelloID.Vault.Management.Views.Administration.AdRecommendationsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="1400">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header Panel (ReferenceDataHeader layout) -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                Padding="16"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Title Section -->
+                <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                    <TextBlock Text="AD Correlation - Recommendations" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding TotalCount, StringFormat='{}{0} recommendations'}"
+                               FontSize="14" FontWeight="SemiBold"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Status Filter -->
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding RecommendationsFilterOptions}"
+                          SelectedItem="{Binding RecommendationsFilter}"
+                          Width="160"
+                          VerticalAlignment="Center"
+                          Margin="0,0,16,0"/>
+
+                <!-- Search Box -->
+                <ui:AutoSuggestBox Grid.Column="2"
+                                   PlaceholderText="Search person or AD account..."
+                                   Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                   QueryIcon="Find"
+                                   VerticalAlignment="Center"
+                                   MaxWidth="600"
+                                   HorizontalAlignment="Center"
+                                   Width="600"/>
+
+                <!-- Action Buttons -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:AppBarButton Label="Generate Recommendations"
+                                     Command="{Binding GenerateRecommendationsCommand}">
+                        <ui:AppBarButton.Icon>
+                            <ui:FontIcon Glyph="&#xE945;"/> <!-- LightningBolt -->
+                        </ui:AppBarButton.Icon>
+                    </ui:AppBarButton>
+                    <ui:AppBarButton Label="{Binding AcceptAllLabel, Mode=OneWay}"
+                                     Command="{Binding AcceptAllCommand}"
+                                     ToolTip="Bulk-accept every person's top recommendation at or above the configured score threshold (Settings)">
+                        <ui:AppBarButton.Icon>
+                            <ui:FontIcon Glyph="&#xE73E;"/> <!-- CheckMark -->
+                        </ui:AppBarButton.Icon>
+                    </ui:AppBarButton>
+                    <ui:AppBarButton Label="Clear Recommendations"
+                                     Command="{Binding ClearRecommendationsCommand}"
+                                     ToolTip="Delete all recommendations, including Accepted/Rejected history">
+                        <ui:AppBarButton.Icon>
+                            <ui:FontIcon Glyph="&#xE74D;"/> <!-- Delete icon -->
+                        </ui:AppBarButton.Icon>
+                    </ui:AppBarButton>
+                    <ui:AppBarButton Icon="Refresh"
+                                     Label="Refresh"
+                                     Command="{Binding RefreshCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- DataGrid Content -->
+        <Grid Grid.Row="1">
+            <DataGrid ItemsSource="{Binding Recommendations}"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      HeadersVisibility="Column"
+                      SelectionMode="Single"
+                      GridLinesVisibility="Horizontal"
+                      RowHeaderWidth="0"
+                      BorderThickness="0"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True">
+
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Copy" Command="ApplicationCommands.Copy">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Glyph="&#xE8C8;"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Actions" Width="160">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Accept"
+                                            Padding="8,2"
+                                            Margin="4,2"
+                                            Command="{Binding DataContext.AcceptRecommendationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Content="Reject"
+                                            Padding="8,2"
+                                            Margin="4,2"
+                                            Command="{Binding DataContext.RejectRecommendationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Score %" Width="80">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding ScorePercent, StringFormat={}{0:0.0}}"
+                                           Margin="8,0"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold">
+                                    <TextBlock.Foreground>
+                                        <MultiBinding Converter="{StaticResource ScoreThresholdToBrushConverter}">
+                                            <Binding Path="ScorePercent"/>
+                                            <Binding Path="DataContext.ScoreHighlightThreshold" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                                        </MultiBinding>
+                                    </TextBlock.Foreground>
+                                </TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Person" Binding="{Binding PersonDisplayName}" Width="220"/>
+                    <DataGridTextColumn Header="External ID" Binding="{Binding PersonExternalId}" Width="110"/>
+                    <DataGridTextColumn Header="AD Display Name" Binding="{Binding AdDisplayName}" Width="220"/>
+                    <DataGridTextColumn Header="AD sAMAccountName" Binding="{Binding AdSamAccountName}" Width="150"/>
+                    <DataGridTextColumn Header="AD UPN" Binding="{Binding AdUserPrincipalName}" Width="230"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Loading Overlay -->
+            <Border Background="#CC000000"
+                    Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <ui:ProgressRing IsActive="{Binding IsBusy}" Width="60" Height="60" Margin="0,0,0,12"/>
+                    <TextBlock Text="{Binding ProgressText}"
+                               Foreground="White"
+                               FontSize="14"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Status bar -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                Padding="16,6"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0">
+            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        </Border>
+    </Grid>
+</UserControl>

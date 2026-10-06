@@ -16,6 +16,11 @@ public enum DatabaseType
     PostgreSql,
 
     /// <summary>
+    /// PostgreSQL database (standard self-hosted or local server).
+    /// </summary>
+    PostgreSqlStandard,
+
+    /// <summary>
     /// Turso database (cloud-based SQLite-compatible via REST API).
     /// </summary>
     Turso

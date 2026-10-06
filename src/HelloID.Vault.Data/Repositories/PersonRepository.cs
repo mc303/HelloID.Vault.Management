@@ -394,7 +394,7 @@ public class PersonRepository : IPersonRepository
 
         // Database-specific SQL for JSON extraction
         string sql;
-        if (_connectionFactory.DatabaseType == DatabaseType.PostgreSql)
+        if (_connectionFactory.DatabaseType.IsPostgreSqlBackend())
         {
             // PostgreSQL: Use jsonb_extract_path_text or ->> operator
             sql = @"

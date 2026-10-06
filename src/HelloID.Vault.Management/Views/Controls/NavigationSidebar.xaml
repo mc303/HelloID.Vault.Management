@@ -150,6 +150,28 @@
                             <ui:FontIcon Glyph="&#xE77B;"/> <!-- Admin/User icon -->
                         </ui:NavigationViewItem.Icon>
                     </ui:NavigationViewItem>
+                    <ui:NavigationViewItem Content="AD Correlation" Tag="AdCorrelationParent">
+                        <ui:NavigationViewItem.Icon>
+                            <ui:FontIcon Glyph="&#xE8D0;"/> <!-- Table icon -->
+                        </ui:NavigationViewItem.Icon>
+                        <ui:NavigationViewItem.MenuItems>
+                            <ui:NavigationViewItem Content="Settings" Tag="AdCorrelationSettings">
+                                <ui:NavigationViewItem.Icon>
+                                    <ui:FontIcon Glyph="&#xE713;"/> <!-- Settings icon -->
+                                </ui:NavigationViewItem.Icon>
+                            </ui:NavigationViewItem>
+                            <ui:NavigationViewItem Content="Results" Tag="AdCorrelationResults">
+                                <ui:NavigationViewItem.Icon>
+                                    <ui:FontIcon Glyph="&#xE9D9;"/> <!-- Diagnostic icon -->
+                                </ui:NavigationViewItem.Icon>
+                            </ui:NavigationViewItem>
+                            <ui:NavigationViewItem Content="Recommendations" Tag="AdCorrelationRecommendations">
+                                <ui:NavigationViewItem.Icon>
+                                    <ui:FontIcon Glyph="&#xE945;"/> <!-- LightningBolt icon -->
+                                </ui:NavigationViewItem.Icon>
+                            </ui:NavigationViewItem>
+                        </ui:NavigationViewItem.MenuItems>
+                    </ui:NavigationViewItem>
                 </ui:NavigationViewItem.MenuItems>
             </ui:NavigationViewItem>
 

@@ -34,6 +34,9 @@
             <converters:IntToVisibilityConverter x:Key="IntToVisibilityConverter" />
             <converters:SortOrderToBoolConverter x:Key="SortOrderToBoolConverter" />
             <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
+            <converters:AuthTypeToVisibilityConverter x:Key="AuthTypeToVisibilityConverter" />
+            <converters:FlexibleDoubleConverter x:Key="FlexibleDoubleConverter" />
+            <converters:ScoreThresholdToBrushConverter x:Key="ScoreThresholdToBrushConverter" />
             <!-- Preview Dialog Converters -->
             <converters:WinnerIconColorConverter x:Key="WinnerIconColorConverter" />
             <converters:WinnerFontWeightConverter x:Key="WinnerFontWeightConverter" />

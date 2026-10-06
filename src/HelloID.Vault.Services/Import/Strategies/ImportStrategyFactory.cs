@@ -22,7 +22,7 @@ public static class ImportStrategyFactory
         return connectionFactory.DatabaseType switch
         {
             DatabaseType.Sqlite => CreateSqliteStrategy(),
-            DatabaseType.PostgreSql => await CreatePostgresStrategyAsync(connection),
+            DatabaseType.PostgreSql or DatabaseType.PostgreSqlStandard => await CreatePostgresStrategyAsync(connection),
             _ => throw new NotSupportedException($"Database type {connectionFactory.DatabaseType} is not supported")
         };
     }
@@ -39,7 +39,7 @@ public static class ImportStrategyFactory
         return connectionFactory.DatabaseType switch
         {
             DatabaseType.Sqlite => CreateSqliteStrategy(),
-            DatabaseType.PostgreSql => CreatePostgresStrategy(canDisableFkConstraints),
+            DatabaseType.PostgreSql or DatabaseType.PostgreSqlStandard => CreatePostgresStrategy(canDisableFkConstraints),
             _ => throw new NotSupportedException($"Database type {connectionFactory.DatabaseType} is not supported")
         };
     }

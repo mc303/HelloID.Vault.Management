@@ -28,7 +28,7 @@ public partial class ConfirmImportDialog : Window
 
     private void ApplyDatabaseTypeSettings(DatabaseType databaseType)
     {
-        if (databaseType == DatabaseType.PostgreSql)
+        if (databaseType.IsPostgreSqlBackend())
         {
             // Disable backup button for PostgreSQL
             BackupAndOverwriteButton.IsEnabled = false;

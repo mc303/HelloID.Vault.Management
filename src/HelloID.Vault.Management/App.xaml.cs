@@ -19,6 +19,7 @@ using HelloID.Vault.Management.ViewModels.Persons;
 using HelloID.Vault.Management.ViewModels.Contracts;
 using HelloID.Vault.Management.Views.Contracts;
 using HelloID.Vault.Management.ViewModels.Import;
+using HelloID.Vault.Management.ViewModels.Administration;
 using HelloID.Vault.Management.ViewModels.ReferenceData;
 using HelloID.Vault.Management.Services;
 using HelloID.Vault.Services;
@@ -48,6 +49,7 @@ public partial class App : Application
 
         // Set up global exception handlers
         SetupExceptionHandlers();
+        SetupFileLogging();
     }
 
     /// <summary>
@@ -63,6 +65,37 @@ public partial class App : Application
 
         // Unobserved task exceptions
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
+
+    /// <summary>
+    /// Mirrors all Debug.WriteLine output to a daily log file so diagnostics
+    /// ([AdSearch], [AdRec], [AdRepo], [AdDiag], ...) are available without
+    /// a debugger attached. Location: %LOCALAPPDATA%\HelloID.Vault.Management\logs.
+    /// </summary>
+    private void SetupFileLogging()
+    {
+        try
+        {
+            var logDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "HelloID.Vault.Management", "logs");
+            Directory.CreateDirectory(logDir);
+
+            var logPath = Path.Combine(logDir, $"app-debug-{DateTime.Now:yyyyMMdd}.log");
+            var listener = new System.Diagnostics.TextWriterTraceListener(logPath)
+            {
+                IndentSize = 2
+            };
+            System.Diagnostics.Trace.Listeners.Add(listener);
+            System.Diagnostics.Trace.AutoFlush = true;
+
+            System.Diagnostics.Debug.WriteLine($"[App] File logging started: {logPath}");
+        }
+        catch (Exception ex)
+        {
+            // Logging must never prevent startup
+            System.Diagnostics.Debug.WriteLine($"[App] File logging unavailable: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -151,13 +184,22 @@ public partial class App : Application
         // Use DatabaseType enum directly to determine factory
         
         // Case-insensitive check for database type
-        bool isPostgres = string.Equals(dbType.ToString(), DatabaseType.PostgreSql.ToString(), StringComparison.OrdinalIgnoreCase);
+        bool isPostgres = dbType.IsPostgreSqlBackend();
         bool isTurso = string.Equals(dbType.ToString(), DatabaseType.Turso.ToString(), StringComparison.OrdinalIgnoreCase);
 
         if (isPostgres)
         {
-            // PostgreSQL connection (Supabase)
-            var connectionString = preferencesService.SupabaseConnectionString;
+            // PostgreSQL connection (Supabase or standard self-hosted server)
+            var connectionString = dbType == DatabaseType.PostgreSqlStandard
+                ? preferencesService.PostgreSqlConnectionString
+                : preferencesService.SupabaseConnectionString;
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    "A PostgreSQL connection string is required. Please configure it in Settings.");
+            }
+
             services.AddSingleton<IDatabaseConnectionFactory>(new PostgreSqlConnectionFactory(connectionString));
             services.AddSingleton(sp => new DatabaseInitializer(
                 sp.GetRequiredService<IDatabaseConnectionFactory>(),
@@ -263,6 +305,16 @@ public partial class App : Application
             services.AddSingleton<ISourceSystemRepository, SqliteSourceSystemRepository>();
         }
 
+        // AD Correlation repository - database-specific implementation
+        if (isTurso)
+        {
+            services.AddSingleton<IAdCorrelationRepository, Data.Repositories.Turso.TursoAdCorrelationRepository>();
+        }
+        else
+        {
+            services.AddSingleton<IAdCorrelationRepository, Data.Repositories.AdCorrelationRepository>();
+        }
+
         // Memory Cache
         services.AddSingleton<IMemoryCache, MemoryCache>();
 
@@ -328,6 +380,8 @@ public partial class App : Application
         services.AddSingleton<IColumnLayoutManager, ColumnLayoutManager>();
         services.AddSingleton<IDatabaseManager, DatabaseManager>();
         services.AddSingleton<IVaultAnonymizerService, VaultAnonymizerService>();
+        services.AddSingleton<IActiveDirectoryService, HelloID.Vault.Services.ActiveDirectory.ActiveDirectoryService>();
+        services.AddSingleton<IAdCorrelationService, AdCorrelationService>();
 
         // ViewModels
         services.AddSingleton<MainWindowViewModel>();
@@ -353,6 +407,9 @@ public partial class App : Application
         services.AddTransient<PrimaryContractConfigViewModel>();
         services.AddTransient<SourceSystemsViewModel>();
         services.AddTransient<PrimaryManagerAdminViewModel>();
+        services.AddTransient<AdSettingsViewModel>();
+        services.AddTransient<AdResultsViewModel>();
+        services.AddTransient<AdRecommendationsViewModel>();
         services.AddTransient<SettingsViewModel>();
 
         // Views

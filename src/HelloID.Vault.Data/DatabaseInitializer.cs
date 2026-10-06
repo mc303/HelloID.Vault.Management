@@ -58,7 +58,7 @@ public class DatabaseInitializer
             System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Calling InitializeSqliteAsync");
             await InitializeSqliteAsync();
         }
-        else if (dbType == DatabaseType.PostgreSql)
+        else if (dbType.IsPostgreSqlBackend())
         {
             System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Calling InitializePostgreSqlAsync");
             await InitializePostgreSqlAsync();
@@ -138,7 +138,7 @@ public class DatabaseInitializer
     }
 
     /// <summary>
-    /// Converts empty string date values to NULL in all date columns.
+    /// Converts empty or whitespace-only date values to NULL in all date columns.
     /// Empty strings in date columns cause "invalid input syntax for type date" errors
     /// when views cast TEXT columns to DATE.
     /// </summary>
@@ -149,9 +149,9 @@ public class DatabaseInitializer
             using var connection = _connectionFactory.CreateConnection();
 
             var cleanupSql = @"
-                UPDATE persons SET birth_date = NULL WHERE birth_date = '';
-                UPDATE contracts SET start_date = NULL WHERE start_date = '';
-                UPDATE contracts SET end_date = NULL WHERE end_date = '';";
+                UPDATE persons SET birth_date = NULL WHERE trim(birth_date) = '';
+                UPDATE contracts SET start_date = NULL WHERE trim(start_date) = '';
+                UPDATE contracts SET end_date = NULL WHERE trim(end_date) = '';";
 
             await connection.ExecuteAsync(cleanupSql);
             System.Diagnostics.Debug.WriteLine("[DatabaseInitializer] Cleaned up empty date values");
@@ -323,7 +323,7 @@ public class DatabaseInitializer
 
         // For PostgreSQL, split script into individual statements
         // Dapper ExecuteAsync only handles single statements
-        if (_connectionFactory.DatabaseType == DatabaseType.PostgreSql)
+            if (_connectionFactory.DatabaseType.IsPostgreSqlBackend())
         {
             await ExecutePostgreSqlScriptAsync(connection, schemaSql);
         }
@@ -376,14 +376,14 @@ public class DatabaseInitializer
             if (trimmed.StartsWith("CREATE OR REPLACE VIEW person_details_view"))
             {
                 System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] person_details_view SQL (first 1000 chars):\n{stmt.Substring(0, Math.Min(1000, stmt.Length))}...");
-                // Check if it contains the ::date cast fix
-                if (stmt.Contains("c.end_date::date, '2999-01-01'::date"))
+                // Check if it contains the NULLIF empty-string date cast fix
+                if (stmt.Contains("NULLIF(c.end_date, '')::date"))
                 {
-                    System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] ✓ person_details_view contains CORRECT ::date cast on end_date");
+                    System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] ✓ person_details_view contains CORRECT NULLIF ::date cast on end_date");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] ✗ person_details_view MISSING ::date cast on end_date!");
+                    System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] ✗ person_details_view MISSING NULLIF ::date cast on end_date!");
                 }
             }
         }
@@ -603,7 +603,7 @@ public class DatabaseInitializer
             System.Diagnostics.Debug.WriteLine($"Database schema version: {version}");
 
             // For PostgreSQL, also verify that views exist by checking person_list_view
-            if (_connectionFactory.DatabaseType == DatabaseType.PostgreSql)
+        if (_connectionFactory.DatabaseType.IsPostgreSqlBackend())
             {
                 try
                 {

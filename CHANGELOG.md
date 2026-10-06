@@ -5,7 +5,71 @@ All notable changes to HelloID.Vault.Management will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.1] - 2026-09-03
+## [0.6.1] - 2026-10-06
+
+### Added
+- Add standard PostgreSQL database type separate from Supabase
+- Add clear actions for results, recommendations, and credentials
+- Run elevated and add ADSI bind diagnostics
+- Mirror debug output to a daily log file
+- Configurable bulk-accept threshold with score highlighting
+- Bulk-accept recommendations above a score threshold
+- Show error dialogs for failed AD actions
+- Track match method and AD value status for IAM correlation
+- Fail-closed audit log for AD write operations
+- Write correlation attribute back to matched AD accounts
+- Correlate only persons entitled to an AD account
+- Fall back to display-name matching when AD withholds correlation attribute
+- Retry AD search with all attributes when correlation attribute is empty
+- Port follows LDAPS toggle in AD Correlation view
+- Add AD Correlation with match recommendations
+
+### Fixed
+- Select highest semantic version tag in version bump
+- Handle whitespace-only dates and correct stale view diagnostic
+- Skip decided pairs when generating recommendations
+- Remove port from DirectoryEntry ADsPath
+- Use DirectoryEntry (ADSI) for write operations
+- Split UPN credentials into separate username and domain
+- Always show username/password fields in AD Correlation settings
+- Parse DOMAIN\user into NetworkCredential domain property
+- Parameter names in SetManualMatchAsync upsert
+- Accept flow authenticates with the stored LDAP password
+- Decode byte[] LDAP values in diagnostics logging
+- LDAP bind errors never throw inside Task.Run lambdas
+- Dispatcher-safe error dialogs for AD actions
+- Retry SQLite database deletion with full handle release
+- Seal LDAP session for Negotiate auth over port 389
+- Case-insensitive fallback when reading LDAP attributes
+- Weight field accepts both decimal separators
+- Enable LDAPS explicitly in AD connection
+
+### Changed
+- Treat changelog text literally in version bump regex replacement
+- branch 'feature/ad-correlation'
+- Align AD correlation view Correlation section with Connection layout
+- Align mock user preferences with AD settings interface
+- Remove ad_correlation_config from schema files
+- Move AD correlation settings to UserPreferences
+- Simplify connection settings - remove port, optional host
+- Remove AuthType from AD correlation config and UI
+- Migrate AD service from LdapConnection to DirectoryEntry/DirectorySearcher
+- Test Connection failures show in the status bar only
+- One-shot LDAP diagnostics block on Run Correlation
+- Use reference-data layout for AD Results and Recommendations
+- Split AD Correlation Results and Recommendations
+- Let match fields grid size to content
+- Split AD Correlation into Settings and Results views
+- Log AD correlation data queries and results
+- Log raw LDAP attribute names and empty-correlation warning
+- Dump all AD attributes of first retrieved user
+- Add debug logging to AD correlation path
+- v0.5.1
+- Remove machine-local MCP servers from opencode config
+- Auto-switch to main in release scripts and restore branch
+- Restrict release scripts to main branch
+
+## [0.6.0] - 2026-09-03
 
 ### Added
 - Start app in offline mode when database is unreachable

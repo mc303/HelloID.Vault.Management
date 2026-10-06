@@ -268,7 +268,7 @@ public class PrimaryManagerService : IPrimaryManagerService
         }
         else
         {
-            var isPostgres = _connectionFactory.DatabaseType == DatabaseType.PostgreSql;
+            var isPostgres = _connectionFactory.DatabaseType.IsPostgreSqlBackend();
             var currentDateSql = isPostgres ? "CURRENT_DATE" : "date('now')";
             var dateCast = isPostgres ? "::date" : "";
 
