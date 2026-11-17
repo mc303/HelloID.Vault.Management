@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Windows.Controls;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
+using HelloID.Vault.Management.Services;
 using HelloID.Vault.Management.ViewModels.Contracts;
 using HelloID.Vault.Core.Models;
 using HelloID.Vault.Core.Utilities;
@@ -330,4 +332,35 @@ public partial class ContractsView : UserControl
             _viewModel.SaveColumnWidths(columnWidths);
         }
     }
+
+    private void ExportToCsv_Click(object sender, RoutedEventArgs e)
+    {
+        // Context menu: grid is the placement target; toolbar button: find the first grid in the view
+        DataGrid? dataGrid = sender is MenuItem menuItem && menuItem.Parent is ContextMenu contextMenu
+            ? contextMenu.PlacementTarget as DataGrid
+            : FindFirstChild<DataGrid>(this);
+
+        if (dataGrid != null)
+        {
+            DataGridExportService.ExportToCsv(dataGrid, "contracts");
+        }
+    }
+
+    private static T? FindFirstChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        if (parent == null) return null;
+
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T result)
+                return result;
+
+            var resultOfChild = FindFirstChild<T>(child);
+            if (resultOfChild != null)
+                return resultOfChild;
+        }
+        return null;
+    }
 }
+

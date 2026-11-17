@@ -47,6 +47,12 @@
                             </MenuItem.Icon>
                         </MenuItem>
                         <Separator/>
+                        <MenuItem Header="Export to CSV..." Click="ExportToCsv_Click">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Glyph="&#xE74E;"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <Separator/>
                         <MenuItem Header="Edit" Command="{Binding EditItemCommand}">
                             <MenuItem.Icon>
                                 <ui:FontIcon Glyph="&#xE70F;"/>

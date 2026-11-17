@@ -4,6 +4,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using HelloID.Vault.Management.ViewModels.ReferenceData;
 
+using HelloID.Vault.Management.Services;
+
 namespace HelloID.Vault.Management.Views.ReferenceData;
 
 /// <summary>
@@ -143,6 +145,20 @@ public partial class SourceSystemsView : UserControl
             }
         }
     }
+
+    private void ExportToCsv_Click(object sender, RoutedEventArgs e)
+    {
+        // Context menu: grid is the placement target; toolbar button: find the first grid in the view
+        DataGrid? dataGrid = sender is MenuItem menuItem && menuItem.Parent is ContextMenu contextMenu
+            ? contextMenu.PlacementTarget as DataGrid
+            : FindFirstChild<DataGrid>(this);
+
+        if (dataGrid != null)
+        {
+            DataGridExportService.ExportToCsv(dataGrid, "source_systems");
+        }
+    }
+
 
     private static T? FindFirstChild<T>(DependencyObject parent) where T : DependencyObject
     {

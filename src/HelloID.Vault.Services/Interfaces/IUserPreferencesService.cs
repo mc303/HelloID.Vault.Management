@@ -371,6 +371,11 @@ public interface IUserPreferencesService
     int AdFutureContractDays { get; set; }
     string? AdMatchFieldsJson { get; set; }
     int AdMinScore { get; set; }
+
+    /// <summary>
+    /// Delimiter used for CSV table export. Null means the user has not chosen one yet.
+    /// </summary>
+    string? ExportDelimiter { get; set; }
     int AdMaxCandidates { get; set; }
     int AdAcceptAllThreshold { get; set; }
 

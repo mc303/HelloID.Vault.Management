@@ -4,6 +4,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using HelloID.Vault.Management.ViewModels.ReferenceData;
 
+using HelloID.Vault.Management.Services;
+
 namespace HelloID.Vault.Management.Views.ReferenceData;
 
 public partial class CostBearersView : UserControl
@@ -144,6 +146,16 @@ public partial class CostBearersView : UserControl
             }
         }
     }
+
+
+    private void ExportToCsv_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem menuItem && menuItem.Parent is ContextMenu contextMenu && contextMenu.PlacementTarget is DataGrid dataGrid)
+        {
+            DataGridExportService.ExportToCsv(dataGrid, "cost_bearers");
+        }
+    }
+
 
     private static T? FindFirstChild<T>(DependencyObject parent) where T : DependencyObject
     {

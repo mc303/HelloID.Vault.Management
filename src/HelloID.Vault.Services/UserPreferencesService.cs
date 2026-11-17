@@ -175,6 +175,7 @@ public class UserPreferencesService : IUserPreferencesService
         }
     }
 
+
     // Reference Data - Departments
     public string? LastSelectedDepartmentCode
     {
@@ -901,6 +902,15 @@ public class UserPreferencesService : IUserPreferencesService
         set { if (_preferences.AdActiveContractOnly != value) { _preferences.AdActiveContractOnly = value; _ = SaveAsync(); } }
     }
 
+    /// <summary>
+    /// Delimiter used for CSV table export. Null means the user has not chosen one yet.
+    /// </summary>
+    public string? ExportDelimiter
+    {
+        get => _preferences.ExportDelimiter;
+        set { if (_preferences.ExportDelimiter != value) { _preferences.ExportDelimiter = value; _ = SaveAsync(); } }
+    }
+
     public int AdFutureContractDays
     {
         get => _preferences.AdFutureContractDays;
@@ -1126,6 +1136,12 @@ public class UserPreferences
     /// Last advanced search filters in Contracts view.
     /// </summary>
     public List<ContractFilterDto>? LastContractAdvancedFilters { get; set; }
+
+
+    /// <summary>
+    /// Delimiter used for CSV table export ("," ";" or tab). Null = ask on first export.
+    /// </summary>
+    public string? ExportDelimiter { get; set; }
 
     // Reference Data - Departments
     public string? LastSelectedDepartmentCode { get; set; }

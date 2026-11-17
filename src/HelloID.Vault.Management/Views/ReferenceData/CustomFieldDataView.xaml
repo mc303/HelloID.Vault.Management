@@ -71,6 +71,10 @@
                     <ui:AppBarButton Icon="Refresh"
                                      Label="Refresh"
                                      Command="{Binding RefreshCommand}"/>
+                    <ui:AppBarButton Icon="Download"
+                                     Label="Export"
+                                     Click="ExportToCsv_Click"
+                                     ToolTip="Export to CSV"/>
                     <ui:AppBarButton Icon="Undo"
                                      Label="Reset Settings"
                                      Command="{Binding ResetSettingsCommand}"
@@ -100,7 +104,17 @@
                       EnableRowVirtualization="True"
                       EnableColumnVirtualization="True"
                       ScrollViewer.CanContentScroll="True"
-                      ScrollViewer.ScrollChanged="OnScrollChanged"/>
+                      ScrollViewer.ScrollChanged="OnScrollChanged">
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Export to CSV..." Click="ExportToCsv_Click">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Glyph="&#xE74E;"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+            </DataGrid>
 
             <!-- Loading Overlay -->
             <Border Background="{DynamicResource SystemControlPageBackgroundChromeMediumBrush}"

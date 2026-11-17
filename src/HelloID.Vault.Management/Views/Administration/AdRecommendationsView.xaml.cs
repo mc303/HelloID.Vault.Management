@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using HelloID.Vault.Management.Services;
 using HelloID.Vault.Management.ViewModels.Administration;
 
 namespace HelloID.Vault.Management.Views.Administration;
@@ -25,4 +26,14 @@ public partial class AdRecommendationsView : UserControl
             _ = viewModel.InitializeAsync();
         }
     }
+
+    private void ExportToCsv_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem menuItem && menuItem.Parent is ContextMenu contextMenu && contextMenu.PlacementTarget is DataGrid dataGrid)
+        {
+            DataGridExportService.ExportToCsv(dataGrid, "ad_recommendations");
+        }
+    }
+
 }
+

@@ -4,6 +4,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using HelloID.Vault.Management.ViewModels.ReferenceData;
 
+using HelloID.Vault.Management.Services;
+
 namespace HelloID.Vault.Management.Views.ReferenceData;
 
 public partial class TitlesView : UserControl
@@ -140,6 +142,16 @@ public partial class TitlesView : UserControl
             }
         }
     }
+
+
+    private void ExportToCsv_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem menuItem && menuItem.Parent is ContextMenu contextMenu && contextMenu.PlacementTarget is DataGrid dataGrid)
+        {
+            DataGridExportService.ExportToCsv(dataGrid, "titles");
+        }
+    }
+
 
     private static T? FindFirstChild<T>(DependencyObject parent) where T : DependencyObject
     {

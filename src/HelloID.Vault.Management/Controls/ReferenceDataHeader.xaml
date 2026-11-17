@@ -48,6 +48,10 @@
                 <ui:AppBarButton Icon="Add"
                                 Label="Add"
                                 Command="{Binding AddCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                <ui:AppBarButton Icon="Download"
+                                 Label="Export"
+                                 Click="ExportToCsv_Click"
+                                 ToolTip="Export to CSV"/>
                 <ui:AppBarButton Icon="Undo"
                                 Label="Reset Settings"
                                 Command="{Binding ResetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"

@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
+using System.Windows.Media;
+using HelloID.Vault.Management.Services;
 namespace HelloID.Vault.Management.Controls;
 
 /// <summary>
@@ -133,4 +135,31 @@ public partial class ReferenceDataHeader : UserControl
     }
 
     #endregion
+
+    private void ExportToCsv_Click(object sender, RoutedEventArgs e)
+    {
+        var window = Window.GetWindow(this);
+        var dataGrid = window == null ? null : FindFirstChild<DataGrid>(window);
+        if (dataGrid != null)
+        {
+            DataGridExportService.ExportToCsv(dataGrid, Title.Trim().ToLower().Replace(" ", "_"));
+        }
+    }
+
+    private static T? FindFirstChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        if (parent == null) return null;
+
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T result)
+                return result;
+
+            var resultOfChild = FindFirstChild<T>(child);
+            if (resultOfChild != null)
+                return resultOfChild;
+        }
+        return null;
+    }
 }

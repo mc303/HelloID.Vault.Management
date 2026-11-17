@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
+using HelloID.Vault.Management.Services;
 using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Management.ViewModels.ReferenceData;
 
@@ -99,4 +101,35 @@ public partial class CustomFieldDataView : UserControl
             _ = _viewModel.LoadMoreAsync();
         }
     }
+
+    private void ExportToCsv_Click(object sender, RoutedEventArgs e)
+    {
+        // Context menu: grid is the placement target; toolbar button: find the first grid in the view
+        DataGrid? dataGrid = sender is MenuItem menuItem && menuItem.Parent is ContextMenu contextMenu
+            ? contextMenu.PlacementTarget as DataGrid
+            : FindFirstChild<DataGrid>(this);
+
+        if (dataGrid != null)
+        {
+            DataGridExportService.ExportToCsv(dataGrid, "custom_field_data");
+        }
+    }
+
+    private static T? FindFirstChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        if (parent == null) return null;
+
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T result)
+                return result;
+
+            var resultOfChild = FindFirstChild<T>(child);
+            if (resultOfChild != null)
+                return resultOfChild;
+        }
+        return null;
+    }
 }
+

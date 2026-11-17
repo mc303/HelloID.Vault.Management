@@ -124,6 +124,10 @@
                     <ui:AppBarButton Icon="Add"
                                     Label="Add"
                                     Command="{Binding AddItemCommand}"/>
+                    <ui:AppBarButton Icon="Download"
+                                    Label="Export"
+                                    Click="ExportToCsv_Click"
+                                    ToolTip="Export to CSV"/>
                     <ui:AppBarButton Icon="Undo"
                                     Label="Reset Settings"
                                     Command="{Binding ResetSettingsCommand}"
@@ -152,6 +156,12 @@
                         <MenuItem Header="Copy" Command="ApplicationCommands.Copy">
                             <MenuItem.Icon>
                                 <ui:FontIcon Glyph="&#xE8C8;"/>
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="Export to CSV..." Click="ExportToCsv_Click">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Glyph="&#xE74E;"/>
                             </MenuItem.Icon>
                         </MenuItem>
                         <Separator/>
