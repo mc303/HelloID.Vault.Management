@@ -5,10 +5,9 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- The app binds to AD with the Windows identity; a filtered
-             (non-elevated) token strips Domain Admins and hides
-             attributes such as employeeID. -->
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+        <!-- Runs non-elevated by default; for AD operations requiring
+             Domain Admins rights, start manually as administrator. -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>
