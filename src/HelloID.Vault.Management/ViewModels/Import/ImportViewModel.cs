@@ -81,6 +81,17 @@ public partial class ImportViewModel : ObservableObject
     [ObservableProperty]
     private AnonymizationResult? _anonymizationResult;
 
+    /// <summary>
+    /// True when an anonymized subset with auto-included managers was used.
+    /// Drives the subset summary visibility without converter ambiguity.
+    /// </summary>
+    public bool HasSubsetResult => AnonymizationResult is { ManagersIncluded: > 0 };
+
+    partial void OnAnonymizationResultChanged(AnonymizationResult? value)
+    {
+        OnPropertyChanged(nameof(HasSubsetResult));
+    }
+
     [ObservableProperty]
     private int _nameSharingMode = 1;
 
@@ -260,6 +271,8 @@ public partial class ImportViewModel : ObservableObject
 
             if (!AnonymizeBeforeImport)
             {
+                // Clear stale subset info from a previous import
+                AnonymizationResult = null;
                 IsImporting = true;
             }
 
@@ -431,6 +444,7 @@ public partial class ImportViewModel : ObservableObject
             IsImporting = true;
             ImportCompleted = false;
             ImportResult = null;
+            AnonymizationResult = null;
             ProgressPercentage = 0;
             StatusMessage = "Starting company data import...";
 
@@ -624,6 +638,7 @@ public partial class ImportViewModel : ObservableObject
             IsImporting = true;
             ImportCompleted = false;
             ImportResult = null;
+            AnonymizationResult = null;
             ProgressPercentage = 0;
             StatusMessage = $"Importing {selectedPersonIds.Count} selected persons + company data...";
 

@@ -40,7 +40,7 @@ public class TursoEmployerRepository : IEmployerRepository
     {
         Debug.WriteLine($"[TursoEmployerRepository] UpdateAsync: {employer.ExternalId}");
         var sql = "UPDATE employers SET code = ?, name = ?, source = ? WHERE external_id = ? AND source = ?";
-        return await _client.ExecuteAsync(sql, new { employer.Code, employer.Name, employer.Source, employer.ExternalId });
+        return await _client.ExecuteAsync(sql, new { employer.Code, employer.Name, employer.Source, employer.ExternalId, Source2 = employer.Source });
     }
 
     public async Task<int> DeleteAsync(string externalId, string source)

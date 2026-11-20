@@ -81,6 +81,9 @@ public partial class App : Application
                 "HelloID.Vault.Management", "logs");
             Directory.CreateDirectory(logDir);
 
+            // Logs may contain personal data - delete logs older than 30 days
+            CleanupOldLogs(logDir);
+
             var logPath = Path.Combine(logDir, $"app-debug-{DateTime.Now:yyyyMMdd}.log");
             var listener = new System.Diagnostics.TextWriterTraceListener(logPath)
             {
@@ -95,6 +98,29 @@ public partial class App : Application
         {
             // Logging must never prevent startup
             System.Diagnostics.Debug.WriteLine($"[App] File logging unavailable: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Deletes app-debug log files older than 30 days.
+    /// Failures are ignored - cleanup must never prevent startup.
+    /// </summary>
+    private void CleanupOldLogs(string logDir)
+    {
+        try
+        {
+            var cutoff = DateTime.Now.AddDays(-30);
+            foreach (var logFile in Directory.GetFiles(logDir, "app-debug-*.log"))
+            {
+                if (File.GetLastWriteTime(logFile) < cutoff)
+                {
+                    File.Delete(logFile);
+                }
+            }
+        }
+        catch
+        {
+            // Ignore cleanup failures
         }
     }
 

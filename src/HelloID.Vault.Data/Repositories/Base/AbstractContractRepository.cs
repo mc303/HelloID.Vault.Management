@@ -840,21 +840,25 @@ public abstract class AbstractContractRepository : IContractRepository
     public async Task RebuildCacheAsync()
     {
         using var connection = _connectionFactory.CreateConnection();
+        using var transaction = connection.BeginTransaction();
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
+        // Atomic rebuild in one transaction: readers never see an empty cache
+        // and a failure rolls back to the previous contents
+
         // Delete existing cache data
-        await connection.ExecuteAsync("DELETE FROM contract_details_cache").ConfigureAwait(false);
+        await connection.ExecuteAsync("DELETE FROM contract_details_cache", transaction).ConfigureAwait(false);
 
         // Rebuild cache from view
         var insertSql = @"
             INSERT INTO contract_details_cache
             SELECT * FROM contract_details_view";
 
-        await connection.ExecuteAsync(insertSql).ConfigureAwait(false);
+        await connection.ExecuteAsync(insertSql, transaction).ConfigureAwait(false);
 
         // Update metadata
-        var rowCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM contract_details_cache").ConfigureAwait(false);
+        var rowCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM contract_details_cache", transaction).ConfigureAwait(false);
 
         stopwatch.Stop();
 
@@ -871,7 +875,9 @@ public abstract class AbstractContractRepository : IContractRepository
             LastRefreshed = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
             RowCount = rowCount,
             RefreshDurationMs = stopwatch.ElapsedMilliseconds
-        }).ConfigureAwait(false);
+        }, transaction).ConfigureAwait(false);
+
+        transaction.Commit();
     }
 
     public async Task RefreshContractCacheItemAsync(int contractId)

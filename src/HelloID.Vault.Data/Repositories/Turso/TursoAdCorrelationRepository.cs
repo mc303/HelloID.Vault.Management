@@ -140,8 +140,8 @@ public class TursoAdCorrelationRepository : IAdCorrelationRepository
             Sql = @"INSERT INTO ad_correlation_results (
                 person_id, external_id, ad_object_guid, ad_distinguished_name, ad_sam_account_name,
                 ad_user_principal_name, ad_display_name, ad_mail, ad_enabled,
-                correlation_value, correlation_attribute, status, correlated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                correlation_value, correlation_attribute, status, match_method, value_status, correlated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             Args =
             [
                 TursoValue.Text(r.PersonId),

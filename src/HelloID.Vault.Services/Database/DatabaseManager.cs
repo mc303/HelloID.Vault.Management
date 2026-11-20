@@ -224,26 +224,73 @@ public class DatabaseManager : IDatabaseManager
     }
 
     /// <inheritdoc/>
-    public async Task CreateDatabaseBackupAsync()
+    public async Task<string?> CreateDatabaseBackupAsync()
     {
         if (_connectionFactory.DatabaseType == DatabaseType.Sqlite)
         {
-            await CreateSqliteBackupAsync();
+            return await CreateSqliteBackupAsync();
         }
-        else if (_connectionFactory.DatabaseType.IsPostgreSqlBackend())
+
+        if (_connectionFactory.DatabaseType.IsPostgreSqlBackend())
         {
-            await CreatePostgreSqlDumpAsync();
+            return await CreatePostgreSqlDumpAsync();
         }
-        else
+
+        throw new NotSupportedException($"Database backup is not supported for {_connectionFactory.DatabaseType}");
+    }
+
+    /// <inheritdoc/>
+    public async Task RestoreSqliteDatabaseFromBackupAsync(string backupFilePath)
+    {
+        if (_connectionFactory.DatabaseType != DatabaseType.Sqlite)
         {
-            throw new NotSupportedException($"Database backup is not supported for {_connectionFactory.DatabaseType}");
+            throw new NotSupportedException($"Restore is only supported for SQLite, not {_connectionFactory.DatabaseType}");
         }
+
+        // Derive the live database path the same way the backup does
+        string? dbPath;
+        using (var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false))
+        {
+            var sqliteConnection = connection as SqliteConnection
+                ?? throw new Exception("Connection is not a SQLite connection");
+            dbPath = sqliteConnection.DataSource;
+            connection.Close();
+        }
+
+        if (string.IsNullOrEmpty(dbPath))
+        {
+            throw new Exception("Database path could not be determined");
+        }
+
+        // Release file locks, then remove the partially imported database
+        SqliteConnection.ClearAllPools();
+        await Task.Delay(500);
+
+        foreach (var file in new[] { dbPath, dbPath + "-wal", dbPath + "-shm" })
+        {
+            if (File.Exists(file))
+            {
+                File.Delete(file);
+            }
+        }
+
+        // Restore the pre-import backup
+        File.Copy(backupFilePath, dbPath, overwrite: true);
+        foreach (var sidecar in new[] { "-wal", "-shm" })
+        {
+            if (File.Exists(backupFilePath + sidecar))
+            {
+                File.Copy(backupFilePath + sidecar, dbPath + sidecar, overwrite: true);
+            }
+        }
+
+        SqliteConnection.ClearAllPools();
     }
 
     /// <summary>
     /// Creates a backup of the SQLite database by copying the database file.
     /// </summary>
-    private async Task CreateSqliteBackupAsync()
+    private async Task<string?> CreateSqliteBackupAsync()
     {
         string? dbPath = null;
 
@@ -312,6 +359,7 @@ public class DatabaseManager : IDatabaseManager
 
             // Recreate the database schema after deletion
             await _databaseInitializer.InitializeAsync();
+            return backupPath;
         }
         catch (Exception ex)
         {
@@ -322,7 +370,7 @@ public class DatabaseManager : IDatabaseManager
     /// <summary>
     /// Creates a SQL dump backup of the PostgreSQL database.
     /// </summary>
-    private async Task CreatePostgreSqlDumpAsync()
+    private async Task<string?> CreatePostgreSqlDumpAsync()
     {
         string? backupPath = null;
 
@@ -345,6 +393,8 @@ public class DatabaseManager : IDatabaseManager
 
             // Write to file
             await File.WriteAllTextAsync(backupPath, sqlDump);
+
+            return backupPath;
         }
         catch (Exception ex)
         {

@@ -119,8 +119,12 @@ obj/
 .vibe/
 .vs/
 .cache/
+.opencode/plugins/graphify.js
 # screenshots/
 
 # Local tool output
 __pycache__/
 graphify-out/
+
+# Local test-runner credentials (template: appsettings.example.json)
+tests/VaultImportTestRunner/appsettings.json

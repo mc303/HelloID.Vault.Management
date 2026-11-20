@@ -29,12 +29,11 @@ public partial class CompanyImportDialog : Window
         }
         else if (databaseType == DatabaseType.Turso)
         {
-            // Disable backup button for Turso (no file backup possible)
-            BackupAndOverwriteButton.IsEnabled = false;
-            BackupAndOverwriteButton.ToolTip = "Database backup is not supported for Turso";
+            // Backup downloads the cloud database to a local SQLite file
+            BackupAndOverwriteButton.ToolTip = "Downloads the current database to a local backup file before importing";
 
             // Update overwrite message for Turso
-            OverwriteMessage.Text = "Delete database and recreate (all data will be lost)";
+            OverwriteMessage.Text = "Replaces the entire cloud database with the imported data (all data will be lost)";
         }
         // SQLite uses default XAML values
     }

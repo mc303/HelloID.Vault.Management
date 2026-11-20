@@ -110,6 +110,10 @@ public partial class CustomFieldEditViewModel : ObservableValidator
                 ? $"Updating custom field for all {entityType}..."
                 : $"Creating custom field for all {entityType}...";
 
+            // Storage key must stay JSON-path safe (Turso cannot address quoted
+            // labels); the display name keeps the original text
+            FieldKey = HelloID.Vault.Core.Utilities.FieldKeySanitizer.Sanitize(FieldKey);
+
             var schema = new CustomFieldSchema
             {
                 TableName = TableName,

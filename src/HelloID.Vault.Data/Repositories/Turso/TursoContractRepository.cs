@@ -687,8 +687,15 @@ public class TursoContractRepository : IContractRepository
         Debug.WriteLine("[TursoContractRepository] RebuildCacheAsync");
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-        await _client.ExecuteAsync("DELETE FROM contract_details_cache");
-        await _client.ExecuteAsync("INSERT INTO contract_details_cache SELECT * FROM contract_details_view");
+        // Atomic rebuild in one transaction: readers never see an empty cache
+        // and a failure rolls back to the previous contents
+        var statements = new List<TursoStatement>
+        {
+            new() { Sql = "DELETE FROM contract_details_cache", WantRows = false },
+            new() { Sql = "INSERT INTO contract_details_cache SELECT * FROM contract_details_view", WantRows = false }
+        };
+
+        await _client.ExecuteTransactionAsync(statements);
 
         var countResult = await _client.QueryFirstOrDefaultAsync<CountResult>("SELECT COUNT(*) AS Count FROM contract_details_cache");
         var rowCount = countResult?.Count ?? 0;

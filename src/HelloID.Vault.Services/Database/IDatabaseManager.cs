@@ -21,5 +21,11 @@ public interface IDatabaseManager
     /// <summary>
     /// Creates a timestamped backup of the database and recreates the schema.
     /// </summary>
-    Task CreateDatabaseBackupAsync();
+    Task<string?> CreateDatabaseBackupAsync();
+
+    /// <summary>
+    /// Restores the SQLite database file from a backup created by
+    /// CreateDatabaseBackupAsync, replacing any partially imported data.
+    /// </summary>
+    Task RestoreSqliteDatabaseFromBackupAsync(string backupFilePath);
 }

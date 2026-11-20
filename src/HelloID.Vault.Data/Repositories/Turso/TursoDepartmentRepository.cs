@@ -144,7 +144,8 @@ public class TursoDepartmentRepository : IDepartmentRepository
             department.ParentExternalId,
             department.ManagerPersonId,
             department.Source,
-            department.ExternalId
+            department.ExternalId,
+            Source2 = department.Source
         });
     }
 

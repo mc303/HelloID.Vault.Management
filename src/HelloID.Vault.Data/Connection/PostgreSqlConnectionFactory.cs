@@ -132,7 +132,8 @@ public class PostgreSqlConnectionFactory : IDatabaseConnectionFactory
         }
         catch
         {
-            return connectionString;
+            // Never return the raw string - it may contain a password
+            return "<unparseable connection string>";
         }
     }
 }

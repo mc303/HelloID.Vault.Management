@@ -2,7 +2,10 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using Dapper;
+using Microsoft.Data.Sqlite;
 
 namespace HelloID.Vault.Data.Connection;
 
@@ -46,7 +49,9 @@ public class TursoClient : ITursoClient, IDisposable
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            PropertyNameCaseInsensitive = true
+            PropertyNameCaseInsensitive = true,
+            // Omit nulls so request items like {"type":"close"} serialize cleanly
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         };
 
         UpdateHttpClientHeaders();
@@ -99,7 +104,10 @@ public class TursoClient : ITursoClient, IDisposable
         Debug.WriteLine($"[TursoClient] ExecuteAsync: {sql}");
 
         var statement = CreateStatement(sql, parameters, wantRows: false);
-        var response = await ExecuteWithRetryAsync(statement, cancellationToken);
+
+        // Writes are executed without retries: a lost response may hide a
+        // committed statement and re-running it could duplicate rows
+        var response = await ExecuteWithRetryAsync(statement, cancellationToken, isWrite: true);
 
         var resultItem = response.Results.FirstOrDefault();
         return resultItem?.Response?.Result?.AffectedRowCount ?? 0;
@@ -107,51 +115,89 @@ public class TursoClient : ITursoClient, IDisposable
 
     public async Task<TursoTransactionResult> ExecuteTransactionAsync(IEnumerable<TursoStatement> statements, CancellationToken cancellationToken = default)
     {
-        Debug.WriteLine($"[TursoClient] ExecuteTransactionAsync: {statements.Count()} statements");
+        var statementList = statements.ToList();
+        Debug.WriteLine($"[TursoClient] ExecuteTransactionAsync: {statementList.Count} statements");
 
-        var request = new TursoPipelineRequest
+        if (statementList.Count == 0)
         {
-            Requests = statements.Select(s => new TursoRequestItem
-            {
-                Type = "execute",
-                Statement = s
-            }).ToList()
-        };
+            return new TursoTransactionResult { Success = true, Errors = [] };
+        }
 
+        // BEGIN/COMMIT as statements inside ONE pipeline keep the group on a single
+        // connection and commit atomically. Turso Cloud rolls back open transactions
+        // after 5 seconds, so statements run in chunks of 25: each chunk is atomic,
+        // a failed chunk aborts the remaining chunks and the error surfaces instead
+        // of being silently dropped. Large bulk writes belong in temp-file + /v1/upload.
+        const int chunkSize = 25;
         var totalAffectedRows = 0;
-        var errors = new List<TursoError>();
 
-        try
+        for (var offset = 0; offset < statementList.Count; offset += chunkSize)
         {
-            var response = await SendPipelineRequestAsync(request, cancellationToken);
+            var chunk = statementList.Skip(offset).Take(chunkSize).ToList();
+            var chunkNumber = offset / chunkSize + 1;
 
-            foreach (var resultItem in response.Results)
+            var request = new TursoPipelineRequest
             {
-                if (resultItem.Error != null)
+                Requests =
+                [
+                    new TursoRequestItem { Type = "execute", Statement = new TursoStatement { Sql = "BEGIN", WantRows = false } },
+                    ..chunk.Select(s => new TursoRequestItem { Type = "execute", Statement = s }),
+                    new TursoRequestItem { Type = "execute", Statement = new TursoStatement { Sql = "COMMIT", WantRows = false } },
+                    new TursoRequestItem { Type = "close" }
+                ]
+            };
+
+            var errors = new List<(string Label, TursoError Error)>();
+
+            try
+            {
+                var response = await SendPipelineRequestAsync(request, cancellationToken);
+
+                // Result layout: [0]=BEGIN, [1..n]=chunk statements, [n+1]=COMMIT, [n+2]=close
+                for (var i = 0; i < response.Results.Count; i++)
                 {
-                    errors.Add(resultItem.Error);
-                }
-                else if (resultItem.Response?.Result != null)
-                {
-                    totalAffectedRows += resultItem.Response.Result.AffectedRowCount;
+                    var resultItem = response.Results[i];
+                    if (resultItem.Error != null)
+                    {
+                        var label = i switch
+                        {
+                            0 => "BEGIN",
+                            var n when n == chunk.Count + 1 => "COMMIT",
+                            _ => $"statement {offset + i - 1} ({PreviewSql(statementList[offset + i - 1].Sql)})"
+                        };
+                        Debug.WriteLine($"[TursoClient] Transaction chunk {chunkNumber} {label} failed: {resultItem.Error.Message}");
+                        errors.Add((label, resultItem.Error));
+                    }
+                    else if (resultItem.Response?.Result != null)
+                    {
+                        totalAffectedRows += resultItem.Response.Result.AffectedRowCount;
+                    }
                 }
             }
+            catch (TursoException)
+            {
+                // Auth, network, rate-limit errors keep their type so
+                // upstream handlers can react to the real cause
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new TursoConnectionException($"Transaction chunk {chunkNumber} failed: {ex.Message}", ex);
+            }
 
-            return new TursoTransactionResult
+            if (errors.Count > 0)
             {
-                Success = errors.Count == 0,
-                TotalAffectedRows = totalAffectedRows,
-                Errors = errors
-            };
+                var detail = string.Join("; ", errors.Select(e => $"{e.Label}: {e.Error.Message}"));
+                throw new TursoQueryException($"Transaction chunk {chunkNumber} failed: {detail}");
+            }
         }
-        catch (Exception ex)
+
+        return new TursoTransactionResult
         {
-            return new TursoTransactionResult
-            {
-                Success = false,
-                Errors = [new TursoError { Message = ex.Message, Type = ex.GetType().Name }]
-            };
-        }
+            Success = true,
+            TotalAffectedRows = totalAffectedRows,
+            Errors = []
+        };
     }
 
     public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
@@ -226,32 +272,77 @@ public class TursoClient : ITursoClient, IDisposable
             return 0;
         }
 
-        // Split by semicolons, but handle them carefully
-        var statements = sqlScript
-            .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => s.Trim())
-            .Where(s => !string.IsNullOrWhiteSpace(s) && !s.StartsWith("--"))
-            .ToList();
+        var statements = SplitSqlStatements(sqlScript);
 
         Debug.WriteLine($"[TursoClient] Found {statements.Count} statements to execute");
 
         var executed = 0;
         foreach (var statement in statements)
         {
-            try
-            {
-                await ExecuteAsync(statement, null, cancellationToken);
-                executed++;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[TursoClient] Statement execution error: {ex.Message}");
-                // Continue with next statement (some may be VIEWs that already exist, etc.)
-            }
+            // No swallowing here - a failed CREATE TABLE must not silently produce
+            // a half-initialized database
+            await ExecuteAsync(statement, null, cancellationToken);
+            executed++;
         }
 
         Debug.WriteLine($"[TursoClient] Executed {executed}/{statements.Count} statements");
         return executed;
+    }
+
+    /// <summary>
+    /// Splits a SQL script into individual statements, keeping trigger bodies
+    /// (CREATE TRIGGER ... BEGIN ... END;) intact despite their inner semicolons.
+    /// </summary>
+    internal static List<string> SplitSqlStatements(string sqlScript)
+    {
+        var statements = new List<string>();
+        var current = new StringBuilder();
+        var inTrigger = false;
+
+        foreach (var rawLine in sqlScript.Split('\n'))
+        {
+            var trimmed = rawLine.Trim().TrimEnd('\r');
+
+            // Skip standalone comment lines between statements
+            if (trimmed.StartsWith("--", StringComparison.Ordinal) && current.Length == 0)
+            {
+                continue;
+            }
+
+            current.AppendLine(rawLine);
+
+            if (inTrigger)
+            {
+                // The trigger body ends at a line containing only END;
+                if (trimmed.Equals("END;", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.Equals("END", StringComparison.OrdinalIgnoreCase))
+                {
+                    inTrigger = false;
+                    FlushStatement(statements, current);
+                }
+            }
+            else if (trimmed.StartsWith("CREATE TRIGGER", StringComparison.OrdinalIgnoreCase))
+            {
+                inTrigger = true;
+            }
+            else if (trimmed.EndsWith(";"))
+            {
+                FlushStatement(statements, current);
+            }
+        }
+
+        FlushStatement(statements, current);
+        return statements;
+    }
+
+    private static void FlushStatement(List<string> statements, StringBuilder current)
+    {
+        var sql = current.ToString().Trim();
+        current.Clear();
+        if (!string.IsNullOrWhiteSpace(sql))
+        {
+            statements.Add(sql);
+        }
     }
 
     public async Task<bool> UploadDatabaseAsync(string sqliteFilePath, CancellationToken cancellationToken = default)
@@ -341,6 +432,142 @@ public class TursoClient : ITursoClient, IDisposable
         }
     }
 
+    /// <inheritdoc />
+    public async Task<string> DownloadDatabaseAsync(string backupFilePath, CancellationToken cancellationToken = default)
+    {
+        Debug.WriteLine($"[TursoClient] DownloadDatabaseAsync: {backupFilePath}");
+
+        var dumpUrl = $"{ConvertLibSqlToHttps(_databaseUrl).TrimEnd('/')}/dump";
+        Debug.WriteLine($"[TursoClient] Downloading dump from: {dumpUrl}");
+
+        string dumpSql;
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, dumpUrl);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _authToken);
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                Debug.WriteLine($"[TursoClient] Dump failed: {(int)response.StatusCode} - {errorContent}");
+                throw new TursoConnectionException($"Dump failed: {(int)response.StatusCode} - {errorContent}", (int)response.StatusCode);
+            }
+
+            dumpSql = await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (TursoException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new TursoConnectionException($"Failed to download database dump: {ex.Message}", ex);
+        }
+
+        Debug.WriteLine($"[TursoClient] Dump downloaded: {dumpSql.Length} characters");
+
+        // Build a local SQLite file from the dump. Remove the dump's own
+        // BEGIN TRANSACTION/COMMIT wrapper, then execute statement by statement:
+        // Turso dumps contain FTS5 virtual-table structures and internal libSQL
+        // statements (with rowid syntax) that vanilla SQLite cannot recreate.
+        // Those are derived index data, not user data, so they are skipped.
+        var script = string.Join('\n', dumpSql.Split('\n')
+            .Where(l => !l.Trim().Equals("BEGIN TRANSACTION;", StringComparison.OrdinalIgnoreCase) &&
+                        !l.Trim().Equals("COMMIT;", StringComparison.OrdinalIgnoreCase)));
+
+        var statements = SplitSqlStatements(script);
+        var executed = 0;
+        var skipped = 0;
+
+        if (File.Exists(backupFilePath))
+        {
+            File.Delete(backupFilePath);
+        }
+        foreach (var sidecar in new[] { "-wal", "-shm" })
+        {
+            if (File.Exists(backupFilePath + sidecar))
+            {
+                File.Delete(backupFilePath + sidecar);
+            }
+        }
+
+        try
+        {
+            var backupFactory = new SqliteConnectionFactory(backupFilePath);
+            using var connection = backupFactory.CreateConnection(enforceForeignKeys: false);
+
+            foreach (var statement in statements)
+            {
+                try
+                {
+                    await connection.ExecuteAsync(statement);
+                    executed++;
+                }
+                catch (SqliteException ex) when (IsTursoInternalStatement(statement))
+                {
+                    skipped++;
+                    Debug.WriteLine($"[TursoClient] Backup skipped Turso-internal statement ({ex.Message}): {statement[..Math.Min(60, statement.Length)]}...");
+                }
+            }
+
+            SqliteConnection.ClearAllPools();
+            await Task.Delay(200);
+
+            Debug.WriteLine($"[TursoClient] Backup created: {backupFilePath} ({executed} statements executed, {skipped} internal skipped)");
+            if (executed == 0)
+            {
+                throw new TursoConnectionException("Backup failed - no dump statements could be applied");
+            }
+
+            return backupFilePath;
+        }
+        catch (Exception ex) when (ex is not TursoException)
+        {
+            throw new TursoConnectionException($"Failed to write backup file '{backupFilePath}': {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// True for statements from a Turso dump that recreate derived/internal
+    /// structures (FTS5 indexes, libSQL internals) rather than user data.
+    /// </summary>
+    private static string PreviewSql(string sql)
+    {
+        var trimmed = sql.Trim();
+        return trimmed[..Math.Min(60, trimmed.Length)];
+    }
+
+    private static bool IsTursoInternalStatement(string statement)
+    {
+        // Skip only structural dump statements: virtual tables, access-method
+        // indexes, libSQL internals and FTS5 shadow tables. Data statements
+        // (INSERT/UPDATE/DELETE on user tables) always execute, even when
+        // their values contain words like "USING" or "_fts".
+        if (statement.StartsWith("CREATE VIRTUAL TABLE", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if ((statement.StartsWith("CREATE INDEX", StringComparison.OrdinalIgnoreCase) ||
+             statement.StartsWith("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase)) &&
+            statement.Contains(" USING ", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (statement.StartsWith("CREATE TRIGGER", StringComparison.OrdinalIgnoreCase) &&
+            statement.Contains("_fts", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            statement,
+            @"\b(?:INTO|TABLE|UPDATE)\s+""?(?:libsql_\w+|\w+_fts(?:_\w+)?)\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
     private TursoStatement CreateStatement(string sql, object? parameters, bool wantRows = true)
     {
         var statement = new TursoStatement
@@ -367,7 +594,8 @@ public class TursoClient : ITursoClient, IDisposable
             foreach (var kvp in dict)
             {
                 var tursoValue = ConvertToTursoValue(kvp.Value);
-                Debug.WriteLine($"[TursoClient] Param: {kvp.Key} = \"{kvp.Value}\" (type={kvp.Value?.GetType().Name ?? "null"}, turso={tursoValue.Type})");
+                // Log names and types only - values contain personal data and must not reach the log file
+                Debug.WriteLine($"[TursoClient] Param: {kvp.Key} (type={kvp.Value?.GetType().Name ?? "null"}, turso={tursoValue.Type})");
                 args.Add(tursoValue);
             }
         }
@@ -379,7 +607,8 @@ public class TursoClient : ITursoClient, IDisposable
             {
                 var value = prop.GetValue(parameters);
                 var tursoValue = ConvertToTursoValue(value);
-                Debug.WriteLine($"[TursoClient] Param: {prop.Name} = \"{value}\" (type={value?.GetType().Name ?? "null"}, turso={tursoValue.Type})");
+                // Log names and types only - values contain personal data and must not reach the log file
+                Debug.WriteLine($"[TursoClient] Param: {prop.Name} (type={value?.GetType().Name ?? "null"}, turso={tursoValue.Type})");
                 args.Add(tursoValue);
             }
         }
@@ -412,7 +641,7 @@ public class TursoClient : ITursoClient, IDisposable
         };
     }
 
-    private async Task<TursoPipelineResponse> ExecuteWithRetryAsync(TursoStatement statement, CancellationToken cancellationToken)
+    private async Task<TursoPipelineResponse> ExecuteWithRetryAsync(TursoStatement statement, CancellationToken cancellationToken, bool isWrite = false)
     {
         var request = new TursoPipelineRequest
         {
@@ -431,6 +660,7 @@ public class TursoClient : ITursoClient, IDisposable
             }
             catch (TursoRateLimitException ex)
             {
+                // Safe to retry for writes too - a rate limit rejects the request before execution
                 Debug.WriteLine($"[TursoClient] Rate limited, waiting {ex.RetryAfterSeconds}s");
                 await Task.Delay(TimeSpan.FromSeconds(ex.RetryAfterSeconds), cancellationToken);
                 lastException = ex;
@@ -441,6 +671,15 @@ public class TursoClient : ITursoClient, IDisposable
             }
             catch (TursoNetworkException ex) when (ex.IsOffline)
             {
+                SetConnectionStatus(false);
+
+                // A write whose response was lost may have committed server-side;
+                // re-running it could duplicate rows, so writes fail fast instead
+                if (isWrite)
+                {
+                    throw;
+                }
+
                 Debug.WriteLine($"[TursoClient] Network offline, attempt {attempt + 1}/{MaxRetries}");
                 lastException = ex;
                 if (attempt < MaxRetries - 1)
@@ -450,6 +689,13 @@ public class TursoClient : ITursoClient, IDisposable
             }
             catch (TursoConnectionException ex)
             {
+                SetConnectionStatus(false);
+
+                if (isWrite)
+                {
+                    throw;
+                }
+
                 Debug.WriteLine($"[TursoClient] Connection error, attempt {attempt + 1}/{MaxRetries}: {ex.Message}");
                 lastException = ex;
                 if (attempt < MaxRetries - 1)
@@ -459,6 +705,13 @@ public class TursoClient : ITursoClient, IDisposable
             }
             catch (HttpRequestException ex)
             {
+                SetConnectionStatus(false);
+
+                if (isWrite)
+                {
+                    throw;
+                }
+
                 Debug.WriteLine($"[TursoClient] HTTP error, attempt {attempt + 1}/{MaxRetries}: {ex.Message}");
                 lastException = new TursoConnectionException(ex.Message, ex);
                 if (attempt < MaxRetries - 1)
@@ -574,6 +827,21 @@ public class TursoClient : ITursoClient, IDisposable
             foreach (var row in tursoResult.Rows)
             {
                 var entity = Activator.CreateInstance<T>();
+
+                // Dictionary-shaped results map by column name (used by the
+                // custom field pivot); entity mapping relies on properties
+                // and cannot fill an object/dynamic row
+                if (entity is IDictionary<string, object?> rowDictionary)
+                {
+                    for (int i = 0; i < columnNames.Count && i < row.Count; i++)
+                    {
+                        rowDictionary[columnNames[i]] = row[i].Value;
+                    }
+
+                    result.Rows.Add(entity);
+                    continue;
+                }
+
                 for (int i = 0; i < columnNames.Count && i < row.Count; i++)
                 {
                     var prop = properties.FirstOrDefault(p => 
@@ -596,7 +864,8 @@ public class TursoClient : ITursoClient, IDisposable
             {
                 if (row.Count > 0)
                 {
-                    Debug.WriteLine($"[TursoClient] MapResult: Row value type={row[0].Value?.GetType().Name ?? "null"}, value={row[0].Value}");
+                    // Log the type only - row values contain personal data and must not reach the log file
+                    Debug.WriteLine($"[TursoClient] MapResult: Row value type={row[0].Value?.GetType().Name ?? "null"}");
                     var value = ConvertValue(row[0].Value, typeof(T));
                     if (value != null)
                     {

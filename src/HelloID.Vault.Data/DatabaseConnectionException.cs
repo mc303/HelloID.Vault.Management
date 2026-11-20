@@ -13,3 +13,16 @@ public class DatabaseConnectionException : Exception
     {
     }
 }
+
+/// <summary>
+/// Thrown when the state of the database schema cannot be verified. Initialization
+/// must abort instead of treating the failure as "schema missing" and rebuilding
+/// over live data.
+/// </summary>
+public class DatabaseSchemaException : Exception
+{
+    public DatabaseSchemaException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}

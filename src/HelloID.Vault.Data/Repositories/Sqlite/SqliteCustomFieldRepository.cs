@@ -23,12 +23,13 @@ public class SqliteCustomFieldRepository : AbstractCustomFieldRepository
 
         var tableName = value.TableName == "persons" ? "persons" : "contracts";
 
-        // SQLite uses json_set for JSON modifications
+        // SQLite uses json_set for JSON modifications.
+        // The JSON path is bound as a parameter - field keys are external input.
         var sql = $@"
             UPDATE {tableName}
             SET custom_fields = json_set(
                 COALESCE(custom_fields, '{{}}'),
-                '$.{value.FieldKey}',
+                @JsonPath,
                 @Value
             )
             WHERE external_id = @EntityId";
@@ -36,7 +37,7 @@ public class SqliteCustomFieldRepository : AbstractCustomFieldRepository
         // Use null parameter value to store JSON null
         var paramValue = value.TextValue == "null" ? (object?)null : value.TextValue;
 
-        return await connection.ExecuteAsync(sql, new { EntityId = value.EntityId, Value = paramValue }).ConfigureAwait(false);
+        return await connection.ExecuteAsync(sql, new { EntityId = value.EntityId, JsonPath = BuildSqliteJsonPath(value.FieldKey), Value = paramValue }).ConfigureAwait(false);
     }
 
     protected override async Task BackfillNewFieldAsync(CustomFieldSchema schema, IDbConnection connection)
@@ -47,11 +48,11 @@ public class SqliteCustomFieldRepository : AbstractCustomFieldRepository
             UPDATE {tableName}
             SET custom_fields = json_set(
                 COALESCE(custom_fields, '{{}}'),
-                '$.{schema.FieldKey}',
+                @JsonPath,
                 @Value
             )
             WHERE custom_fields IS NOT NULL";
 
-        await connection.ExecuteAsync(backfillSql, new { Value = (object?)null }).ConfigureAwait(false);
+        await connection.ExecuteAsync(backfillSql, new { JsonPath = BuildSqliteJsonPath(schema.FieldKey), Value = (object?)null }).ConfigureAwait(false);
     }
 }

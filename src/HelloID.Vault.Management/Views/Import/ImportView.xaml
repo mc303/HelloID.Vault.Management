@@ -30,6 +30,121 @@
                       VerticalScrollBarVisibility="Auto"
                       Margin="0,0,0,24">
             <StackPanel>
+        <!-- Import Results (kept at the top for a clear overview; hidden until an import completes) -->
+        <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="24"
+                Margin="0,0,0,24"
+                Visibility="{Binding ImportCompleted, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="420">
+                <StackPanel>
+                    <TextBlock Text="Import Results"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,16"/>
+
+                    <!-- Success/Error Message -->
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="14"
+                               FontWeight="Medium"
+                               Margin="0,0,0,16">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#4CAF50"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ImportResult.Success}" Value="False">
+                                        <Setter Property="Foreground" Value="#F44336"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- Subset Results (shown when subset was used) -->
+                    <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="12"
+                            Margin="0,0,0,16"
+                            Visibility="{Binding HasSubsetResult, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock FontSize="12"
+                                       Foreground="#2196F3"
+                                       TextWrapping="Wrap">
+                                <Run Text="Subset: "/>
+                                <Run Text="{Binding AnonymizationResult.PersonsSelected, Mode=OneWay}" FontWeight="SemiBold"/>
+                                <Run Text=" selected"/>
+                                <Run Text=" + "/>
+                                <Run Text="{Binding AnonymizationResult.ManagersIncluded, Mode=OneWay}" FontWeight="SemiBold"/>
+                                <Run Text=" managers included"/>
+                                <Run Text=" = "/>
+                                <Run Text="{Binding AnonymizationResult.PersonsAnonymized, Mode=OneWay}" FontWeight="SemiBold"/>
+                                <Run Text=" total persons"/>
+                                <LineBreak/>
+                                <Run Text="Seed: "/>
+                                <Run Text="{Binding AnonymizationResult.SeedUsed, Mode=OneWay}" FontWeight="SemiBold"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Statistics Grid (two columns, compact) -->
+                    <Grid Visibility="{Binding ImportResult.Success, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="40"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Persons:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ImportResult.PersonsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="0" Grid.Column="3" Text="Cost Centers:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="0" Grid.Column="4" Text="{Binding ImportResult.CostCentersImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Contracts:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ImportResult.ContractsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="1" Grid.Column="3" Text="Cost Bearers:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding ImportResult.CostBearersImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Contacts:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ImportResult.ContactsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="2" Grid.Column="3" Text="Teams:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding ImportResult.TeamsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Departments:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ImportResult.DepartmentsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="3" Grid.Column="3" Text="Divisions:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="3" Grid.Column="4" Text="{Binding ImportResult.DivisionsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="↳ Auto-created:" Margin="0,0,0,8" Foreground="#FFA500"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ImportResult.DepartmentsAutoCreated}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50" Foreground="#FFA500"/>
+                        <TextBlock Grid.Row="4" Grid.Column="3" Text="Titles:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="4" Grid.Column="4" Text="{Binding ImportResult.TitlesImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Organizations:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding ImportResult.OrganizationsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="5" Grid.Column="3" Text="Custom Field Persons:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="5" Grid.Column="4" Text="{Binding ImportResult.CustomFieldPersonsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Locations:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding ImportResult.LocationsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="6" Grid.Column="3" Text="Custom Field Contracts:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="6" Grid.Column="4" Text="{Binding ImportResult.CustomFieldContractsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Employers:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding ImportResult.EmployersImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                        <TextBlock Grid.Row="7" Grid.Column="3" Text="Empty Manager GUIDs Fixed:" Margin="0,0,0,8"/>
+                        <TextBlock Grid.Row="7" Grid.Column="4" Text="{Binding ImportResult.EmptyManagerGuidsReplaced}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" MinWidth="50"/>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
 
         <!-- File Selection -->
         <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
@@ -302,143 +417,6 @@
             </StackPanel>
         </Border>
 
-        <!-- Import Results -->
-        <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="24"
-                Margin="0,0,0,24"
-                MaxHeight="350"
-                Visibility="{Binding ImportCompleted, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <TextBlock Text="Import Results"
-                              FontSize="16"
-                              FontWeight="SemiBold"
-                              Margin="0,0,0,16"/>
-
-                    <!-- Success/Error Message -->
-                    <TextBlock Text="{Binding StatusMessage}"
-                              FontSize="14"
-                              FontWeight="Medium"
-                              Margin="0,0,0,16">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#4CAF50"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ImportResult.Success}" Value="False">
-                                        <Setter Property="Foreground" Value="#F44336"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-
-                    <!-- Subset Results (shown when subset was used) -->
-                    <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
-                            BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="12"
-                            Margin="0,0,0,16"
-                            Visibility="{Binding AnonymizationResult.ManagersIncluded, Converter={StaticResource IntToVisibilityConverter}}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock FontSize="12" Foreground="#2196F3">
-                                <Run Text="Subset: "/>
-                                <Run Text="{Binding AnonymizationResult.PersonsSelected, Mode=OneWay}" FontWeight="SemiBold"/>
-                                <Run Text=" selected"/>
-                                <Run Text=" + "/>
-                                <Run Text="{Binding AnonymizationResult.ManagersIncluded, Mode=OneWay}" FontWeight="SemiBold"/>
-                                <Run Text=" managers"/>
-                                <Run Text=" = "/>
-                                <Run Text="{Binding AnonymizationResult.PersonsAnonymized, Mode=OneWay}" FontWeight="SemiBold"/>
-                                <Run Text=" total"/>
-                                <Run Text=" | Seed: "/>
-                                <Run Text="{Binding AnonymizationResult.SeedUsed, Mode=OneWay}" FontWeight="SemiBold"/>
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Statistics Grid -->
-                    <StackPanel HorizontalAlignment="Center"
-                               Visibility="{Binding ImportResult.Success, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="250"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Persons:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ImportResult.PersonsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Contracts:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ImportResult.ContractsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Contacts:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ImportResult.ContactsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Departments:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ImportResult.DepartmentsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="  ↳ Auto-created:" Margin="0,0,0,8" Foreground="#FFA500"/>
-                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ImportResult.DepartmentsAutoCreated}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8" Foreground="#FFA500"/>
-
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Organizations:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding ImportResult.OrganizationsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Locations:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding ImportResult.LocationsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Employers:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding ImportResult.EmployersImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Cost Centers:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding ImportResult.CostCentersImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="9" Grid.Column="0" Text="Cost Bearers:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="9" Grid.Column="1" Text="{Binding ImportResult.CostBearersImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="10" Grid.Column="0" Text="Teams:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding ImportResult.TeamsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="11" Grid.Column="0" Text="Divisions:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="11" Grid.Column="1" Text="{Binding ImportResult.DivisionsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="12" Grid.Column="0" Text="Titles:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="12" Grid.Column="1" Text="{Binding ImportResult.TitlesImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="13" Grid.Column="0" Text="Custom Field Persons:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="13" Grid.Column="1" Text="{Binding ImportResult.CustomFieldPersonsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="14" Grid.Column="0" Text="Custom Field Contracts:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="14" Grid.Column="1" Text="{Binding ImportResult.CustomFieldContractsImported}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-
-                        <TextBlock Grid.Row="15" Grid.Column="0" Text="Empty Manager GUIDs Fixed:" Margin="0,0,0,8"/>
-                        <TextBlock Grid.Row="15" Grid.Column="1" Text="{Binding ImportResult.EmptyManagerGuidsReplaced}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,0,8"/>
-                        </Grid>
-                    </StackPanel>
-                </StackPanel>
-            </ScrollViewer>
-        </Border>
 
             </StackPanel>
         </ScrollViewer>

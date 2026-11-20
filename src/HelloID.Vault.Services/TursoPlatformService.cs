@@ -65,7 +65,7 @@ public class TursoPlatformService
         var response = await _httpClient.PostAsync(url, content);
         var responseBody = await response.Content.ReadAsStringAsync();
 
-        Debug.WriteLine($"[TursoPlatformService] Response: {(int)response.StatusCode} - {responseBody}");
+        Debug.WriteLine($"[TursoPlatformService] Response: {(int)response.StatusCode}");
 
         if (!response.IsSuccessStatusCode)
         {
@@ -114,7 +114,7 @@ public class TursoPlatformService
         var response = await _httpClient.PostAsync(url, null);
         var responseBody = await response.Content.ReadAsStringAsync();
 
-        Debug.WriteLine($"[TursoPlatformService] Response: {(int)response.StatusCode} - {responseBody}");
+        Debug.WriteLine($"[TursoPlatformService] Response: {(int)response.StatusCode}");
 
         if (!response.IsSuccessStatusCode)
         {
@@ -240,7 +240,7 @@ public class TursoPlatformService
         var response = await _httpClient.DeleteAsync(url, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        Debug.WriteLine($"[TursoPlatformService] Response: {(int)response.StatusCode} - {responseBody}");
+        Debug.WriteLine($"[TursoPlatformService] Response: {(int)response.StatusCode}");
 
         if (!response.IsSuccessStatusCode)
         {

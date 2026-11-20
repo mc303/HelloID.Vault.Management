@@ -40,7 +40,7 @@ public class TursoTitleRepository : ITitleRepository
     {
         Debug.WriteLine($"[TursoTitleRepository] UpdateAsync: {title.ExternalId}");
         var sql = "UPDATE titles SET code = ?, name = ?, source = ? WHERE external_id = ? AND source = ?";
-        return await _client.ExecuteAsync(sql, new { title.Code, title.Name, title.Source, title.ExternalId });
+        return await _client.ExecuteAsync(sql, new { title.Code, title.Name, title.Source, title.ExternalId, Source2 = title.Source });
     }
 
     public async Task<int> DeleteAsync(string externalId, string source)

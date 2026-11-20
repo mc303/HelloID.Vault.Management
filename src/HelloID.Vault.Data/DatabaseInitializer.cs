@@ -249,8 +249,11 @@ public class DatabaseInitializer
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error checking critical tables: {ex.Message}");
-            return false;
+            // Never misread a failed check as "schema missing" - the rebuild path
+            // drops and recreates objects over live data. Abort loudly instead.
+            System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Critical-table check failed: {ex.Message}");
+            throw new DatabaseSchemaException(
+                $"Could not verify the PostgreSQL schema state. Aborting initialization instead of rebuilding the schema. ({ex.Message})", ex);
         }
     }
 
@@ -280,8 +283,11 @@ public class DatabaseInitializer
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error checking if schema exists: {ex.Message}");
-            return false;
+            // Never misread a failed check as "schema missing" - the rebuild path
+            // drops and recreates objects over live data. Abort loudly instead.
+            System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Schema check failed: {ex.Message}");
+            throw new DatabaseSchemaException(
+                $"Could not verify the PostgreSQL schema state. Aborting initialization instead of rebuilding the schema. ({ex.Message})", ex);
         }
     }
 
@@ -345,6 +351,11 @@ public class DatabaseInitializer
         var statements = SplitPostgreSqlStatements(script);
 
         System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Split script into {statements.Count} statements");
+
+        // All-or-nothing: the schema script contains DROP statements, so a
+        // mid-script failure must roll back instead of leaving a half-applied
+        // schema over live data. PostgreSQL DDL is transactional.
+        using var transaction = connection.BeginTransaction();
 
         // Log CREATE VIEW/FUNCTION statements found
         int viewCount = 0;
@@ -414,7 +425,7 @@ public class DatabaseInitializer
                     }
                 }
 
-                await connection.ExecuteAsync(statement).ConfigureAwait(false);
+                await connection.ExecuteAsync(statement, transaction).ConfigureAwait(false);
                 executedCount++;
 
                 // Log every 50 statements to track progress
@@ -438,10 +449,23 @@ public class DatabaseInitializer
                 // Log full statement for debugging
                 System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Full statement:\n{statement}");
 
+                // Roll back the partial script - do not leave a half-applied schema
+                try
+                {
+                    transaction.Rollback();
+                    System.Diagnostics.Debug.WriteLine("[DatabaseInitializer] Schema script transaction rolled back");
+                }
+                catch (Exception rollbackEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Rollback failed: {rollbackEx.Message}");
+                }
+
                 // For development, re-throw to see full errors
                 throw;
             }
         }
+
+        transaction.Commit();
 
         System.Diagnostics.Debug.WriteLine($"[DatabaseInitializer] Executed {executedCount} statements successfully.");
         if (errorCount > 0)

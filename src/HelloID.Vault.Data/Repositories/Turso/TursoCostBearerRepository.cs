@@ -40,7 +40,7 @@ public class TursoCostBearerRepository : ICostBearerRepository
     {
         Debug.WriteLine($"[TursoCostBearerRepository] UpdateAsync: {costBearer.ExternalId}");
         var sql = "UPDATE cost_bearers SET code = ?, name = ?, source = ? WHERE external_id = ? AND source = ?";
-        return await _client.ExecuteAsync(sql, new { costBearer.Code, costBearer.Name, costBearer.Source, costBearer.ExternalId });
+        return await _client.ExecuteAsync(sql, new { costBearer.Code, costBearer.Name, costBearer.Source, costBearer.ExternalId, Source2 = costBearer.Source });
     }
 
     public async Task<int> DeleteAsync(string externalId, string source)

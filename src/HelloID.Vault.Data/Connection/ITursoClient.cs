@@ -114,6 +114,15 @@ public interface ITursoClient
     Task<bool> UploadDatabaseAsync(string sqliteFilePath, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Downloads the current Turso database via the /dump endpoint and writes it
+    /// to a local SQLite file.
+    /// </summary>
+    /// <param name="backupFilePath">Path of the local SQLite backup file to create.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The path of the created backup file.</returns>
+    Task<string> DownloadDatabaseAsync(string backupFilePath, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Event raised when connection status changes.
     /// </summary>
     event EventHandler<bool>? ConnectionStatusChanged;

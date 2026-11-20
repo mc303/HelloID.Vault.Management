@@ -40,7 +40,7 @@ public class TursoLocationRepository : ILocationRepository
     {
         Debug.WriteLine($"[TursoLocationRepository] UpdateAsync: {location.ExternalId}");
         var sql = "UPDATE locations SET code = ?, name = ?, source = ? WHERE external_id = ? AND source = ?";
-        return await _client.ExecuteAsync(sql, new { location.Code, location.Name, location.Source, location.ExternalId });
+        return await _client.ExecuteAsync(sql, new { location.Code, location.Name, location.Source, location.ExternalId, Source2 = location.Source });
     }
 
     public async Task<int> DeleteAsync(string externalId, string source)

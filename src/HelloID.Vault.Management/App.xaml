@@ -30,11 +30,9 @@
             <converters:DateTimeFormatConverter x:Key="DateTimeFormatConverter" Format="yyyy-MM-dd" />
             <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
             <converters:StringToBooleanConverter x:Key="StringToBooleanConverter" />
-            <converters:BooleanToStringConverter x:Key="BooleanToStringConverter" />
             <converters:IntToVisibilityConverter x:Key="IntToVisibilityConverter" />
             <converters:SortOrderToBoolConverter x:Key="SortOrderToBoolConverter" />
             <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
-            <converters:AuthTypeToVisibilityConverter x:Key="AuthTypeToVisibilityConverter" />
             <converters:FlexibleDoubleConverter x:Key="FlexibleDoubleConverter" />
             <converters:ScoreThresholdToBrushConverter x:Key="ScoreThresholdToBrushConverter" />
             <!-- Preview Dialog Converters -->

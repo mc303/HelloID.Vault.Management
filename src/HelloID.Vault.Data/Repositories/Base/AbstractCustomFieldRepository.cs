@@ -211,15 +211,24 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
             columns.Add("c.person_id");
         }
 
-        foreach (var schema in schemas)
+        // JSON paths are bound as parameters, never interpolated -
+        // field keys are external input and may contain any character
+        var columnParameters = new Dictionary<string, object?>();
+        for (var i = 0; i < schemas.Count; i++)
         {
+            var schema = schemas[i];
             if (isPostgres)
-                columns.Add($"jsonb_extract_path_text({alias}.custom_fields::jsonb, '{schema.FieldKey}') AS \"{schema.FieldKey}\"");
+                columns.Add($"jsonb_extract_path_text({alias}.custom_fields::jsonb, @cf_key_{i}) AS \"{schema.FieldKey}\"");
             else
                 // CAST to TEXT: json_extract returns mixed types per row (NULL/TEXT/INTEGER/BLOB)
                 // when the JSON field holds mixed value types; DataTable.Load infers the column type
                 // from the first row and throws "Type of value has a mismatch with column type" otherwise.
-                columns.Add($"CAST(json_extract({alias}.custom_fields, '$.{schema.FieldKey}') AS TEXT) AS \"{schema.FieldKey}\"");
+                columns.Add($"CAST(json_extract({alias}.custom_fields, @cf_path_{i}) AS TEXT) AS \"{schema.FieldKey}\"");
+
+            if (isPostgres)
+                columnParameters[$"cf_key_{i}"] = schema.FieldKey;
+            else
+                columnParameters[$"cf_path_{i}"] = BuildSqliteJsonPath(schema.FieldKey);
         }
 
         // Detect duplicate column aliases (case-insensitive) - DataTable.Load throws on these
@@ -240,6 +249,11 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
             : "FROM contracts c LEFT JOIN persons p ON c.person_id = p.person_id";
 
         var (whereClause, parameters) = BuildWhereClause(tableName, alias, isPostgres, schemas, searchTerm, advancedFilters);
+
+        foreach (var kvp in columnParameters)
+        {
+            parameters[kvp.Key] = kvp.Value;
+        }
 
         var sql = $@"
             SELECT {string.Join(", ", columns)}
@@ -324,6 +338,26 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
     /// Builds a WHERE clause from search term and advanced filters.
     /// Search term uses OR across all fields; advanced filters use AND between filters.
     /// </summary>
+    /// <summary>
+    /// Builds a quoted SQLite json1 path for a field key so keys may contain
+    /// spaces, dots and unicode. A double quote cannot appear inside a quoted
+    /// label in SQLite's path parser, so it is stripped.
+    /// </summary>
+    protected static string BuildSqliteJsonPath(string fieldKey)
+    {
+        var safeKey = fieldKey.Replace("\"", "");
+
+        // Simple keys use the plain unquoted form - the exact shape used before
+        // parameterization, which Turso Cloud resolves reliably. Keys with
+        // special characters use the quoted label form.
+        if (System.Text.RegularExpressions.Regex.IsMatch(safeKey, "^[A-Za-z0-9_]+$"))
+        {
+            return "$." + safeKey;
+        }
+
+        return "$.\"" + safeKey + "\"";
+    }
+
     private static (string whereClause, Dictionary<string, object?> parameters) BuildWhereClause(
         string tableName, string alias, bool isPostgres,
         List<CustomFieldSchema> schemas, string? searchTerm, List<FieldFilterCriteria>? advancedFilters)
@@ -351,8 +385,11 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
                     searchParts.Add($"p.display_name {likeOp} @SearchTerm");
                 }
 
-                foreach (var schema in schemas)
-                    searchParts.Add($"jsonb_extract_path_text({alias}.custom_fields::jsonb, '{schema.FieldKey}') {likeOp} @SearchTerm");
+                for (var i = 0; i < schemas.Count; i++)
+                {
+                    searchParts.Add($"jsonb_extract_path_text({alias}.custom_fields::jsonb, @cf_skey_{i}) {likeOp} @SearchTerm");
+                    parameters[$"cf_skey_{i}"] = schemas[i].FieldKey;
+                }
             }
             else
             {
@@ -367,8 +404,11 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
                     searchParts.Add("LOWER(p.display_name) LIKE @SearchTerm");
                 }
 
-                foreach (var schema in schemas)
-                    searchParts.Add($"LOWER(json_extract({alias}.custom_fields, '$.{schema.FieldKey}')) LIKE @SearchTerm");
+                for (var i = 0; i < schemas.Count; i++)
+                {
+                    searchParts.Add($"LOWER(json_extract({alias}.custom_fields, @cf_spath_{i})) LIKE @SearchTerm");
+                    parameters[$"cf_spath_{i}"] = BuildSqliteJsonPath(schemas[i].FieldKey);
+                }
             }
 
             conditions.Add("(" + string.Join(" OR ", searchParts) + ")");
@@ -381,9 +421,17 @@ public abstract class AbstractCustomFieldRepository : ICustomFieldRepository
             {
                 var filter = advancedFilters[i];
                 var paramPrefix = $"af{i}";
-                var fieldExpr = isPostgres
-                    ? $"jsonb_extract_path_text({alias}.custom_fields::jsonb, '{filter.FieldName}')"
-                    : $"json_extract({alias}.custom_fields, '$.{filter.FieldName}')";
+                string fieldExpr;
+                if (isPostgres)
+                {
+                    fieldExpr = $"jsonb_extract_path_text({alias}.custom_fields::jsonb, @af{i}_key)";
+                    parameters[$"af{i}_key"] = filter.FieldName;
+                }
+                else
+                {
+                    fieldExpr = $"json_extract({alias}.custom_fields, @af{i}_path)";
+                    parameters[$"af{i}_path"] = BuildSqliteJsonPath(filter.FieldName);
+                }
                 var lowerFieldExpr = $"LOWER({fieldExpr})";
 
                 string condition = filter.Operator switch

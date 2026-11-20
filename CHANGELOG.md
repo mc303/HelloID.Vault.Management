@@ -5,6 +5,47 @@ All notable changes to HelloID.Vault.Management will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-20
+
+### Added
+- Sanitize custom field keys into storage-safe form
+- Show import results at the top of the Import view
+- Add Azure Automation runbook for Turso-to-Entra provisioning
+- Add Turso-to-Entra ID API-driven provisioning script
+- Honor Backup/Overwrite choice in the Turso import flow
+- Backup Turso database before delete-recreate, precise upload-error gate
+
+### Fixed
+- Stage the Windows sync before swapping it into place
+- Map dictionary-shaped Turso query results by column name
+- Use unquoted JSON paths for simple keys (Turso compatibility)
+- Bind the missing WHERE source argument in Turso reference-data updates
+- Bind contact update/insert arguments in placeholder order (Turso)
+- Restore the database from backup when a backup import fails
+- Fail loudly instead of rebuilding the PostgreSQL schema on a failed check
+- No write retries, atomic cache rebuild, SQLite busy timeout
+- Bind custom-field JSON paths as parameters
+- Narrow backup skip patterns, label transaction errors, add CI tests
+- Stop tracking test-runner credentials
+- Add missing match_method and value_status columns to Turso upsert
+- Chunk Turso transactions to respect the 5-second server limit
+- Drive subset summary visibility from a ViewModel property
+- Hide empty subset summary and make it wrap
+- Skip Turso-internal statements when building the local backup
+- Skip useless upload retries on the deterministic already-exists error
+- Restore the delete step in the Turso recreate flow
+- Keep the original upload error when auto-create reports an existing database
+- Include the original upload error in the auto-create failure message
+- Real Turso transactions, 409-based auto-create, safe script splitting
+- Never delete an existing Turso database during auto-create
+- Stop leaking tokens and personal data into the log file
+
+### Changed
+- Remove dead code and unused NuGet packages
+- Ignore the opencode graphify plugin file
+- Add integration tests for the SQLite import engine
+- Add README and ship user guide to production
+
 ## [0.6.3] - 2026-11-17
 
 ### Fixed

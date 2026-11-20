@@ -74,7 +74,25 @@ public class TursoContactRepository : IContactRepository
                 address_street, address_street_ext, address_house_number, address_house_number_ext,
                 address_postal, address_locality, address_country
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        return await _client.ExecuteAsync(sql, contact);
+
+        // Positional binding: argument order must match the placeholder order
+        // exactly (passing the whole entity binds ContactId first and shifts
+        // every column by one)
+        return await _client.ExecuteAsync(sql, new
+        {
+            contact.PersonId,
+            contact.Type,
+            contact.Email,
+            contact.PhoneMobile,
+            contact.PhoneFixed,
+            contact.AddressStreet,
+            contact.AddressStreetExt,
+            contact.AddressHouseNumber,
+            contact.AddressHouseNumberExt,
+            contact.AddressPostal,
+            contact.AddressLocality,
+            contact.AddressCountry
+        });
     }
 
     public async Task<int> InsertAsync(Contact contact, IDbConnection connection, IDbTransaction transaction)
@@ -100,7 +118,25 @@ public class TursoContactRepository : IContactRepository
                 address_locality = ?,
                 address_country = ?
             WHERE contact_id = ?";
-        return await _client.ExecuteAsync(sql, contact);
+
+        // Positional binding: argument order must match the placeholder order
+        // exactly - ContactId is declared FIRST on the entity but binds LAST
+        return await _client.ExecuteAsync(sql, new
+        {
+            contact.PersonId,
+            contact.Type,
+            contact.Email,
+            contact.PhoneMobile,
+            contact.PhoneFixed,
+            contact.AddressStreet,
+            contact.AddressStreetExt,
+            contact.AddressHouseNumber,
+            contact.AddressHouseNumberExt,
+            contact.AddressPostal,
+            contact.AddressLocality,
+            contact.AddressCountry,
+            contact.ContactId
+        });
     }
 
     public async Task<int> DeleteAsync(int contactId)

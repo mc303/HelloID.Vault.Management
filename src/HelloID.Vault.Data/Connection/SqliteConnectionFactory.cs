@@ -7,7 +7,7 @@ namespace HelloID.Vault.Data.Connection;
 /// <summary>
 /// Factory for creating and configuring SQLite database connections.
 /// </summary>
-public class SqliteConnectionFactory : ISqliteConnectionFactory, IDatabaseConnectionFactory
+public class SqliteConnectionFactory : IDatabaseConnectionFactory
 {
     private readonly string _connectionString;
 

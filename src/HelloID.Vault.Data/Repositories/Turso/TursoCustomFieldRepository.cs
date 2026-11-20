@@ -10,6 +10,34 @@ namespace HelloID.Vault.Data.Repositories.Turso;
 
 public class TursoCustomFieldRepository : ICustomFieldRepository
 {
+    /// <summary>
+    /// Builds a quoted SQLite json1 path for a field key so keys may contain
+    /// spaces, dots and unicode. A double quote cannot appear inside a quoted
+    /// label in SQLite's path parser, so it is stripped.
+    /// </summary>
+    private static bool IsNullValue(object? value)
+    {
+        return value is null ||
+               (value is System.Text.Json.JsonElement element &&
+                (element.ValueKind == System.Text.Json.JsonValueKind.Null ||
+                 element.ValueKind == System.Text.Json.JsonValueKind.Undefined));
+    }
+
+    private static string BuildSqliteJsonPath(string fieldKey)
+    {
+        var safeKey = fieldKey.Replace("\"", "");
+
+        // Simple keys use the plain unquoted form - the exact shape used before
+        // parameterization, which Turso Cloud resolves reliably. Keys with
+        // special characters use the quoted label form.
+        if (System.Text.RegularExpressions.Regex.IsMatch(safeKey, "^[A-Za-z0-9_]+$"))
+        {
+            return "$." + safeKey;
+        }
+
+        return "$.\"" + safeKey + "\"";
+    }
+
     private readonly ITursoClient _client;
 
     public TursoCustomFieldRepository(ITursoClient client)
@@ -171,8 +199,10 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
     {
         Debug.WriteLine($"[TursoCustomFieldRepository] BackfillNewFieldAsync: {schema.FieldKey}");
         var tableName = schema.TableName == "persons" ? "persons" : "contracts";
-        var sql = $"UPDATE {tableName} SET custom_fields = json_set(COALESCE(custom_fields, '{{}}'), '$.{schema.FieldKey}', NULL) WHERE custom_fields IS NULL OR json_type(custom_fields, '$.{schema.FieldKey}') IS NULL";
-        await _client.ExecuteAsync(sql);
+        // JSON path bound as a parameter - field keys are external input
+        var jsonPath = BuildSqliteJsonPath(schema.FieldKey);
+        var sql = $"UPDATE {tableName} SET custom_fields = json_set(COALESCE(custom_fields, '{{}}'), @Path1, NULL) WHERE custom_fields IS NULL OR json_type(custom_fields, @Path2) IS NULL";
+        await _client.ExecuteAsync(sql, new { Path1 = jsonPath, Path2 = jsonPath });
     }
 
     public async Task<DataTable> GetPivotDataAsync(string tableName, int page, int pageSize, string? searchTerm = null, List<FieldFilterCriteria>? advancedFilters = null)
@@ -182,6 +212,7 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
 
         var columns = new List<string>();
         var alias = tableName == "persons" ? "p" : "c";
+        var parameters = new Dictionary<string, object?>();
 
         if (tableName == "persons")
         {
@@ -197,22 +228,19 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
             columns.Add("c.person_id");
         }
 
-        foreach (var schema in schemas)
+        for (var i = 0; i < schemas.Count; i++)
         {
+            var schema = schemas[i];
             // CAST to TEXT: json_extract returns mixed types per row when the JSON field
             // holds mixed value types; DataTable.Load would throw a column type mismatch.
-            columns.Add($"CAST(json_extract({alias}.custom_fields, '$.{schema.FieldKey}') AS TEXT) AS \"{schema.FieldKey}\"");
+            // JSON paths are bound as parameters - field keys are external input.
+            columns.Add($"CAST(json_extract({alias}.custom_fields, @cf_path_{i}) AS TEXT) AS \"{schema.FieldKey}\"");
+            parameters[$"cf_path_{i}"] = BuildSqliteJsonPath(schema.FieldKey);
         }
 
         var fromClause = tableName == "persons"
             ? "FROM persons p"
             : "FROM contracts c LEFT JOIN persons p ON c.person_id = p.person_id";
-
-        var parameters = new Dictionary<string, object?>
-        {
-            ["Limit"] = pageSize,
-            ["Offset"] = offset
-        };
 
         var whereParts = new List<string>();
         if (!string.IsNullOrWhiteSpace(searchTerm))
@@ -231,9 +259,10 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
                 searchSubParts.Add("LOWER(p.display_name) LIKE @SearchTerm");
             }
 
-            foreach (var schema in schemas)
+            for (var i = 0; i < schemas.Count; i++)
             {
-                searchSubParts.Add($"LOWER(json_extract({alias}.custom_fields, '$.{schema.FieldKey}')) LIKE @SearchTerm");
+                searchSubParts.Add($"LOWER(json_extract({alias}.custom_fields, @cf_spath_{i})) LIKE @SearchTerm");
+                parameters[$"cf_spath_{i}"] = BuildSqliteJsonPath(schemas[i].FieldKey);
             }
 
             whereParts.Add("(" + string.Join(" OR ", searchSubParts) + ")");
@@ -246,7 +275,7 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
             {
                 var filter = advancedFilters[i];
                 var paramPrefix = $"af{i}";
-                var fieldExpr = $"json_extract({alias}.custom_fields, '$.{filter.FieldName}')";
+                var fieldExpr = $"json_extract({alias}.custom_fields, @af{i}_path)";
 
                 string condition = filter.Operator switch
                 {
@@ -258,6 +287,7 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
                     _ => $"LOWER({fieldExpr}) LIKE @{paramPrefix}_Value"
                 };
 
+                parameters[$"{paramPrefix}_path"] = BuildSqliteJsonPath(filter.FieldName);
                 if (filter.Operator is FieldFilterOperators.Contains)
                     parameters[$"{paramPrefix}_Value"] = $"%{filter.Value.ToLower()}%";
                 else
@@ -269,6 +299,8 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
 
         var whereClause = whereParts.Count > 0 ? "WHERE " + string.Join(" AND ", whereParts) : "";
         var orderBy = tableName == "persons" ? "p.display_name" : "c.external_id";
+        parameters["Limit"] = pageSize;
+        parameters["Offset"] = offset;
 
         var sql = $@"
             SELECT {string.Join(", ", columns)}
@@ -277,7 +309,7 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
             ORDER BY {orderBy}
             LIMIT @Limit OFFSET @Offset";
 
-        var result = await _client.QueryAsync<dynamic>(sql, parameters);
+        var result = await _client.QueryAsync<Dictionary<string, object?>>(sql, parameters);
 
         var dt = new DataTable();
 
@@ -301,16 +333,21 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
             dt.Columns.Add(schema.FieldKey, typeof(string));
         }
 
-        // Populate rows
-        foreach (var row in result.Rows)
+        // Populate rows - values arrive as JsonElement (JSON null included)
+        foreach (var dict in result.Rows)
         {
-            var dict = (IDictionary<string, object>)row;
             var dataRow = dt.NewRow();
 
             foreach (DataColumn col in dt.Columns)
             {
-                var key = col.ColumnName;
-                dataRow[key] = dict.TryGetValue(key, out var val) && val != null ? val.ToString() : DBNull.Value;
+                if (dict.TryGetValue(col.ColumnName, out var val) && !IsNullValue(val))
+                {
+                    dataRow[col.ColumnName] = val.ToString();
+                }
+                else
+                {
+                    dataRow[col.ColumnName] = DBNull.Value;
+                }
             }
 
             dt.Rows.Add(dataRow);
@@ -347,9 +384,10 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
                 searchSubParts.Add("LOWER(p.display_name) LIKE @SearchTerm");
             }
 
-            foreach (var schema in schemas)
+            for (var i = 0; i < schemas.Count; i++)
             {
-                searchSubParts.Add($"LOWER(json_extract({alias}.custom_fields, '$.{schema.FieldKey}')) LIKE @SearchTerm");
+                searchSubParts.Add($"LOWER(json_extract({alias}.custom_fields, @cf_spath_{i})) LIKE @SearchTerm");
+                parameters[$"cf_spath_{i}"] = BuildSqliteJsonPath(schemas[i].FieldKey);
             }
 
             whereParts.Add("(" + string.Join(" OR ", searchSubParts) + ")");
@@ -362,7 +400,7 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
             {
                 var filter = advancedFilters[i];
                 var paramPrefix = $"af{i}";
-                var fieldExpr = $"json_extract({alias}.custom_fields, '$.{filter.FieldName}')";
+                var fieldExpr = $"json_extract({alias}.custom_fields, @af{i}_path)";
 
                 string condition = filter.Operator switch
                 {
@@ -374,6 +412,7 @@ public class TursoCustomFieldRepository : ICustomFieldRepository
                     _ => $"LOWER({fieldExpr}) LIKE @{paramPrefix}_Value"
                 };
 
+                parameters[$"{paramPrefix}_path"] = BuildSqliteJsonPath(filter.FieldName);
                 if (filter.Operator is FieldFilterOperators.Contains)
                     parameters[$"{paramPrefix}_Value"] = $"%{filter.Value.ToLower()}%";
                 else

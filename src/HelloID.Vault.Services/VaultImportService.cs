@@ -104,23 +104,32 @@ public class VaultImportService : IVaultImportService
 
         if (_connectionFactory.DatabaseType == DatabaseType.Turso && _tursoClient != null)
         {
-            await _tursoClient.ExecuteAsync("PRAGMA foreign_keys = OFF");
+            // NULL assignments cannot violate foreign keys, so no PRAGMA is needed
+            // (session pragmas do not survive across HTTP connections anyway).
+            // ExecuteTransactionAsync runs both updates atomically in one pipeline.
+            var statements = new List<TursoStatement>
+            {
+                new TursoStatement
+                {
+                    Sql = @"UPDATE persons
+                        SET primary_manager_person_id = NULL,
+                            primary_manager_source = NULL,
+                            primary_manager_updated_at = NULL
+                        WHERE primary_manager_person_id IS NOT NULL
+                          AND primary_manager_person_id NOT IN (SELECT person_id FROM persons)",
+                    WantRows = false
+                },
+                new TursoStatement
+                {
+                    Sql = @"UPDATE contracts
+                        SET manager_person_external_id = NULL
+                        WHERE manager_person_external_id IS NOT NULL
+                          AND manager_person_external_id NOT IN (SELECT person_id FROM persons)",
+                    WantRows = false
+                }
+            };
 
-            await _tursoClient.ExecuteAsync(@"
-                UPDATE persons
-                SET primary_manager_person_id = NULL,
-                    primary_manager_source = NULL,
-                    primary_manager_updated_at = NULL
-                WHERE primary_manager_person_id IS NOT NULL
-                  AND primary_manager_person_id NOT IN (SELECT person_id FROM persons)");
-
-            await _tursoClient.ExecuteAsync(@"
-                UPDATE contracts
-                SET manager_person_external_id = NULL
-                WHERE manager_person_external_id IS NOT NULL
-                  AND manager_person_external_id NOT IN (SELECT person_id FROM persons)");
-
-            await _tursoClient.ExecuteAsync("PRAGMA foreign_keys = ON");
+            await _tursoClient.ExecuteTransactionAsync(statements);
         }
         else
         {
@@ -162,10 +171,12 @@ public class VaultImportService : IVaultImportService
                 var count = await _tursoClient.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM persons");
                 return count > 0;
             }
-            catch
+            catch (Exception ex)
             {
-                // If we can't check, assume no data
-                return false;
+                // A failed check must not silently skip the overwrite warning.
+                // Assume data exists so the user always gets the confirm dialog.
+                Debug.WriteLine($"[TursoImport] HasData check failed, assuming data exists: {ex.Message}");
+                return true;
             }
         }
 
@@ -182,11 +193,12 @@ public class VaultImportService : IVaultImportService
         // Turso requires special handling via temp SQLite + HTTP upload
         if (_connectionFactory.DatabaseType == DatabaseType.Turso)
         {
-            return await ImportToTursoAsync(filePath, primaryManagerLogic, progress);
+            return await ImportToTursoAsync(filePath, primaryManagerLogic, createBackup, progress);
         }
 
         var stopwatch = Stopwatch.StartNew();
         var result = new ImportResult { Success = true };
+        string? backupPath = null;
 
         try
         {
@@ -194,7 +206,7 @@ public class VaultImportService : IVaultImportService
             if (createBackup)
             {
                 progress?.Report(new ImportProgress { CurrentOperation = "Creating database backup..." });
-                await _databaseManager.CreateDatabaseBackupAsync();
+                backupPath = await _databaseManager.CreateDatabaseBackupAsync();
 
                 // Clear pools again to ensure fresh connections after schema recreation
                 SqliteConnection.ClearAllPools();
@@ -263,6 +275,7 @@ public class VaultImportService : IVaultImportService
                 PropertyNameCaseInsensitive = true,
                 AllowTrailingCommas = true
             });
+            HelloID.Vault.Core.Utilities.FieldKeySanitizer.SanitizeVaultData(vaultData);
 
             if (vaultData == null || vaultData.Persons == null)
             {
@@ -1150,9 +1163,27 @@ public class VaultImportService : IVaultImportService
         {
             result.Success = false;
             result.ErrorMessage = ImportErrorLogger.CreateUserErrorMessage(ex, "Import process");
-            
+
             ImportErrorLogger.LogDatabaseException(ex, "ImportAsync - Main import loop");
-            
+
+            // Restore the pre-import database so a failed import never leaves
+            // half-imported data behind
+            if (!string.IsNullOrEmpty(backupPath) && File.Exists(backupPath) &&
+                _connectionFactory.DatabaseType == DatabaseType.Sqlite)
+            {
+                try
+                {
+                    SqliteConnection.ClearAllPools();
+                    await _databaseManager.RestoreSqliteDatabaseFromBackupAsync(backupPath);
+                    result.ErrorMessage += "\n\nThe database was restored from the backup made before the import.";
+                }
+                catch (Exception restoreEx)
+                {
+                    result.ErrorMessage += $"\n\nCould not restore the database from the backup ({restoreEx.Message}). " +
+                        $"The pre-import data is still available in: {backupPath}";
+                }
+            }
+
             progress?.Report(new ImportProgress
             {
                 CurrentOperation = $"Import failed: {ex.Message}",
@@ -1207,7 +1238,7 @@ public class VaultImportService : IVaultImportService
         // Turso requires special handling via temp SQLite + HTTP upload
         if (_connectionFactory.DatabaseType == DatabaseType.Turso)
         {
-            return await ImportCompanyOnlyToTursoAsync(filePath, progress);
+            return await ImportCompanyOnlyToTursoAsync(filePath, createBackup, progress);
         }
 
         var stopwatch = Stopwatch.StartNew();
@@ -1288,6 +1319,7 @@ public class VaultImportService : IVaultImportService
                 PropertyNameCaseInsensitive = true,
                 AllowTrailingCommas = true
             });
+            HelloID.Vault.Core.Utilities.FieldKeySanitizer.SanitizeVaultData(vaultData);
 
             if (vaultData == null)
             {
@@ -2116,7 +2148,7 @@ public class VaultImportService : IVaultImportService
     /// <summary>
     /// Imports data to Turso by creating a temp SQLite database, importing, and uploading.
     /// </summary>
-    private async Task<ImportResult> ImportToTursoAsync(string filePath, PrimaryManagerLogic primaryManagerLogic, IProgress<ImportProgress>? progress = null)
+    private async Task<ImportResult> ImportToTursoAsync(string filePath, PrimaryManagerLogic primaryManagerLogic, bool createBackup = false, IProgress<ImportProgress>? progress = null)
     {
         if (_tursoClient == null)
         {
@@ -2225,6 +2257,15 @@ public class VaultImportService : IVaultImportService
                 {
                     lastUploadEx = uploadEx;
                     Debug.WriteLine($"[TursoImport] Upload attempt {attempt} failed: {uploadEx.Message}");
+
+                    // A 400 "database already exists" is deterministic - the upload
+                    // seed is consumed and retrying cannot succeed. Break out and
+                    // let the recreate flow handle it instead of wasting retries.
+                    if (uploadEx.Message.Contains("database already exists", StringComparison.OrdinalIgnoreCase))
+                    {
+                        break;
+                    }
+
                     if (attempt < 3) await Task.Delay(3000);
                 }
             }
@@ -2263,12 +2304,12 @@ public class VaultImportService : IVaultImportService
             {
                 Debug.WriteLine($"[TursoImport] Attempting auto-create with Platform API...");
 
-                progress?.Report(new ImportProgress { CurrentOperation = "Database doesn't support uploads. Creating new database..." });
+                progress?.Report(new ImportProgress { CurrentOperation = "Upload failed. Checking if the database can be created..." });
 
                 try
                 {
                     // Try to create a new database with upload support
-                    var autoCreateResult = await TryAutoCreateTursoDatabaseAsync(tempDbPath!, progress);
+                    var autoCreateResult = await TryAutoCreateTursoDatabaseAsync(tempDbPath!, connEx.Message, createBackup, progress);
 
                     if (autoCreateResult.Success)
                     {
@@ -2289,6 +2330,7 @@ public class VaultImportService : IVaultImportService
                     Debug.WriteLine($"[TursoImport] Auto-create failed: {autoEx.Message}");
                     result.Success = false;
                     result.ErrorMessage = $"Auto-create failed: {autoEx.Message}\n\n" +
+                        $"Original upload error:\n{connEx.Message}\n\n" +
                         $"Temp file preserved at:\n{tempDbPath}\n\n" +
                         "You can manually import using:\nturso db shell {database-name} < {tempDbPath}";
                 }
@@ -2369,7 +2411,7 @@ public class VaultImportService : IVaultImportService
     /// Attempts to create a new Turso database with upload support and import the data.
     /// Called when upload fails because the existing database doesn't support uploads.
     /// </summary>
-    private async Task<ImportResult> TryAutoCreateTursoDatabaseAsync(string tempDbPath, IProgress<ImportProgress>? progress = null)
+    private async Task<ImportResult> TryAutoCreateTursoDatabaseAsync(string tempDbPath, string uploadError, bool createBackup = true, IProgress<ImportProgress>? progress = null)
     {
         var result = new ImportResult { Success = false };
 
@@ -2381,32 +2423,75 @@ public class VaultImportService : IVaultImportService
             var databaseName = _userPreferencesService.TursoDatabaseName!;
             var organization = _userPreferencesService.TursoOrganizationSlug;
 
-            // First check if database already exists
-            progress?.Report(new ImportProgress { CurrentOperation = $"Checking if database '{databaseName}' exists..." });
-            Debug.WriteLine($"[TursoImport] Checking if database exists: {databaseName}");
+            // /v1/upload is one-shot per database: it only works while the
+            // database is still an empty "database_upload" seed placeholder.
+            // Replacing an existing database therefore requires delete + recreate,
+            // which is safe here because the overwrite dialog was confirmed and
+            // the local temp import already succeeded.
+            var isSeedConsumed = uploadError.Contains("database already exists", StringComparison.OrdinalIgnoreCase);
+            var isDatabaseMissing = uploadError.Contains("doesn't exist", StringComparison.OrdinalIgnoreCase) ||
+                                    uploadError.Contains("Namespace", StringComparison.OrdinalIgnoreCase);
 
-            var databaseExists = await platformService.DatabaseExistsAsync(databaseName, organization);
-            Debug.WriteLine($"[TursoImport] Database exists: {databaseExists}");
-
-            if (databaseExists)
+            if (!isSeedConsumed && !isDatabaseMissing)
             {
-                // Database exists - delete and recreate it
-                Debug.WriteLine($"[TursoImport] Database already exists, deleting and recreating...");
+                // Not one of the two cases auto-create can fix (e.g. a timeout).
+                // Recreating on a guess would risk data loss for no reason.
+                result.ErrorMessage = $"Upload failed.\n\n" +
+                    $"Original upload error:\n{uploadError}\n\n" +
+                    $"Temp file preserved at:\n{tempDbPath}";
+                return result;
+            }
 
+            // Backup the current cloud data as a local SQLite file before any deletion,
+            // only when the user chose "Backup and Overwrite" in the import dialog
+            string? backupPath = null;
+            if (isSeedConsumed && createBackup)
+            {
+                var appDataPath = Path.GetDirectoryName(tempDbPath) ?? Path.GetTempPath();
+                backupPath = Path.Combine(appDataPath, $"turso_backup_{DateTime.Now:yyyyMMdd_HHmmss}.db");
+
+                progress?.Report(new ImportProgress { CurrentOperation = "Downloading existing database backup..." });
+                Debug.WriteLine($"[TursoImport] Backing up existing database to: {backupPath}");
+
+                try
+                {
+                    backupPath = await _tursoClient!.DownloadDatabaseAsync(backupPath);
+                }
+                catch (Exception backupEx)
+                {
+                    // Never delete the database when the backup failed - old data stays intact
+                    Debug.WriteLine($"[TursoImport] Backup download failed: {backupEx.Message}");
+                    result.ErrorMessage = $"Backup of the existing database failed - import aborted, nothing was changed.\n\n" +
+                        $"Original upload error:\n{uploadError}\n\n" +
+                        $"Backup error:\n{backupEx.Message}";
+                    return result;
+                }
+            }
+
+            // Delete the existing database. The upload endpoint is one-shot per
+            // database: /v1/upload only accepts a database that is still an empty
+            // database_upload seed placeholder, so replacing data requires
+            // delete + recreate. This runs only after the (optional) backup
+            // succeeded and the local temp import is complete.
+            if (isSeedConsumed)
+            {
                 progress?.Report(new ImportProgress { CurrentOperation = $"Deleting existing database '{databaseName}'..." });
+                Debug.WriteLine($"[TursoImport] Deleting existing database: {databaseName}");
 
                 try
                 {
                     await platformService.DeleteDatabaseAsync(databaseName, organization);
-                    Debug.WriteLine($"[TursoImport] Database deleted successfully");
+                    Debug.WriteLine("[TursoImport] Database deleted successfully");
 
-                    // Wait a moment for Turso to process the deletion
+                    // Turso needs a moment to process the deletion
                     await Task.Delay(2000);
                 }
                 catch (Exception delEx)
                 {
-                    Debug.WriteLine($"[TursoImport] Failed to delete database: {delEx.Message}");
-                    result.ErrorMessage = $"Failed to delete existing database '{databaseName}': {delEx.Message}\n\n" +
+                    Debug.WriteLine($"[TursoImport] Delete failed: {delEx.Message}");
+                    result.ErrorMessage = $"Failed to delete existing database '{databaseName}' - nothing was changed.\n\n" +
+                        $"Delete error:\n{delEx.Message}\n\n" +
+                        (backupPath != null ? $"Backup of the old data: {backupPath}\n" : "") +
                         $"Temp file preserved at:\n{tempDbPath}";
                     return result;
                 }
@@ -2415,8 +2500,24 @@ public class VaultImportService : IVaultImportService
             progress?.Report(new ImportProgress { CurrentOperation = $"Creating Turso database '{databaseName}'..." });
             Debug.WriteLine($"[TursoImport] Creating database: {databaseName}");
 
-            // Create the database with upload support
-            var dbResult = await platformService.CreateDatabaseAsync(databaseName, "default", organization, forUpload: true);
+            // Create the database with upload support. A documented 409 Conflict
+            // means it exists again (e.g. recreated externally) - fail safely.
+            TursoDatabaseResult dbResult;
+            try
+            {
+                dbResult = await platformService.CreateDatabaseAsync(databaseName, "default", organization, forUpload: true);
+            }
+            catch (TursoPlatformException ex) when (ex.StatusCode == 409)
+            {
+                Debug.WriteLine("[TursoImport] Create returned 409 - database already exists");
+
+                result.ErrorMessage = $"Upload failed and database '{databaseName}' already exists.\n\n" +
+                    $"Original upload error:\n{uploadError}\n\n" +
+                    "Delete the database manually in Turso (or via Settings) and run the import again.\n\n" +
+                    (backupPath != null ? $"Backup of the old data: {backupPath}\n" : "") +
+                    $"Temp file preserved at:\n{tempDbPath}";
+                return result;
+            }
 
             if (dbResult == null || string.IsNullOrEmpty(dbResult.Hostname))
             {
@@ -2480,7 +2581,11 @@ public class VaultImportService : IVaultImportService
 
             if (!uploadSuccess)
             {
-                result.ErrorMessage = $"Failed to upload database: {lastUploadError?.Message ?? "Upload returned false"}";
+                result.ErrorMessage = $"Failed to upload database: {lastUploadError?.Message ?? "Upload returned false"}\n\n" +
+                    (backupPath != null
+                        ? $"The old database was backed up before recreation: {backupPath}\n"
+                        : "") +
+                    $"Temp file preserved at:\n{tempDbPath}";
                 return result;
             }
 
@@ -2535,6 +2640,7 @@ public class VaultImportService : IVaultImportService
                 PropertyNameCaseInsensitive = true,
                 AllowTrailingCommas = true
             });
+            HelloID.Vault.Core.Utilities.FieldKeySanitizer.SanitizeVaultData(vaultData);
 
             if (vaultData == null || vaultData.Persons == null)
             {
@@ -3010,7 +3116,7 @@ public class VaultImportService : IVaultImportService
     /// <summary>
     /// Imports company-only data to Turso by creating a temp SQLite database, importing, and uploading.
     /// </summary>
-    private async Task<ImportResult> ImportCompanyOnlyToTursoAsync(string filePath, IProgress<ImportProgress>? progress = null)
+    private async Task<ImportResult> ImportCompanyOnlyToTursoAsync(string filePath, bool createBackup = false, IProgress<ImportProgress>? progress = null)
     {
         if (_tursoClient == null)
         {
@@ -3083,6 +3189,7 @@ public class VaultImportService : IVaultImportService
 
             // Try upload to Turso - catch exceptions to allow fallback
             bool uploadSuccess = false;
+            Exception? lastUploadError = null;
             try
             {
                 for (int attempt = 1; attempt <= 3; attempt++)
@@ -3095,13 +3202,22 @@ public class VaultImportService : IVaultImportService
                     }
                     catch (Exception uploadEx)
                     {
+                        lastUploadError = uploadEx;
                         Debug.WriteLine($"[TursoCompanyImport] Upload attempt {attempt} failed: {uploadEx.Message}");
+
+                        // Deterministic failure - retrying cannot succeed
+                        if (uploadEx.Message.Contains("database already exists", StringComparison.OrdinalIgnoreCase))
+                        {
+                            break;
+                        }
+
                         if (attempt < 3) await Task.Delay(3000);
                     }
                 }
             }
             catch (Exception uploadEx)
             {
+                lastUploadError = uploadEx;
                 Debug.WriteLine($"[TursoCompanyImport] Upload failed after retries: {uploadEx.Message}");
             }
 
@@ -3111,9 +3227,9 @@ public class VaultImportService : IVaultImportService
                 return result;
             }
 
-            // Simple upload failed - try auto-create with delete/recreate
+            // Simple upload failed - try auto-create (creates a missing database only)
             Debug.WriteLine($"[TursoCompanyImport] Simple upload failed, trying auto-create...");
-            progress?.Report(new ImportProgress { CurrentOperation = "Upload failed, recreating database..." });
+            progress?.Report(new ImportProgress { CurrentOperation = "Upload failed, checking if the database can be created..." });
 
             if (string.IsNullOrEmpty(_userPreferencesService.TursoPlatformApiToken) ||
                 string.IsNullOrEmpty(_userPreferencesService.TursoDatabaseName))
@@ -3124,7 +3240,8 @@ public class VaultImportService : IVaultImportService
                 return result;
             }
 
-            var autoCreateResult = await TryAutoCreateTursoDatabaseAsync(tempDbPath, progress);
+            var autoCreateResult = await TryAutoCreateTursoDatabaseAsync(
+                tempDbPath, lastUploadError?.Message ?? "Unknown upload error", createBackup, progress);
 
             if (autoCreateResult.Success)
             {
@@ -3201,6 +3318,7 @@ public class VaultImportService : IVaultImportService
                 PropertyNameCaseInsensitive = true,
                 AllowTrailingCommas = true
             });
+            HelloID.Vault.Core.Utilities.FieldKeySanitizer.SanitizeVaultData(vaultData);
 
             if (vaultData == null)
             {
