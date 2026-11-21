@@ -101,6 +101,10 @@ public partial class SettingsViewModel : ObservableObject
     private bool _hasUnsavedChanges;
 
     private DatabaseType _originalDatabaseType;
+    private string? _originalDatabasePath;
+    private string _originalSupabaseConnectionString = string.Empty;
+    private string _originalPostgreSqlConnectionString = string.Empty;
+    private string _originalTursoDatabaseUrl = string.Empty;
 
     [ObservableProperty]
     private string _sqliteDatabasePath = string.Empty;
@@ -142,6 +146,9 @@ public partial class SettingsViewModel : ObservableObject
         // Load current settings
         _selectedDatabaseType = _preferencesService.DatabaseType;
         _originalDatabaseType = _selectedDatabaseType;
+        _originalSupabaseConnectionString = _preferencesService.SupabaseConnectionString ?? string.Empty;
+        _originalPostgreSqlConnectionString = _preferencesService.PostgreSqlConnectionString ?? string.Empty;
+        _originalTursoDatabaseUrl = _preferencesService.TursoDatabaseUrl ?? string.Empty;
         _supabaseConnectionString = _preferencesService.SupabaseConnectionString ?? string.Empty;
         _supabaseUrl = _preferencesService.SupabaseUrl ?? string.Empty;
         _postgreSqlConnectionString = _preferencesService.PostgreSqlConnectionString ?? string.Empty;        _tursoDatabaseUrl = _preferencesService.TursoDatabaseUrl ?? string.Empty;
@@ -156,6 +163,7 @@ public partial class SettingsViewModel : ObservableObject
                 ? customDbPath
                 : Path.Combine(appDataPath, customDbPath)
             : defaultDbPath;
+        _originalDatabasePath = _sqliteDatabasePath;
 
         UpdateVisibility();
     }
@@ -685,8 +693,15 @@ public partial class SettingsViewModel : ObservableObject
                 }
             }
 
-            // Check if database type changed BEFORE updating _originalDatabaseType
-            bool databaseTypeChanged = SelectedDatabaseType != _originalDatabaseType;
+            // Check if the effective connection changed BEFORE updating the
+            // originals: the connection factories are built once at startup,
+            // so a changed path or connection string needs a restart too
+            bool connectionChanged =
+                SelectedDatabaseType != _originalDatabaseType ||
+                !string.Equals(SqliteDatabasePath, _originalDatabasePath, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(NormalizePostgreConnectionString(SupabaseConnectionString), _originalSupabaseConnectionString, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(NormalizePostgreConnectionString(PostgreSqlConnectionString, enforceSsl: false), _originalPostgreSqlConnectionString, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(TursoDatabaseUrl, _originalTursoDatabaseUrl, StringComparison.OrdinalIgnoreCase);
 
             // Compute the database path to save (relative or absolute)
             string? dbPathToSave = null;
@@ -725,15 +740,19 @@ public partial class SettingsViewModel : ObservableObject
             await _preferencesService.SaveAsync();
 
             _originalDatabaseType = SelectedDatabaseType;
+            _originalDatabasePath = SqliteDatabasePath;
+            _originalSupabaseConnectionString = NormalizePostgreConnectionString(SupabaseConnectionString);
+            _originalPostgreSqlConnectionString = NormalizePostgreConnectionString(PostgreSqlConnectionString, enforceSsl: false);
+            _originalTursoDatabaseUrl = TursoDatabaseUrl;
             HasUnsavedChanges = false;
             StatusMessage = "✓ Settings saved successfully.";
 
-            if (databaseTypeChanged)
+            if (connectionChanged)
             {
                 // Prompt user to restart
                 bool shouldRestart = MessageBox.Show(
-                    "Database type has changed. The application must restart for changes to take effect.\n\n" +
-                    "Note: Switching databases will not migrate your data. You will need to import data into the new database.\n\n" +
+                    "Database connection settings have changed. The application must restart for changes to take effect.\n\n" +
+                    "Note: Changing databases will not migrate your data. You will need to import data into the new database.\n\n" +
                     "Restart now?",
                     "Restart Required",
                     MessageBoxButton.YesNo,

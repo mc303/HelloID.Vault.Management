@@ -9,7 +9,7 @@ namespace HelloID.Vault.Data.Repositories.Sqlite;
 /// SQLite-specific implementation of ContractRepository.
 /// Uses INSERT OR REPLACE for cache refresh operations.
 /// </summary>
-public class SqliteContractRepository : AbstractContractRepository
+public class SqliteContractRepository : DapperContractRepositoryBase
 {
     public SqliteContractRepository(IDatabaseConnectionFactory connectionFactory)
         : base(connectionFactory)

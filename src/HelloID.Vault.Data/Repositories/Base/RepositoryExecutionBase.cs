@@ -19,4 +19,14 @@ public abstract class RepositoryExecutionBase
     protected abstract Task<int> ExecuteRowsAsync(string sql, object? parameters = null);
 
     protected abstract Task<TResult> ExecuteScalarValueAsync<TResult>(string sql, object? parameters = null);
+
+    /// <summary>
+    /// Executes a write with foreign key enforcement relaxed where the backend
+    /// supports per-connection FK settings (self-referencing manager updates).
+    /// Backends without that knob (Turso) behave like ExecuteRowsAsync.
+    /// </summary>
+    protected virtual Task<int> ExecuteRowsRelaxedAsync(string sql, object? parameters = null)
+    {
+        return ExecuteRowsAsync(sql, parameters);
+    }
 }

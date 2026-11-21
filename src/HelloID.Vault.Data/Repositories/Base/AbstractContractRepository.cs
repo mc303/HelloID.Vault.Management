@@ -1,10 +1,9 @@
-using Dapper;
+using System.Data;
 using HelloID.Vault.Core.Models.DTOs;
 using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.Filters;
 using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Data.Repositories.Interfaces;
-using System.Data;
 using System.Diagnostics;
 
 namespace HelloID.Vault.Data.Repositories.Base;
@@ -13,50 +12,38 @@ namespace HelloID.Vault.Data.Repositories.Base;
 /// Abstract base repository for Contract operations.
 /// Contains shared logic and defines database-specific abstract methods.
 /// </summary>
-public abstract class AbstractContractRepository : IContractRepository
+public abstract class AbstractContractRepository : RepositoryExecutionBase, IContractRepository
 {
-    private readonly IDatabaseConnectionFactory _connectionFactory;
-
-    protected AbstractContractRepository(IDatabaseConnectionFactory connectionFactory)
-    {
-        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
-    }
-
-    /// <summary>
-    /// Gets the database connection factory.
-    /// </summary>
-    protected IDatabaseConnectionFactory ConnectionFactory => _connectionFactory;
 
     public async Task<IEnumerable<ContractDto>> GetPagedAsync(ContractFilter filter, int page, int pageSize)
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var whereClauses = new List<string>();
-        var parameters = new DynamicParameters();
+        var parameters = new Dictionary<string, object?>();
 
         if (!string.IsNullOrWhiteSpace(filter.PersonId))
         {
             whereClauses.Add("c.person_id = @PersonId");
-            parameters.Add("PersonId", filter.PersonId);
+            parameters["PersonId"] = filter.PersonId;
         }
 
         if (!string.IsNullOrWhiteSpace(filter.TypeCode))
         {
             whereClauses.Add("c.type_code = @TypeCode");
-            parameters.Add("TypeCode", filter.TypeCode);
+            parameters["TypeCode"] = filter.TypeCode;
         }
 
         if (!string.IsNullOrWhiteSpace(filter.DepartmentExternalId))
         {
             whereClauses.Add("c.department_external_id = @DepartmentExternalId AND c.department_source = @DepartmentSource");
-            parameters.Add("DepartmentExternalId", filter.DepartmentExternalId);
-            parameters.Add("DepartmentSource", filter.DepartmentSource);
+            parameters["DepartmentExternalId"] = filter.DepartmentExternalId;
+            parameters["DepartmentSource"] = filter.DepartmentSource;
         }
 
         var whereClause = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
 
-        parameters.Add("Limit", pageSize);
-        parameters.Add("Offset", (page - 1) * pageSize);
+        parameters["Limit"] = pageSize;
+        parameters["Offset"] = (page - 1) * pageSize;
 
         var sql = $@"
             SELECT
@@ -83,15 +70,14 @@ public abstract class AbstractContractRepository : IContractRepository
             ORDER BY c.start_date DESC
             LIMIT @Limit OFFSET @Offset";
 
-        return await connection.QueryAsync<ContractDto>(sql, parameters).ConfigureAwait(false);
+        return await QueryRowsAsync<ContractDto>(sql, parameters).ConfigureAwait(false);
     }
 
     public async Task<(IEnumerable<ContractDetailDto> items, int totalCount)> GetPagedDetailsAsync(ContractFilter filter, int page, int pageSize)
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var whereClauses = new List<string>();
-        var parameters = new DynamicParameters();
+        var parameters = new Dictionary<string, object?>();
 
         if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
         {
@@ -99,37 +85,37 @@ public abstract class AbstractContractRepository : IContractRepository
                 OR LOWER(person_name) LIKE @SearchTerm
                 OR LOWER(external_id) LIKE @SearchTerm
                 OR LOWER(type_description) LIKE @SearchTerm)");
-            parameters.Add("SearchTerm", $"%{filter.SearchTerm.ToLower()}%");
+            parameters["SearchTerm"] = $"%{filter.SearchTerm.ToLower()}%";
         }
 
         if (!string.IsNullOrWhiteSpace(filter.PersonId))
         {
             whereClauses.Add("person_id = @PersonId");
-            parameters.Add("PersonId", filter.PersonId);
+            parameters["PersonId"] = filter.PersonId;
         }
 
         if (!string.IsNullOrWhiteSpace(filter.TypeCode))
         {
             whereClauses.Add("type_code = @TypeCode");
-            parameters.Add("TypeCode", filter.TypeCode);
+            parameters["TypeCode"] = filter.TypeCode;
         }
 
         if (!string.IsNullOrWhiteSpace(filter.DepartmentExternalId))
         {
             whereClauses.Add("department_external_id = @DepartmentExternalId AND department_source = @DepartmentSource");
-            parameters.Add("DepartmentExternalId", filter.DepartmentExternalId);
-            parameters.Add("DepartmentSource", filter.DepartmentSource);
+            parameters["DepartmentExternalId"] = filter.DepartmentExternalId;
+            parameters["DepartmentSource"] = filter.DepartmentSource;
         }
 
         var whereClause = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
 
         // Get total count
         var countSql = $"SELECT COUNT(*) FROM contract_details_view {whereClause}";
-        var totalCount = await connection.ExecuteScalarAsync<int>(countSql, parameters).ConfigureAwait(false);
+        var totalCount = await ExecuteScalarValueAsync<int>(countSql, parameters).ConfigureAwait(false);
 
         // Get paged data
-        parameters.Add("Limit", pageSize);
-        parameters.Add("Offset", (page - 1) * pageSize);
+        parameters["Limit"] = pageSize;
+        parameters["Offset"] = (page - 1) * pageSize;
 
         var sql = $@"
             SELECT
@@ -189,14 +175,13 @@ public abstract class AbstractContractRepository : IContractRepository
             ORDER BY c.start_date DESC
             LIMIT @Limit OFFSET @Offset";
 
-        var items = await connection.QueryAsync<ContractDetailDto>(sql, parameters).ConfigureAwait(false);
+        var items = await QueryRowsAsync<ContractDetailDto>(sql, parameters).ConfigureAwait(false);
 
         return (items, totalCount);
     }
 
     public async Task<IEnumerable<ContractDto>> GetByPersonIdAsync(string personId)
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var sql = @"
             SELECT
@@ -222,12 +207,11 @@ public abstract class AbstractContractRepository : IContractRepository
             WHERE c.person_id = @PersonId
             ORDER BY c.start_date DESC";
 
-        return await connection.QueryAsync<ContractDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
+        return await QueryRowsAsync<ContractDto>(sql, new { PersonId = personId }).ConfigureAwait(false);
     }
 
     public async Task<Contract?> GetByIdAsync(int contractId)
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var sql = @"
             SELECT
@@ -265,12 +249,11 @@ public abstract class AbstractContractRepository : IContractRepository
             FROM contracts
             WHERE contract_id = @ContractId";
 
-        return await connection.QuerySingleOrDefaultAsync<Contract>(sql, new { ContractId = contractId }).ConfigureAwait(false);
+        return await QueryFirstRowAsync<Contract>(sql, new { ContractId = contractId }).ConfigureAwait(false);
     }
 
     public async Task<int> InsertAsync(Contract contract)
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var sql = @"
             INSERT INTO contracts (
@@ -289,34 +272,20 @@ public abstract class AbstractContractRepository : IContractRepository
                 @TeamSource, @DepartmentSource, @DivisionSource, @TitleSource, @OrganizationSource
             )";
 
-        return await connection.ExecuteAsync(sql, contract).ConfigureAwait(false);
+        return await ExecuteRowsAsync(sql, contract).ConfigureAwait(false);
     }
 
-    public async Task<int> InsertAsync(Contract contract, IDbConnection connection, IDbTransaction transaction)
+    /// <summary>
+    /// Inserts within an existing transaction. Backends without ambient
+    /// transactions (Turso) fall back to the plain insert.
+    /// </summary>
+    public virtual Task<int> InsertAsync(Contract contract, IDbConnection connection, IDbTransaction transaction)
     {
-        var sql = @"
-            INSERT INTO contracts (
-                external_id, person_id, start_date, end_date, type_code, type_description,
-                fte, hours_per_week, percentage, sequence,
-                manager_person_external_id, location_external_id, cost_center_external_id, cost_bearer_external_id,
-                employer_external_id, team_external_id, department_external_id, division_external_id, title_external_id, organization_external_id, source,
-                location_source, cost_center_source, cost_bearer_source, employer_source,
-                team_source, department_source, division_source, title_source, organization_source
-            ) VALUES (
-                @ExternalId, @PersonId, @StartDate, @EndDate, @TypeCode, @TypeDescription,
-                @Fte, @HoursPerWeek, @Percentage, @Sequence,
-                @ManagerPersonExternalId, @LocationExternalId, @CostCenterExternalId, @CostBearerExternalId,
-                @EmployerExternalId, @TeamExternalId, @DepartmentExternalId, @DivisionExternalId, @TitleExternalId, @OrganizationExternalId, @Source,
-                @LocationSource, @CostCenterSource, @CostBearerSource, @EmployerSource,
-                @TeamSource, @DepartmentSource, @DivisionSource, @TitleSource, @OrganizationSource
-            )";
-
-        return await connection.ExecuteAsync(sql, contract, transaction).ConfigureAwait(false);
+        return InsertAsync(contract);
     }
 
     public async Task<int> UpdateAsync(Contract contract)
     {
-        using var connection = _connectionFactory.CreateConnection(enforceForeignKeys: false);
 
         Debug.WriteLine($"[ContractRepository] UpdateAsync - Contract ID: {contract.ContractId}, External ID: {contract.ExternalId}");
         Debug.WriteLine($"  Manager: {contract.ManagerPersonExternalId}");
@@ -335,7 +304,7 @@ public abstract class AbstractContractRepository : IContractRepository
 
         if (!string.IsNullOrWhiteSpace(managerId))
         {
-            var exists = await connection.QuerySingleOrDefaultAsync<int>(
+            var exists = await ExecuteScalarValueAsync<int>(
                 "SELECT COUNT(*) FROM persons WHERE person_id = @ExternalId",
                 new { ExternalId = managerId }).ConfigureAwait(false);
             if (exists == 0)
@@ -351,7 +320,7 @@ public abstract class AbstractContractRepository : IContractRepository
 
         if (!string.IsNullOrWhiteSpace(contract.DepartmentExternalId))
         {
-            var exists = await connection.QuerySingleOrDefaultAsync<int>(
+            var exists = await ExecuteScalarValueAsync<int>(
                 "SELECT COUNT(*) FROM departments WHERE external_id = @ExternalId AND source = @Source",
                 new { ExternalId = contract.DepartmentExternalId, Source = contract.DepartmentSource }).ConfigureAwait(false);
             if (exists == 0)
@@ -360,7 +329,7 @@ public abstract class AbstractContractRepository : IContractRepository
 
         if (!string.IsNullOrWhiteSpace(contract.LocationExternalId))
         {
-            var exists = await connection.QuerySingleOrDefaultAsync<int>(
+            var exists = await ExecuteScalarValueAsync<int>(
                 "SELECT COUNT(*) FROM locations WHERE external_id = @ExternalId AND source = @Source",
                 new { ExternalId = contract.LocationExternalId, Source = contract.LocationSource }).ConfigureAwait(false);
             if (exists == 0)
@@ -369,7 +338,7 @@ public abstract class AbstractContractRepository : IContractRepository
 
         if (!string.IsNullOrWhiteSpace(contract.TitleExternalId))
         {
-            var exists = await connection.QuerySingleOrDefaultAsync<int>(
+            var exists = await ExecuteScalarValueAsync<int>(
                 "SELECT COUNT(*) FROM titles WHERE external_id = @ExternalId AND source = @Source",
                 new { ExternalId = contract.TitleExternalId, Source = contract.TitleSource }).ConfigureAwait(false);
             if (exists == 0)
@@ -378,7 +347,7 @@ public abstract class AbstractContractRepository : IContractRepository
 
         if (!string.IsNullOrWhiteSpace(contract.OrganizationExternalId))
         {
-            var exists = await connection.QuerySingleOrDefaultAsync<int>(
+            var exists = await ExecuteScalarValueAsync<int>(
                 "SELECT COUNT(*) FROM organizations WHERE external_id = @ExternalId AND source = @Source",
                 new { ExternalId = contract.OrganizationExternalId, Source = contract.OrganizationSource }).ConfigureAwait(false);
             if (exists == 0)
@@ -460,49 +429,46 @@ public abstract class AbstractContractRepository : IContractRepository
             contract.ContractId
         };
 
-        var rowsAffected = await connection.ExecuteAsync(sql, parameters).ConfigureAwait(false);
+        var rowsAffected = await ExecuteRowsRelaxedAsync(sql, parameters).ConfigureAwait(false);
         Debug.WriteLine($"[ContractRepository] Update completed: {rowsAffected} rows affected");
         return rowsAffected;
     }
 
     public async Task<int> DeleteAsync(int contractId)
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var sql = "DELETE FROM contracts WHERE contract_id = @ContractId";
 
-        return await connection.ExecuteAsync(sql, new { ContractId = contractId }).ConfigureAwait(false);
+        return await ExecuteRowsAsync(sql, new { ContractId = contractId }).ConfigureAwait(false);
     }
 
     public async Task<int> GetCountAsync(ContractFilter filter)
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var whereClauses = new List<string>();
-        var parameters = new DynamicParameters();
+        var parameters = new Dictionary<string, object?>();
 
         if (!string.IsNullOrWhiteSpace(filter.PersonId))
         {
             whereClauses.Add("person_id = @PersonId");
-            parameters.Add("PersonId", filter.PersonId);
+            parameters["PersonId"] = filter.PersonId;
         }
 
         if (!string.IsNullOrWhiteSpace(filter.TypeCode))
         {
             whereClauses.Add("type_code = @TypeCode");
-            parameters.Add("TypeCode", filter.TypeCode);
+            parameters["TypeCode"] = filter.TypeCode;
         }
 
         var whereClause = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : "";
 
         var sql = $"SELECT COUNT(*) FROM contracts {whereClause}";
 
-        return await connection.ExecuteScalarAsync<int>(sql, parameters).ConfigureAwait(false);
+        return await ExecuteScalarValueAsync<int>(sql, parameters).ConfigureAwait(false);
     }
 
     public async Task<ContractJsonDto?> GetJsonViewByIdAsync(int contractId)
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var sql = @"
             SELECT
@@ -549,7 +515,7 @@ public abstract class AbstractContractRepository : IContractRepository
             FROM contract_json_view
             WHERE contract_id = @ContractId";
 
-        var result = await connection.QuerySingleOrDefaultAsync<ContractJsonViewRow>(sql, new { ContractId = contractId }).ConfigureAwait(false);
+        var result = await QueryFirstRowAsync<ContractJsonViewRow>(sql, new { ContractId = contractId }).ConfigureAwait(false);
 
         if (result == null)
             return null;
@@ -635,7 +601,7 @@ public abstract class AbstractContractRepository : IContractRepository
         };
 
         // Load custom fields
-        var customFieldsJson = await connection.QuerySingleOrDefaultAsync<string>(
+        var customFieldsJson = await QueryFirstRowAsync<string>(
             "SELECT custom_fields FROM contracts WHERE contract_id = @ContractId",
             new { ContractId = contractId }).ConfigureAwait(false);
 
@@ -649,7 +615,6 @@ public abstract class AbstractContractRepository : IContractRepository
     }
     public async Task<IEnumerable<ContractDetailDto>> GetAllDetailsAsync()
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var sql = @"
             SELECT
@@ -707,12 +672,11 @@ public abstract class AbstractContractRepository : IContractRepository
             LEFT JOIN source_system ss ON c.source = ss.system_id
             ORDER BY c.start_date DESC";
 
-        return await connection.QueryAsync<ContractDetailDto>(sql).ConfigureAwait(false);
+        return await QueryRowsAsync<ContractDetailDto>(sql).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<ContractDetailDto>> GetDetailsByPersonIdAsync(string personId)
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var sql = @"
             SELECT
@@ -771,12 +735,11 @@ public abstract class AbstractContractRepository : IContractRepository
             WHERE c.person_id = @personId
             ORDER BY c.start_date DESC";
 
-        return await connection.QueryAsync<ContractDetailDto>(sql, new { personId }).ConfigureAwait(false);
+        return await QueryRowsAsync<ContractDetailDto>(sql, new { personId }).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<ContractDetailDto>> GetAllFromCacheAsync()
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var sql = @"
             SELECT
@@ -834,80 +797,35 @@ public abstract class AbstractContractRepository : IContractRepository
             LEFT JOIN source_system ss ON c.source = ss.system_id
             ORDER BY c.start_date DESC";
 
-        return await connection.QueryAsync<ContractDetailDto>(sql).ConfigureAwait(false);
+        return await QueryRowsAsync<ContractDetailDto>(sql).ConfigureAwait(false);
     }
 
-    public async Task RebuildCacheAsync()
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        using var transaction = connection.BeginTransaction();
+    /// <summary>
+    /// Rebuilds the contract cache atomically (backend-specific transaction
+    /// mechanism) and updates the cache metadata.
+    /// </summary>
+    public abstract Task RebuildCacheAsync();
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+    protected const string CacheDeleteSql = "DELETE FROM contract_details_cache";
 
-        // Atomic rebuild in one transaction: readers never see an empty cache
-        // and a failure rolls back to the previous contents
+    protected const string CacheFillSql = "INSERT INTO contract_details_cache SELECT * FROM contract_details_view";
 
-        // Delete existing cache data
-        await connection.ExecuteAsync("DELETE FROM contract_details_cache", transaction).ConfigureAwait(false);
-
-        // Rebuild cache from view
-        var insertSql = @"
-            INSERT INTO contract_details_cache
-            SELECT * FROM contract_details_view";
-
-        await connection.ExecuteAsync(insertSql, transaction).ConfigureAwait(false);
-
-        // Update metadata
-        var rowCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM contract_details_cache", transaction).ConfigureAwait(false);
-
-        stopwatch.Stop();
-
-        var updateMetadataSql = @"
+    protected const string CacheMetadataUpdateSql = @"
             UPDATE cache_metadata
             SET last_refreshed = @LastRefreshed,
                 row_count = @RowCount,
                 refresh_duration_ms = @RefreshDurationMs
             WHERE cache_name = @CacheName";
 
-        await connection.ExecuteAsync(updateMetadataSql, new
-        {
-            CacheName = "contract_details_cache",
-            LastRefreshed = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
-            RowCount = rowCount,
-            RefreshDurationMs = stopwatch.ElapsedMilliseconds
-        }, transaction).ConfigureAwait(false);
+    protected const string CacheCountSql = "SELECT COUNT(*) FROM contract_details_cache";
 
-        transaction.Commit();
-    }
-
-    public async Task RefreshContractCacheItemAsync(int contractId)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-        await RefreshContractCacheItemInternalAsync(contractId, connection).ConfigureAwait(false);
-
-        // Update metadata with incremental refresh duration
-        var updateMetadataSql = @"
-            UPDATE cache_metadata
-            SET last_refreshed = @LastRefreshed,
-                refresh_duration_ms = @RefreshDurationMs
-            WHERE cache_name = @CacheName";
-
-        stopwatch.Stop();
-
-        await connection.ExecuteAsync(updateMetadataSql, new
-        {
-            CacheName = "contract_details_cache",
-            LastRefreshed = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"),
-            RefreshDurationMs = stopwatch.ElapsedMilliseconds
-        }).ConfigureAwait(false);
-    }
+    /// <summary>
+    /// Refreshes the cache entry for one contract and touches the metadata.
+    /// </summary>
+    public abstract Task RefreshContractCacheItemAsync(int contractId);
 
     public async Task<CacheMetadata> GetCacheMetadataAsync()
     {
-        using var connection = _connectionFactory.CreateConnection();
 
         var sql = @"
             SELECT
@@ -918,7 +836,7 @@ public abstract class AbstractContractRepository : IContractRepository
             FROM cache_metadata
             WHERE cache_name = @CacheName";
 
-        var result = await connection.QuerySingleOrDefaultAsync<CacheMetadata>(sql, new { CacheName = "contract_details_cache" }).ConfigureAwait(false);
+        var result = await QueryFirstRowAsync<CacheMetadata>(sql, new { CacheName = "contract_details_cache" }).ConfigureAwait(false);
 
         return result ?? new CacheMetadata
         {
@@ -932,7 +850,6 @@ public abstract class AbstractContractRepository : IContractRepository
     /// <summary>
     /// Database-specific implementation for refreshing a contract cache item.
     /// </summary>
-    protected abstract Task RefreshContractCacheItemInternalAsync(int contractId, IDbConnection connection);
 
     /// <summary>
     /// Intermediate mapping class for contract_json_view query results.

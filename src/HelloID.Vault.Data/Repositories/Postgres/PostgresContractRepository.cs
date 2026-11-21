@@ -9,7 +9,7 @@ namespace HelloID.Vault.Data.Repositories.Postgres;
 /// PostgreSQL-specific implementation of ContractRepository.
 /// Uses INSERT ... ON CONFLICT DO UPDATE SET for cache refresh operations.
 /// </summary>
-public class PostgresContractRepository : AbstractContractRepository
+public class PostgresContractRepository : DapperContractRepositoryBase
 {
     public PostgresContractRepository(IDatabaseConnectionFactory connectionFactory)
         : base(connectionFactory)
