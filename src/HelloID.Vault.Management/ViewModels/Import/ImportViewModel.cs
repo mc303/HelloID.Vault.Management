@@ -10,6 +10,8 @@ using HelloID.Vault.Management.ViewModels.ReferenceData;
 using HelloID.Vault.Services.Anonymization.Models;
 using HelloID.Vault.Services.Interfaces;
 using Microsoft.Win32;
+using HelloID.Vault.Core.Models;
+
 
 namespace HelloID.Vault.Management.ViewModels.Import;
 

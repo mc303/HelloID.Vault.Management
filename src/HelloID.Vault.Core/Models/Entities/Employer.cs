@@ -3,7 +3,7 @@ namespace HelloID.Vault.Core.Models.Entities;
 /// <summary>
 /// Represents an employer.
 /// </summary>
-public class Employer
+public class Employer : IReferenceDataEntity
 {
     public string ExternalId { get; set; } = string.Empty;
     public string? Code { get; set; }

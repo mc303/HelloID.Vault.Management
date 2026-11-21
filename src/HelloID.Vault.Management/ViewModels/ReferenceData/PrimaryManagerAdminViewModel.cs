@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HelloID.Vault.Core.Models.DTOs;
 using HelloID.Vault.Services.Interfaces;
+using HelloID.Vault.Core.Models;
+
 
 namespace HelloID.Vault.Management.ViewModels.ReferenceData;
 

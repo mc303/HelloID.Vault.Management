@@ -1,51 +1,13 @@
-using Dapper;
 using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Data.Connection;
+using HelloID.Vault.Data.Repositories.Base;
 using HelloID.Vault.Data.Repositories.Interfaces;
 
 namespace HelloID.Vault.Data.Repositories;
 
-public class CostCenterRepository : ICostCenterRepository
+public class CostCenterRepository : DapperReferenceDataRepositoryBase<CostCenter>, ICostCenterRepository
 {
-    private readonly IDatabaseConnectionFactory _connectionFactory;
+    public CostCenterRepository(IDatabaseConnectionFactory connectionFactory) : base(connectionFactory) { }
 
-    public CostCenterRepository(IDatabaseConnectionFactory connectionFactory)
-    {
-        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
-    }
-
-    public async Task<IEnumerable<CostCenter>> GetAllAsync()
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = "SELECT external_id AS ExternalId, code AS Code, name AS Name, source AS Source FROM cost_centers ORDER BY name";
-        return await connection.QueryAsync<CostCenter>(sql).ConfigureAwait(false);
-    }
-
-    public async Task<CostCenter?> GetByIdAsync(string externalId, string source)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = "SELECT external_id AS ExternalId, code AS Code, name AS Name, source AS Source FROM cost_centers WHERE external_id = @ExternalId AND source = @Source";
-        return await connection.QuerySingleOrDefaultAsync<CostCenter>(sql, new { ExternalId = externalId, Source = source }).ConfigureAwait(false);
-    }
-
-    public async Task<int> InsertAsync(CostCenter costCenter)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = "INSERT INTO cost_centers (external_id, code, name, source) VALUES (@ExternalId, @Code, @Name, @Source)";
-        return await connection.ExecuteAsync(sql, costCenter).ConfigureAwait(false);
-    }
-
-    public async Task<int> UpdateAsync(CostCenter costCenter)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = "UPDATE cost_centers SET code = @Code, name = @Name, source = @Source WHERE external_id = @ExternalId AND source = @Source";
-        return await connection.ExecuteAsync(sql, costCenter).ConfigureAwait(false);
-    }
-
-    public async Task<int> DeleteAsync(string externalId, string source)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = "DELETE FROM cost_centers WHERE external_id = @ExternalId AND source = @Source";
-        return await connection.ExecuteAsync(sql, new { ExternalId = externalId, Source = source }).ConfigureAwait(false);
-    }
+    protected override string TableName => "cost_centers";
 }

@@ -1,6 +1,8 @@
 using HelloID.Vault.Core.Models.Entities;
 using HelloID.Vault.Core.Models.Json;
 using HelloID.Vault.Services.Interfaces;
+using HelloID.Vault.Core.Models;
+
 
 namespace HelloID.Vault.Services.Import.Mappers;
 

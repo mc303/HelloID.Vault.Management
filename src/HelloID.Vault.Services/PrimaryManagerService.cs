@@ -6,6 +6,7 @@ using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Data.Repositories.Interfaces;
 using HelloID.Vault.Services.Interfaces;
 using ContractDto = HelloID.Vault.Core.Models.DTOs.ContractDetailDto;
+using HelloID.Vault.Core.Models;
 
 namespace HelloID.Vault.Services;
 

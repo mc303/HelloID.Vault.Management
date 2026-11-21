@@ -1,6 +1,8 @@
 using Dapper;
 using HelloID.Vault.Data.Connection;
 using HelloID.Vault.Services.Interfaces;
+using HelloID.Vault.Core.Models;
+
 
 namespace HelloID.Vault.Services.Import.Detection;
 

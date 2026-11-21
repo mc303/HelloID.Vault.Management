@@ -3,7 +3,7 @@ namespace HelloID.Vault.Core.Models.Entities;
 /// <summary>
 /// Represents a physical location.
 /// </summary>
-public class Location
+public class Location : IReferenceDataEntity
 {
     public string ExternalId { get; set; } = string.Empty;
     public string? Code { get; set; }

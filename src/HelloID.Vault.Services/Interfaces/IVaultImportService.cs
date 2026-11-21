@@ -1,4 +1,6 @@
 using HelloID.Vault.Data.Connection;
+using HelloID.Vault.Core.Models;
+
 
 namespace HelloID.Vault.Services.Interfaces;
 

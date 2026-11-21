@@ -5,6 +5,19 @@ All notable changes to HelloID.Vault.Management will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-11-21
+
+### Fixed
+- Add Core.Models using to the import tests after the enum move
+- Skip the Tests workflow when the test solution is absent
+
+### Changed
+- Deduplicate the person repository across backends
+- Deduplicate the contact repository across backends
+- Share one CRUD base across all reference data repositories
+- Split VaultImportService into partial classes by job
+- Move UserPreferences and PrimaryManagerLogic to Core
+
 ## [0.7.0] - 2026-11-20
 
 ### Added
